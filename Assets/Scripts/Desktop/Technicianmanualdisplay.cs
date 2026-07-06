@@ -150,64 +150,163 @@ public class TechnicianManualDisplay : MonoBehaviour
         BuildPages();
     }
 
-    /// <summary>Construye las páginas del manual para el reto activo.</summary>
+    /// <summary>
+    /// Construye las páginas del manual para el reto activo. El número de páginas DEPENDE del
+    /// reto: los retos simples llevan las 3 páginas base; los complejos añaden páginas extra
+    /// (diagnóstico, y en el Reto 4 además referencia de código Arduino y guía de cableado).
+    /// </summary>
     void BuildPages()
     {
         if (gameManager == null) return;
+
+        var lista = new System.Collections.Generic.List<Pagina>();
 
         // Prioridad: ScriptableObject → TechnicianManual legacy
         ManualPage page = GetManualPage(gameManager.currentLevel);
 
         if (page != null)
         {
-            _paginas = new Pagina[]
+            lista.Add(new Pagina
             {
-                new Pagina
-                {
-                    izquierda = page.titulo + "\n\n" + page.concepto,
-                    derecha   = "FORMULAS:\n\n" + page.formula
-                },
-                new Pagina
-                {
-                    izquierda = "OBJETIVO:\n\n" + page.objetivo,
-                    derecha   = "TABLA DE REFERENCIA:\n\n" + page.tablaValores
-                },
-                new Pagina
-                {
-                    izquierda = page.componentesClave,
-                    derecha   = page.codigoColores
-                }
-            };
+                izquierda = page.titulo + "\n\n" + page.concepto,
+                derecha   = "FORMULAS:\n\n" + page.formula
+            });
+            lista.Add(new Pagina
+            {
+                izquierda = "OBJETIVO:\n\n" + page.objetivo,
+                derecha   = "TABLA DE REFERENCIA:\n\n" + page.tablaValores
+            });
+            lista.Add(new Pagina
+            {
+                izquierda = page.componentesClave,
+                derecha   = page.codigoColores
+            });
         }
         else if (manual != null)
         {
             // Fallback al sistema legacy (TechnicianManual MonoBehaviour)
             var data = manual.GetManualData(gameManager.currentLevel);
-            _paginas = new Pagina[]
+            lista.Add(new Pagina
             {
-                new Pagina
-                {
-                    izquierda = data.titulo + "\n\n" + data.concepto,
-                    derecha   = "FORMULAS:\n\n" + data.formula
-                },
-                new Pagina
-                {
-                    izquierda = "OBJETIVO:\n\n" + data.objetivo,
-                    derecha   = "TABLA DE REFERENCIA:\n\n" + data.tablaValores
-                },
-                new Pagina
-                {
-                    // Página 3: sketch de referencia si existe, sino valores/colores genéricos
-                    izquierda = !string.IsNullOrEmpty(data.programaReferencia)
-                                    ? data.programaReferencia
-                                    : BuildComponentValues(),
-                    derecha   = BuildColorCodes()
-                }
-            };
+                izquierda = data.titulo + "\n\n" + data.concepto,
+                derecha   = "FORMULAS:\n\n" + data.formula
+            });
+            lista.Add(new Pagina
+            {
+                izquierda = "OBJETIVO:\n\n" + data.objetivo,
+                derecha   = "TABLA DE REFERENCIA:\n\n" + data.tablaValores
+            });
+            lista.Add(new Pagina
+            {
+                // Página 3: sketch de referencia si existe, sino valores/colores genéricos
+                izquierda = !string.IsNullOrEmpty(data.programaReferencia)
+                                ? data.programaReferencia
+                                : BuildComponentValues(),
+                derecha   = BuildColorCodes()
+            });
         }
         else return;
 
+        // Páginas EXTRA según el reto (diagnóstico, código Arduino, cableado…).
+        lista.AddRange(PaginasExtraPorReto(gameManager.currentLevel));
+
+        _paginas = lista.ToArray();
+        if (_paginaActual >= _paginas.Length) _paginaActual = 0;
         MostrarPagina(_paginaActual);
+    }
+
+    /// <summary>
+    /// Páginas adicionales por reto — aquí vive la diferencia de grosor del manual:
+    /// Reto 1 = 0 extra (3 en total) · Retos 2-3 = 1 extra de diagnóstico (4) ·
+    /// Reto 4 = 3 extra: código Arduino, cableado del protoboard y diagnóstico (6).
+    /// Texto ASCII-safe (LiberationSans SDF no tiene flechas ni símbolos especiales).
+    /// </summary>
+    Pagina[] PaginasExtraPorReto(LevelType level)
+    {
+        switch (level)
+        {
+            case LevelType.Parallel:
+                return new[]
+                {
+                    new Pagina
+                    {
+                        izquierda = "DIAGNOSTICO — RETO 2:\n\n" +
+                                    "Sintoma: una rama del paralelo\nno enciende.\n\n" +
+                                    "1. Pide al Explorador medir el\n   voltaje de CADA rama.\n" +
+                                    "2. Rama con 9V pero LED apagado\n   = LED danado o invertido.\n" +
+                                    "3. Rama con 0V = conexion abierta.",
+                        derecha   = "GUIA AL EXPLORADOR:\n\n" +
+                                    "- El LED nuevo va con el ANODO\n  (pata larga) hacia el positivo.\n" +
+                                    "- Verde continuo = polaridad OK.\n" +
+                                    "- La rama tiene proteccion de\n  470 Ohm: no se quema al probar.\n\n" +
+                                    "Victoria: LED colocado con la\npolaridad correcta."
+                    }
+                };
+
+            case LevelType.Mixed:
+                return new[]
+                {
+                    new Pagina
+                    {
+                        izquierda = "DIAGNOSTICO — RETO 3:\n\n" +
+                                    "Este circuito tiene VARIAS fallas\na la vez. Orden recomendado:\n\n" +
+                                    "1. Polaridad del LED (pata larga\n   al positivo).\n" +
+                                    "2. Polaridad del capacitor (franja\n   = negativo).\n" +
+                                    "3. Valor de la resistencia serie\n   (leer codigo de colores).",
+                        derecha   = "PISTAS POR MEDICION:\n\n" +
+                                    "- LED apagado con voltaje OK\n  = polaridad invertida.\n" +
+                                    "- I muy baja = R serie muy alta\n  (470 en vez de 220 Ohm).\n" +
+                                    "- Voltaje negativo en el cap\n  = capacitor invertido.\n\n" +
+                                    "Corrige TODO antes de validar."
+                    }
+                };
+
+            case LevelType.Arduino:
+                return new[]
+                {
+                    new Pagina
+                    {
+                        izquierda = "CODIGO ARDUINO — BASICO:\n\n" +
+                                    "void setup() {\n  pinMode(13, OUTPUT);\n}\n\n" +
+                                    "void loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n" +
+                                    "  digitalWrite(13, LOW);\n  delay(500);\n}\n\n" +
+                                    "El objetivo es PARPADEAR:\nHIGH fijo no completa el reto.",
+                        derecha   = "FUNCIONES DISPONIBLES:\n\n" +
+                                    "pinMode(pin, OUTPUT)\ndigitalWrite(pin, HIGH/LOW)\n" +
+                                    "analogWrite(pin, 0-255)  (brillo)\nanalogRead(A0)\ndelay(ms)\nmillis()\n\n" +
+                                    "Soporta variables, if, for, while\ny funciones propias. El codigo es\n" +
+                                    "LIBRE: cada partida puede usar un\nsketch distinto."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "CABLEADO DEL PROTOBOARD:\n\n" +
+                                    "Camino obligatorio:\n\n" +
+                                    "Pin digital (D2-D13)\n   |\n   cable\n   |\nResistencia (>= 100 Ohm)\n   |\n" +
+                                    "LED (anodo al lado del pin)\n   |\nGND del Arduino",
+                        derecha   = "REGLAS DE ORO:\n\n" +
+                                    "- El pin del CODIGO debe ser el\n  MISMO pin cableado.\n" +
+                                    "- Sin resistencia el LED explota\n  (I >= 1 A) y hay que pedir otro.\n" +
+                                    "- 330 Ohm es el valor recomendado\n  (I aprox. 9 mA, segura).\n" +
+                                    "- El circuito debe CERRAR en GND;\n  un extremo suelto = abierto."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "DIAGNOSTICO — RETO 4:\n\n" +
+                                    "El boton Comprobar reporta la\nfalla en esta consola:\n\n" +
+                                    "- 'Pin sin OUTPUT' = falta\n  pinMode en setup().\n" +
+                                    "- 'Sin BLINK' = el loop no alterna\n  HIGH/LOW con delay.\n" +
+                                    "- 'No llega a GND' = circuito\n  abierto: revisar cables.",
+                        derecha   = "MAS FALLAS TIPICAS:\n\n" +
+                                    "- 'LED con polaridad invertida'\n  = girarlo 180 grados.\n" +
+                                    "- 'Falta resistencia >= 100 Ohm'\n  = enviar/colocar una R.\n" +
+                                    "- 'Corriente supera el limite'\n  = subir el valor de la R.\n\n" +
+                                    "La telemetria (V/I/P/ADC) del\nmonitor confirma cada arreglo."
+                    }
+                };
+
+            default:
+                return System.Array.Empty<Pagina>();   // Reto 1: solo las 3 paginas base
+        }
     }
 
     ManualPage GetManualPage(LevelType level)

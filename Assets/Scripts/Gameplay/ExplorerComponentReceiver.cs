@@ -59,6 +59,15 @@ public class ExplorerComponentReceiver : MonoBehaviour
     // Último componente recibido POR TIPO → para REEMPLAZAR en vez de apilar (Retos 1-3 = 1 pieza/tipo).
     private readonly Dictionary<ComponentType, GameObject> _ultimoPorTipo = new Dictionary<ComponentType, GameObject>();
 
+    // RECEPTOR PRIMARIO: en la escena pueden coexistir DOS ExplorerComponentReceiver (el standalone
+    // 'ComponentReceiver_Caja' + el anidado dentro de Explorer_Player). Ambos se suscriben a
+    // OnComponenteRecibido → cada envío spawneaba 2 piezas superpuestas (y el reemplazo por tipo
+    // destruía copias cruzadas: enviabas amarillo y "quedaba" el verde del otro receptor). Solo el
+    // primero que se habilita procesa los eventos; el resto los ignora.
+    private static ExplorerComponentReceiver _primario;
+
+    private GameManager _gm;   // para saber el reto actual (acumular en Reto 4)
+
     // ─────────────────────────────────────────────
     //  Lifecycle
     // ─────────────────────────────────────────────
@@ -92,6 +101,8 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
     void OnEnable()
     {
+        if (_primario == null) _primario = this;
+
         GameSession.OnComponenteRecibido          += HandleComponenteRecibido;
         GameSession.OnRetoChanged                 += HandleRetoChanged;
         GameSession.OnCableFixed                  += HandleCableFixed;
@@ -100,6 +111,8 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
     void OnDisable()
     {
+        if (_primario == this) _primario = null;
+
         GameSession.OnComponenteRecibido          -= HandleComponenteRecibido;
         GameSession.OnRetoChanged                 -= HandleRetoChanged;
         GameSession.OnCableFixed                  -= HandleCableFixed;
@@ -121,6 +134,9 @@ public class ExplorerComponentReceiver : MonoBehaviour
     void SpawnComponente(ComponentType tipo, float valor, GameObject prefabOverride,
                          ComponentVariant variante = ComponentVariant.Default)
     {
+        // Solo el receptor primario spawnea (evita duplicados si hay 2 receivers en escena).
+        if (_primario != null && _primario != this) return;
+
         // Reto 4: el Arduino YA NO se entrega como componente físico. Es un objeto fijo en la
         // escena y se programa por código (Técnico → ArduinoNetworkBridge → ArduinoCore), sus
         // pines se conectan con cables (CableBox + ProtoboardConnector). Ignoramos cualquier
@@ -164,7 +180,12 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
         // REEMPLAZAR el componente anterior del mismo tipo: en los Retos 1-3 solo hay 1 pieza por
         // tipo, así que reenviar no debe apilar objetos en la mesa. (Tipos distintos coexisten.)
-        if (_ultimoPorTipo.TryGetValue(tipo, out var previo) && previo != null)
+        // RETO 4 (sandbox): el Técnico puede enviar VARIAS unidades del mismo tipo (3 LEDs de
+        // distinto color, 2 resistencias de distinto valor/orientación) → se ACUMULAN.
+        if (_gm == null) _gm = FindAnyObjectByType<GameManager>();
+        bool esReto4 = _gm != null && _gm.currentLevel == LevelType.Arduino;
+
+        if (!esReto4 && _ultimoPorTipo.TryGetValue(tipo, out var previo) && previo != null)
         {
             _componentesRecibidos.Remove(previo);
             Destroy(previo);
