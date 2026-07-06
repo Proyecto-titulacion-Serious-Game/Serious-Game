@@ -47,6 +47,19 @@ public static class ArduinoCodeParser
         public string  log;
         /// <summary>Lista de advertencias pedagógicas adicionales.</summary>
         public List<string> warnings;
+        /// <summary>TODOS los pines OUTPUT con acción detectados (multi-pin: semáforos, etc.).
+        /// Incluye el pin principal. Vacía si no hay ninguno válido.</summary>
+        public List<PinConfig> pins;
+    }
+
+    /// <summary>Configuración de UN pin de salida del sketch (para multi-pin).</summary>
+    public struct PinConfig
+    {
+        public int      pin;
+        public bool     isHigh;      // estado fijo cuando NO hay blink
+        public bool     blink;
+        public int      blinkOnMs;
+        public int      blinkOffMs;
     }
 
     // ─────────────────────────────────────────────
@@ -206,6 +219,7 @@ public static class ArduinoCodeParser
         // ── Paso 5: Elegir el pin principal (primero OUTPUT con acción) ───────
         PinEntry chosen = null;
         int chosenPin   = -1;
+        result.pins = new List<PinConfig>();
 
         foreach (var kv in pinMap)
         {
@@ -220,6 +234,15 @@ public static class ArduinoCodeParser
 
             if (e.mode == PinMode.OUTPUT && (e.hasHigh || e.hasLow || e.blink))
             {
+                // MULTI-PIN: registrar TODOS los pines OUTPUT con acción (semáforo, secuencias…)
+                result.pins.Add(new PinConfig
+                {
+                    pin        = pin,
+                    isHigh     = e.hasHigh,
+                    blink      = e.blink,
+                    blinkOnMs  = e.blink ? e.blinkOnMs  : 500,
+                    blinkOffMs = e.blink ? e.blinkOffMs : 500,
+                });
                 if (chosen == null) { chosen = e; chosenPin = pin; }
             }
             else if (e.mode == PinMode.INPUT || e.mode == PinMode.INPUT_PULLUP)

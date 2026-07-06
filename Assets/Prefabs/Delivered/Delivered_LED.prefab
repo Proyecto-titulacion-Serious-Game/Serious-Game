@@ -71,7 +71,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: d312903da62432a4da7625083953df14, type: 2}
+  - {fileID: 2100000, guid: 67d8be6f8fd18ac4b8b4a6da7f2630b4, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -305,6 +305,7 @@ MonoBehaviour:
   voltageDrop: 0
   isOpenCircuit: 0
   resistance: 50
+  forwardVoltage: 2
   polarityInverted: 0
   minOperatingCurrent: 0.005
   maxSafeCurrent: 0.02
@@ -312,5 +313,10 @@ MonoBehaviour:
   colorOff: {r: 0, g: 0, b: 0, a: 1}
   colorCorrect: {r: 0, g: 1, b: 0, a: 1}
   colorOverload: {r: 1, g: 0, b: 0, a: 1}
+  cristalTint: {r: 1, g: 0.28, b: 0.24, a: 1}
+  victoryGlow: 1
+  glowSpeed: 4
+  glowAmount: 0.8
+  victoryMaterial: {fileID: 0}
   isOn: 0
   state: 0

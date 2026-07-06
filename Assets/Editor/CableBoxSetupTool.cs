@@ -112,9 +112,11 @@ public static class CableBoxSetupTool
         var vcr           = root.AddComponent<VRCableRenderer>();
         vcr.origin        = probeA.transform;
         vcr.target        = probeB.transform;
-        vcr.segments      = 12;
-        vcr.sagAmount     = 0.06f;
-        vcr.maxCableLength = 0.5f;
+        vcr.segments      = 20;
+        vcr.arcUpward     = true;
+        vcr.arcPerMeter   = 0.4f;
+        vcr.minArc        = 0.02f;
+        vcr.maxArc        = 0.12f;
 
         var prefab = PrefabUtility.SaveAsPrefabAsset(root, CABLE_PATH);
         Object.DestroyImmediate(root);

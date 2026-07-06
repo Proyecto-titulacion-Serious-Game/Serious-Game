@@ -65,14 +65,9 @@ public static class ExplorerVRSetupTool
 
         Undo.RecordObject(pc, "Setup VR Explorador — PlayerController");
 
-        // useKatVR
-        if (pc.useKatVR)
-        {
-            pc.useKatVR = false;
-            log.AppendLine("  ✓ useKatVR = false");
-            changed = true;
-        }
-        else log.AppendLine("  — useKatVR ya era false");
+        // useKatVR: NO tocar. Lo gestiona Tools → TITA → Explorador → Activar/Desactivar KAT VR.
+        // Antes esto lo forzaba a false y apagaba la caminadora cada vez que se corría el setup.
+        log.AppendLine($"  — useKatVR preservado ({pc.useKatVR})");
 
         // Snap turn desactivado (joystick derecho solo para interacción)
         if (pc.enableSnapTurn)

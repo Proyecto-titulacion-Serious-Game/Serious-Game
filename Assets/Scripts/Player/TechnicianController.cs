@@ -71,13 +71,15 @@ public class TechnicianController : MonoBehaviour
 
     void LateUpdate()
     {
-        // En modo PC, el sistema XR o el Input System pueden re-bloquear el cursor
-        // en frames posteriores al Start. LateUpdate lo corrige cada frame.
-        if (_activeMode == TechnicianMode.PC)
-        {
-            if (Cursor.lockState != CursorLockMode.None) Cursor.lockState = CursorLockMode.None;
-            if (!Cursor.visible)                          Cursor.visible   = true;
-        }
+        if (_activeMode != TechnicianMode.PC) return;
+
+        // Mientras se CAMINA (ThirdPersonCamera activa) y sin pausa, el cursor lo
+        // bloquea la cámara para el mouse-look; NO lo forzamos libre aquí (antes esto
+        // peleaba con el mouse-look y cortaba el giro). Sentado o en pausa: cursor libre.
+        if (ThirdPersonCamera.IsActive && !PauseMenu.IsPaused) return;
+
+        if (Cursor.lockState != CursorLockMode.None) Cursor.lockState = CursorLockMode.None;
+        if (!Cursor.visible)                          Cursor.visible   = true;
     }
 
     // ─────────────────────────────────────────────
@@ -89,25 +91,14 @@ public class TechnicianController : MonoBehaviour
         if (forcePCMode)          return TechnicianMode.PC;
         if (mode != TechnicianMode.Auto) return mode;
 
-        // Filtrar solo dispositivos HMD reales (ignorar Mock HMD del paquete XR)
-        var xrDevices = new System.Collections.Generic.List<UnityEngine.XR.InputDevice>();
-        UnityEngine.XR.InputDevices.GetDevicesWithCharacteristics(
-            UnityEngine.XR.InputDeviceCharacteristics.HeadMounted, xrDevices);
-
-        // El Mock HMD aparece como HeadMounted pero no está realmente conectado:
-        // verificar que al menos uno reporte isValid = true
-        bool realHMD = false;
-        foreach (var d in xrDevices)
-        {
-            if (d.isValid && !d.name.ToLowerInvariant().Contains("mock"))
-            {
-                realHMD = true;
-                break;
-            }
-        }
-
-        Debug.Log($"[TechnicianController] Dispositivos HMD: {xrDevices.Count}, HMD real: {realHMD}");
-        return realHMD ? TechnicianMode.VR : TechnicianMode.PC;
+        // El Técnico es SIEMPRE PC plano en el setup asimétrico de 2 builds (el rol VR es el
+        // Explorador, en otro ejecutable/escena). La auto-detección de HMD daba un falso
+        // positivo con el Quest LINK activo → arrancaba en modo VR: la UI se configuraba para
+        // mando VR (TrackedDeviceGraphicRaycaster) y el IDE NO recibía teclado (el campo se
+        // enfocaba pero no escribía), además de que el Técnico tomaba el visor y se cerraba
+        // solo (XR EXITING → ApplicationQuit). Por eso forzamos PC: SetupPC desinicializa XR.
+        Debug.Log("[TechnicianController] Modo forzado a PC (rol Técnico = PC plano; se ignora HMD del Link).");
+        return TechnicianMode.PC;
     }
 
     // ─────────────────────────────────────────────

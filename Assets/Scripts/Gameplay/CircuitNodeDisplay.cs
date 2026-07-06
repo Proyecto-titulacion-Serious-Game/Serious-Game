@@ -41,6 +41,7 @@ public class CircuitNodeDisplay : MonoBehaviour
     //  Interno
     // ─────────────────────────────────────────────
     private ElectricalNode _node;
+    private Camera         _cam;   // cache de Camera.main (evita el FindByTag por-frame)
 
     // ─────────────────────────────────────────────
     //  Unity Lifecycle
@@ -56,10 +57,12 @@ public class CircuitNodeDisplay : MonoBehaviour
 
     void LateUpdate()
     {
-        if (!billboard || label == null || Camera.main == null) return;
+        if (!billboard || label == null) return;
+        if (_cam == null) _cam = Camera.main;   // re-busca solo si se perdió la cámara
+        if (_cam == null) return;
         // El label mira hacia la cámara del jugador
         label.transform.rotation = Quaternion.LookRotation(
-            label.transform.position - Camera.main.transform.position);
+            label.transform.position - _cam.transform.position);
     }
 
     // ─────────────────────────────────────────────

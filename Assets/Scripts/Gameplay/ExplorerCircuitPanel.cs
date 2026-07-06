@@ -78,7 +78,7 @@ public class ExplorerCircuitPanel : MonoBehaviour
         // Solo re-fetch si no hay circuitManager fijo asignado desde el Inspector.
         // Cuando el panel es hijo de una zona, ya apunta al CM correcto.
         if (circuitManager == null && gameManager != null)
-            circuitManager = gameManager.circuit;
+            circuitManager = gameManager.circuit != null ? gameManager.circuit.GetCompanionCircuitManager() : null;
         Refresh();
     }
 

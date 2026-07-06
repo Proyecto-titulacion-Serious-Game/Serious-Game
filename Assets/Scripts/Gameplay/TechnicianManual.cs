@@ -64,33 +64,43 @@ public class TechnicianManual : MonoBehaviour
     // ─────────────────────────────────────────────
     ManualData ManualReto2() => new ManualData
     {
-        titulo    = "RETO 2 — Circuito Paralelo & Divisor de Corriente",
+        titulo    = "RETO 2 — Circuito Paralelo & Polaridad del LED",
 
         concepto  = "En paralelo, cada rama recibe el MISMO voltaje.\n" +
-                    "La corriente total se divide entre las ramas.\n" +
-                    "Una rama abierta (∞Ω) no recibe corriente → sensor apagado.",
+                    "El sensor (LED) es un DIODO: solo conduce en un sentido.\n" +
+                    "Si su polaridad está INVERTIDA no pasa corriente → apagado.",
 
-        formula   = "Voltaje en cada rama: V_rama = V_fuente\n" +
-                    "Corriente por rama:   I_n = V / R_n\n" +
-                    "Corriente total:      I_t = I_1 + I_2 + I_3\n" +
-                    "R equivalente:        1/R_eq = 1/R1 + 1/R2 + 1/R3",
+        formula   = "POLARIDAD DEL LED (diodo):\n" +
+                    "  Ánodo (+, pata larga) → al voltaje positivo\n" +
+                    "  Cátodo (−, pata corta / banda plana) → a tierra\n\n" +
+                    "Cada rama lleva una resistencia de protección en serie,\n" +
+                    "así el LED enciende SEGURO (verde) sin quemarse:\n" +
+                    "  I_rama = (V_fuente − V_LED) / (R_protección + R_LED)",
 
-        objetivo  = "Uno de los 3 sensores (LEDs) no enciende.\n" +
-                    "La rama tiene resistencia 9999Ω → circuito abierto.\n\n" +
-                    "1. Pide al Explorador medir voltaje en cada sensor\n" +
-                    "2. El sensor con 0V en sus nodos es la rama rota\n" +
-                    "3. Indica al Explorador qué cable reconectar\n" +
-                    "4. Pulsa REPARAR PARALELO para autorizar",
+        objetivo  = "El sensor (LED) de una rama NO enciende porque está\n" +
+                    "colocado con la POLARIDAD INVERTIDA (dañado).\n\n" +
+                    "1. El Explorador conecta los cables de cada rama\n" +
+                    "   (VCC → resistencia → LED → GND) → enciende el LED\n" +
+                    "   bueno.\n" +
+                    "2. Pide al Explorador medir el LED dañado (0V / sin\n" +
+                    "   corriente = está al revés).\n" +
+                    "3. Envía un LED NUEVO al Explorador.\n" +
+                    "4. El Explorador REEMPLAZA el LED dañado colocando el\n" +
+                    "   LED nuevo donde estaba: al soltarlo se conecta y\n" +
+                    "   enciende solo (polaridad correcta).\n" +
+                    "5. Los 2 LED en VERDE → reto superado.",
 
         tablaValores =
-                    "VALORES ESPERADOS (rama normal)\n" +
+                    "ESTADO DEL SENSOR SEGÚN POLARIDAD\n" +
                     "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "V en nodo+ de cada sensor: 9.0 V\n" +
-                    "V en nodo- de cada sensor: 0.0 V\n" +
-                    "I por sensor normal: 9/50 = 0.18 A\n" +
+                    "INVERTIDA:  I ≈ 0 A · LED apagado (negro)\n" +
+                    "CORRECTA:   I ≈ 10–15 mA · LED VERDE seguro\n" +
                     "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "Sensor roto:  V_nodo+ ≈ 0V  (sin corriente)\n" +
-                    "Sensor OK:    LED verde encendido"
+                    "Condición de victoria: LED verde (polaridad correcta\n" +
+                    "y corriente en rango seguro, sin sobrecarga).\n\n" +
+                    "PRECAUCIÓN: si crees que está todo conectado y no\n" +
+                    "marca victoria, presiona F8 para re-verificar el\n" +
+                    "circuito (solo completa si de verdad está correcto)."
     };
 
     // ─────────────────────────────────────────────

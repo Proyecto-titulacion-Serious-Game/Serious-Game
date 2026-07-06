@@ -31,6 +31,7 @@ public class GameSession : NetworkBehaviour
     [Networked] public NetworkBool  HayComponentePendiente  { get; set; }
     [Networked] public int          TipoComponentePendiente { get; set; }
     [Networked] public float        ValorComponentePendiente { get; set; }
+    [Networked] public int          VarianteComponentePendiente { get; set; }
     [Networked] public TickTimer    HeartbeatTimer          { get; set; }
 
     // Host resetea el timer cada N segundos; clientes detectan si supera el timeout.
@@ -42,7 +43,7 @@ public class GameSession : NetworkBehaviour
     // ─────────────────────────────────────────────
 
     /// <summary>Explorador: el Técnico envió un componente.</summary>
-    public static event System.Action<ComponentType, float> OnComponenteRecibido;
+    public static event System.Action<ComponentType, float, int> OnComponenteRecibido;
 
     /// <summary>Técnico: el Explorador instaló (o falló).</summary>
     public static event System.Action<bool>                 OnComponenteInstalado;
@@ -123,23 +124,25 @@ public class GameSession : NetworkBehaviour
     //  Técnico → Explorador: enviar componente
     // ─────────────────────────────────────────────
 
-    public void EnviarComponente(ComponentType tipo, float valor)
+    public void EnviarComponente(ComponentType tipo, float valor,
+                                 int variante = (int)ComponentVariant.Default)
     {
         if (!Object.HasStateAuthority) return;
-        RPC_EnviarComponente((int)tipo, valor);
+        RPC_EnviarComponente((int)tipo, valor, variante);
     }
 
     [Rpc(RpcSources.All, RpcTargets.All)]
-public void RPC_EnviarComponente(int tipo, float valor)
+public void RPC_EnviarComponente(int tipo, float valor, int variante)
 {
         if (Object.HasStateAuthority)
         {
-            HayComponentePendiente   = true;
-            TipoComponentePendiente  = tipo;
-            ValorComponentePendiente = valor;
+            HayComponentePendiente      = true;
+            TipoComponentePendiente     = tipo;
+            ValorComponentePendiente    = valor;
+            VarianteComponentePendiente = variante;
         }
-        OnComponenteRecibido?.Invoke((ComponentType)tipo, valor);
-        Debug.Log($"[GameSession] Componente enviado: {(ComponentType)tipo} = {valor}");
+        OnComponenteRecibido?.Invoke((ComponentType)tipo, valor, variante);
+        Debug.Log($"[GameSession] Componente enviado: {(ComponentType)tipo} = {valor} variante={(ComponentVariant)variante}");
     }
 
     // ─────────────────────────────────────────────
@@ -200,6 +203,19 @@ public void RPC_EnviarComponente(int tipo, float valor)
         AvanzarReto(nuevoReto);
     }
 
+    /// <summary>
+    /// Un cliente (p.ej. el Explorador) PIDE al Host completar el reto actual como si se hubiera
+    /// ganado (tecla F4 debug). Host-autoritativo: el Host corre CompleteLevel en su GameManager,
+    /// que registra la métrica y propaga el avance al resto vía AvanzarReto → RPC_CambiarReto.
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_SolicitarCompletarReto()
+    {
+        var gm = FindAnyObjectByType<GameManager>();
+        if (gm != null) gm.DebugCompleteCurrentLevel();
+        else Debug.LogWarning("[GameSession] RPC_SolicitarCompletarReto: no hay GameManager en el Host.");
+    }
+
     [Rpc(RpcSources.StateAuthority, RpcTargets.All)]
     private void RPC_CambiarReto(int reto)
     {
@@ -253,6 +269,29 @@ public void RPC_EnviarComponente(int tipo, float valor)
     {
         ArduinoNetworkBridge.DeliverSketch(pin, isOutput, isHigh, delayOnMs, delayOffMs, isBlink);
         Debug.Log($"[GameSession] Sketch RPC — pin D{pin}, output={isOutput}, blink={isBlink}.");
+    }
+
+    /// <summary>
+    /// MULTI-PIN: el Técnico sube el SKETCH COMPLETO como texto; el Explorador lo parsea y
+    /// soporta varios pines de salida independientes (semáforos, secuencias, LEDs selectivos).
+    /// El texto se limita a ~480 caracteres para caber en un RPC de Fusion.
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.All)]
+    public void RPC_SubirSketchTexto(string codigo)
+    {
+        ArduinoNetworkBridge.DeliverSketchText(codigo);
+        Debug.Log($"[GameSession] Sketch TEXTO RPC ({(codigo != null ? codigo.Length : 0)} chars).");
+    }
+
+    /// <summary>
+    /// PROGRAMA LIBRE: el Técnico sube el sketch COMPLETO por TROZOS (un programa real puede
+    /// superar el límite de caracteres de un solo RPC de Fusion). El Explorador reensambla los
+    /// trozos y, al recibir el último, lo entrega al intérprete del ArduinoCore.
+    /// </summary>
+    [Rpc(RpcSources.All, RpcTargets.All)]
+    public void RPC_SubirSketchChunk(int idx, int total, string chunk)
+    {
+        ArduinoNetworkBridge.ReceiveChunk(idx, total, chunk);
     }
 
     // ─────────────────────────────────────────────
@@ -321,6 +360,39 @@ public void RPC_EnviarComponente(int tipo, float valor)
         DiagPin    = pin;
         DiagMotivo = motivo;
         DiagSeq++;
+    }
+
+    // ─────────────────────────────────────────────
+    //  Diagnóstico por RETO en texto (Explorador → clipboard/HUD del Técnico)
+    // ─────────────────────────────────────────────
+    //  Resumen corto del estado del circuito de cada reto (LEDs, qué falta) para que el Técnico
+    //  lo lea en su clipboard y ambos sepan qué hacer. Respeta la asimetría: es un RESUMEN (dato 2D),
+    //  no el volcado completo del circuito.
+
+    private readonly string[] _diagReto = new string[5];   // índice 1..4
+
+    /// <summary>Último resumen de diagnóstico recibido para ese reto (1..4). "" si no hay.</summary>
+    public string UltimoDiagnosticoReto(int reto) => (reto >= 1 && reto <= 4 && _diagReto[reto] != null) ? _diagReto[reto] : "";
+
+    /// <summary>(reto, resumen). El Técnico (UI del clipboard) se suscribe para mostrarlo.</summary>
+    public static event System.Action<int, string> OnDiagnosticoRetoActualizado;
+
+    /// <summary>Publica el resumen del reto actual (llamar desde el Explorador). Funciona en solo/offline (local).</summary>
+    public static void ReportarDiagnosticoReto(int reto, string resumen)
+    {
+        resumen ??= "";
+        if (Instance != null && Instance.Object != null && Instance.Object.IsValid)
+            Instance.RPC_ReportarDiagnosticoReto(reto, resumen);
+        else
+            OnDiagnosticoRetoActualizado?.Invoke(reto, resumen);   // sin red → evento local
+    }
+
+    /// <summary>El Explorador publica el resumen del reto; llega a todos (incl. Host/Técnico).</summary>
+    [Rpc(RpcSources.All, RpcTargets.All)]
+    public void RPC_ReportarDiagnosticoReto(int reto, string resumen)
+    {
+        if (reto >= 1 && reto <= 4) _diagReto[reto] = resumen;
+        OnDiagnosticoRetoActualizado?.Invoke(reto, resumen);
     }
 
     // ─────────────────────────────────────────────

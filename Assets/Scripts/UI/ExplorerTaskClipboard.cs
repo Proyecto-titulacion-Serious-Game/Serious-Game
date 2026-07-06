@@ -290,7 +290,7 @@ public class ExplorerTaskClipboard : MonoBehaviour
         {
             LevelType.OhmLaw => step switch
             {
-                0 => ("Coloca la punta ROJA\nen el nodo positivo",        "Mano derecha + Trigger",                    _textMain, _bgIdle),
+                0 => ("Enciende el interruptor (rojo→verde)\ny pon la punta ROJA en el nodo +", "Tócalo con el control · Mano der + Trigger", _textMain, _bgIdle),
                 1 => ("Coloca la punta NEGRA\nen el nodo negativo",       "Mano izquierda + Trigger",                  _textMain, _bgIdle),
                 2 => ("Lee el voltaje.\nDíselo al Técnico",               "Espera el componente correcto",             _amber,    _bgAlerta),
                 3 => ("Instala el componente\nen el slot indicado",        "Grip → arrastra al slot",                   _green,    _bgAccion),
@@ -298,9 +298,9 @@ public class ExplorerTaskClipboard : MonoBehaviour
             },
             LevelType.Parallel => step switch
             {
-                0 => ("Identifica qué LEDs\nestán apagados",              "Mide voltaje con el multímetro",            _amber,    _bgAlerta),
-                1 => ("Reporta al Técnico\nqué sensor no tiene voltaje",  "Espera el diagnóstico",                     _textMain, _bgIdle),
-                2 => ("Reconecta el cable\nsuelto en el panel",            "Grip + arrastra al punto de conexión",      _green,    _bgAccion),
+                0 => ("Identifica el LED\nque está apagado",              "Mide con el multímetro (0V = invertido)",   _amber,    _bgAlerta),
+                1 => ("Reporta al Técnico:\nel LED está al revés",        "Espera el LED bien orientado",              _textMain, _bgIdle),
+                2 => ("Coloca el LED con\nla polaridad correcta",         "Ánodo (+) al positivo, cátodo (−) a tierra", _green,   _bgAccion),
                 _ => ("Esperando instrucción...", "", _muted, _bgIdle)
             },
             LevelType.Mixed => step switch

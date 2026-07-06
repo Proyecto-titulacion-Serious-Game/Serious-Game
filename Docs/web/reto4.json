@@ -1,0 +1,75 @@
+{
+  "meta": {
+    "titulo": "Reto 4 — Arduino + Protoboard",
+    "subtitulo": "Notas técnicas: voltaje del Arduino, validación y modo online",
+    "proyecto": "Proyecto TITA — Serious Game de circuitos eléctricos (VR)",
+    "actualizado": "2026-06-17",
+    "repo": "https://github.com/Proyecto-titulacion-Serious-Game/Serious-Game",
+    "branch": "development"
+  },
+  "objetivo": "Hacer parpadear un LED de forma segura desde un pin digital del Arduino.",
+  "comoEntrar": {
+    "tecla": "F4",
+    "nota": "F4 en Play Mode (DebugLevelSkipper, solo dev/Editor). Confirmación en consola: '[Breadboard] Modo protoboard ON (Reto 4)'. Si aparece '¡Imán activado! ... succionado' NO estás en el Reto 4 (eso es de los Retos 1-3).",
+    "cableado": "Pin Dx → Resistencia (≥100 Ω) → LED (ánodo al pin) → GND"
+  },
+  "condiciones": [
+    "Pin en OUTPUT.",
+    "blinkEnabled (el sketch debe tener patrón BLINK, no solo HIGH).",
+    "El pin tiene nodo eléctrico y existe el nodo GND.",
+    "Hay un camino dirigido Pin → … → GND.",
+    "Hay un LED en el camino, con el ánodo (pata larga) hacia el pin (si está al revés → 'LED invertido').",
+    "Hay una resistencia ≥ 100 Ω en el camino (recomendado 330 Ω).",
+    "La corriente estimada ≤ maxSafeCurrent del LED."
+  ],
+  "arduino": {
+    "comoGeneraVoltaje": "En ArduinoCore: con el pin en OUTPUT y en HIGH/blink, DigitalWrite() pone el nodo del pin a 5 V (outputVoltageTTL) y a 0 V en LOW. El sandbox usa esa onda como fuente (srcV = OutputVoltage, srcNodeA = pin, srcNodeB = GND).",
+    "nota": "Solo HIGH fijo NO completa el reto: el objetivo es parpadear (condición 2).",
+    "pruebaOffline": "En el Inspector de ArduinoCore: activePinMode = OUTPUT y blinkEnabled = true.",
+    "sketch": "void setup() {\n  pinMode(13, OUTPUT);\n}\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n  digitalWrite(13, LOW);\n  delay(500);\n}"
+  },
+  "circuito": {
+    "descripcion": "El multímetro lee nodo.voltage/corriente tras resolver el MNA (CircuitGraphAnalyzer.SolveMNA). V_R = I × R.",
+    "fuenteV": 5,
+    "resistenciaOhm": 330,
+    "ledVfV": 2,
+    "ledResistenciaInternaOhm": 50,
+    "corrienteMa": 7.9,
+    "vResistenciaV": 2.6,
+    "vLedV": 2.4,
+    "formula": "I = (5 − 2) / (330 + 50) ≈ 7.9 mA ; V_R = I × 330 ≈ 2.6 V ; V_LED ≈ 2.4 V (V_R + V_LED ≈ 5 V)",
+    "telemetria": "La telemetría del Técnico muestra 5 V fijos a propósito (_sourceVoltage = blinkEnabled ? 5f : srcV) para que el número no salte con el parpadeo."
+  },
+  "online": {
+    "intro": "El GameManager + ProtoboardSimulator viven en la escena del Explorador, no en la del Técnico.",
+    "flujo": [
+      "Sketch: Técnico → GameSession.RPC_SubirCodigoArduino → ArduinoNetworkBridge.DeliverSketch → ArduinoCore.RecibirCodigoDePC (Explorador).",
+      "Componentes: Técnico (ComponentSendingTray.EnviarComponente) → GameSession.RPC_EnviarComponente → OnComponenteRecibido → ExplorerComponentReceiver.SpawnComponente. Resistor = ohms escritos; LED/Cap = +1 (correcta) / -1 (invertida).",
+      "Comprobar: el botón del IDE llama GameSession.SolicitarValidacion() → el Explorador corre EvaluarReto4 y publica el resultado por RPC_PublicarDiagnostico, que la consola del IDE muestra."
+    ],
+    "checklistEscena": [
+      "Mesa del Técnico con DeskComponent para resistencia y LED.",
+      "ExplorerComponentReceiver con prefabs (ledGreenPrefab, resistorPrefab) y slots / puntoDeEntrega.",
+      "ArduinoCore con pinNodeMap poblado (pin→nodo) + nodoGND asignado.",
+      "Al jugar: escribir ≥100 Ω (ej. 330) y dejar la polaridad en CORRECTA."
+    ]
+  },
+  "fixes": [
+    { "archivo": "UI/ArduinoIDEUI.cs", "cambio": "ComprobarCircuito() pide validación por red (GameSession.SolicitarValidacion) cuando no hay GameManager local → funciona online." },
+    { "archivo": "Gameplay/OfflineTestSpawner.cs", "cambio": "Se auto-desactiva cuando hay red (no duplica/falsea componentes); sigue sirviendo offline. Valores: Resistor = 850, LED = 1." },
+    { "archivo": "Desktop/ComponentSendingTray.cs", "cambio": "La etiqueta del toggle muestra CORRECTA/INVERTIDA al cambiarlo." }
+  ],
+  "test": {
+    "archivo": "Assets/Scripts/Editor/Reto4VoltageTest.cs",
+    "menu": "Tools → TITA → Reto 4 → Test de voltaje (headless)",
+    "batch": "Unity.exe -batchmode -nographics -quit -projectPath . -executeMethod Reto4VoltageTest.Run -logFile -",
+    "resultado": "OK (exit 0)",
+    "salida": [
+      "[1]  HIGH → OutputVoltage = 5.00 V | nodo pin = 5.00 V",
+      "[1b] LOW  → OutputVoltage = 0.00 V",
+      "[2]  MNA=True | I=7.89 mA | V_R=2.61 V | V_LED=2.39 V | LED.isOn=True | estado=Correct",
+      "[3]  LED invertido → I=0.000 mA | LED.isOn=False",
+      "===== RESULTADO: ✓ OK — el Arduino genera voltaje y el circuito del Reto 4 conduce y es seguro ====="
+    ]
+  }
+}

@@ -38,6 +38,11 @@ public class LED : ElectricalComponent
     public Color colorCorrect  = Color.green;
     public Color colorOverload = Color.red;
 
+    [Header("Cristal (color físico del LED)")]
+    [Tooltip("Color del CRISTAL del LED (su color real: verde/rojo/amarillo). El cuerpo transparente " +
+             "se tiñe con este color y brilla con él al encender. Lo setea por variante el tool 'LED Cristal'.")]
+    public Color cristalTint = new Color(0.30f, 1.00f, 0.40f, 1f);   // verde por defecto (LED típico)
+
     [Header("Brillo de victoria (cuando el LED está correcto)")]
     [Tooltip("Pulsa el brillo del LED mientras está correcto, para resaltar que todo quedó bien.")]
     public bool  victoryGlow = true;
@@ -63,13 +68,18 @@ public class LED : ElectricalComponent
     // ─────────────────────────────────────────────
     private Renderer       _renderer;
     private MaterialPropertyBlock _mpb;      // ← Evita memory leak
-    private static readonly int   _colorID    = Shader.PropertyToID("_BaseColor");
-    private static readonly int   _emissionID = Shader.PropertyToID("_EmissionColor");
+    private Material       _matInst;         // instancia propia del material (color directo, sin MPB)
+    private static readonly int   _colorID     = Shader.PropertyToID("_BaseColor");
+    private static readonly int   _colorLegacy = Shader.PropertyToID("_Color");   // fallback shaders viejos
+    private static readonly int   _emissionID  = Shader.PropertyToID("_EmissionColor");
 
     // Si el LED es agarrable (token del sandbox/entrega), congelamos su visual mientras se
     // sostiene para que no parpadee de color por la simulación a 20 Hz al moverlo entre nodos.
     private GrabbableComponent _grab;
     private bool IsHeld => _grab != null && _grab.IsGrabbed;
+
+    // Brillo continuo 0..1 (corriente normalizada). Permite ver fades de analogWrite (PWM).
+    private float _lit01;
 
     // Render de victoria: al completar el reto, el LED cambia al material verde y se congela.
     private bool     _victoryRender;
@@ -80,19 +90,37 @@ public class LED : ElectricalComponent
     // ─────────────────────────────────────────────
     void Awake()
     {
-        // Busca el primer Renderer activo (puede estar en el hijo Visual del FBX)
+        // Renderer del cuerpo del LED. Preferir uno activo; si no hay (Delivered_LED trae el
+        // renderer desactivado hasta colocarse), tomar el primero no-partícula igual.
         foreach (var r in GetComponentsInChildren<Renderer>(true))
-            if (r.enabled) { _renderer = r; break; }
+            if (r != null && r.enabled && !(r is ParticleSystemRenderer)) { _renderer = r; break; }
+        if (_renderer == null)
+            foreach (var r in GetComponentsInChildren<Renderer>(true))
+                if (r != null && !(r is ParticleSystemRenderer)) { _renderer = r; break; }
         _mpb = new MaterialPropertyBlock();
-        if (_renderer != null) _origSharedMaterial = _renderer.sharedMaterial;
+        if (_renderer != null)
+        {
+            // Forzar el material de CRISTAL en runtime, sin importar qué material traiga el modelo
+            // (los LED del circuito conservaban 'main'/textura). Lo crea el tool 'LED Cristal' en Resources.
+            var cristal = Resources.Load<Material>("LED_Cristal");
+            if (cristal != null) _renderer.sharedMaterial = cristal;
+            _origSharedMaterial = _renderer.sharedMaterial;
+            _matInst = _renderer.material;   // instancia propia → le seteo el color DIRECTO (infalible)
+        }
 
         _grab = GetComponentInParent<GrabbableComponent>();
+
+        // Pintar el cristal DESDE EL INICIO (apagado) — si no, arranca mostrando el material neutro
+        // porque SetState solo pinta al CAMBIAR de estado y ya arranca en Off.
+        ApplyColor(colorOff, false);
     }
 
     void OnEnable()
     {
         GameManager.OnLevelCompleted += OnLevelCompletedHandler;
         GameManager.OnLevelLoaded    += OnLevelLoadedHandler;
+        // Re-pintar por si el renderer se activó después del Awake (Delivered_LED).
+        if (_renderer != null && state == LEDState.Off) ApplyColor(colorOff, false);
     }
 
     void OnDisable()
@@ -130,13 +158,14 @@ public class LED : ElectricalComponent
     void Update()
     {
         if (_victoryRender) return;   // render de victoria fijo: no pulsar
-        if (!victoryGlow || state != LEDState.Correct || IsHeld) return;
-        if (_renderer == null || _mpb == null) return;
+        if (state != LEDState.Correct || IsHeld) return;
+        if (_matInst == null) return;
 
-        float pulse = 1.5f + Mathf.Sin(Time.time * glowSpeed) * glowAmount;
-        _renderer.GetPropertyBlock(_mpb);
-        _mpb.SetColor(_emissionID, colorCorrect * Mathf.Max(0.25f, pulse));
-        _renderer.SetPropertyBlock(_mpb);
+        // Brillo base proporcional a la corriente (fade de PWM/analogWrite) + pulso de victoria
+        // que solo se nota cuando el LED está cerca de su brillo pleno.
+        float baseI = Mathf.Lerp(0.35f, 1.5f, _lit01);
+        float pulse = victoryGlow ? Mathf.Sin(Time.time * glowSpeed) * glowAmount * 0.25f * _lit01 : 0f;
+        _matInst.SetColor(_emissionID, cristalTint * Mathf.Max(0.1f, baseI + pulse));
     }
 
     // ─────────────────────────────────────────────
@@ -219,11 +248,12 @@ public class LED : ElectricalComponent
     public void ApplyResolvedCurrent()
     {
         // Mientras se sostiene el LED, no parpadear: estado estable apagado.
-        if (IsHeld) { isOn = false; SetState(LEDState.Off); return; }
+        if (IsHeld) { isOn = false; _lit01 = 0f; SetState(LEDState.Off); return; }
 
         float i = Mathf.Abs(current);
+        _lit01 = Mathf.Clamp01(i / Mathf.Max(1e-4f, maxSafeCurrent));
 
-        if (i < minOperatingCurrent)      { isOn = false; SetState(LEDState.Off); }
+        if (i < minOperatingCurrent)      { isOn = false; _lit01 = 0f; SetState(LEDState.Off); }
         else if (i <= maxSafeCurrent)     { isOn = true;  SetState(LEDState.Correct); }
         else if (i <  overloadCurrent)    { isOn = true;  SetState(LEDState.NearOverload); }
         else                              { isOn = true;  SetState(LEDState.Overload); }
@@ -246,10 +276,11 @@ public class LED : ElectricalComponent
 
         if (_victoryRender) return;      // render de victoria fijo: no aplicar colores
 
+        // El brillo usa el COLOR FÍSICO del LED (cristalTint) cuando funciona; rojo solo en sobrecarga.
         Color displayColor = newState switch
         {
-            LEDState.Correct      => colorCorrect,
-            LEDState.NearOverload => Color.yellow,
+            LEDState.Correct      => cristalTint,
+            LEDState.NearOverload => cristalTint,
             LEDState.Overload     => colorOverload,
             _                     => colorOff
         };
@@ -259,12 +290,22 @@ public class LED : ElectricalComponent
 
     void ApplyColor(Color color, bool emissive)
     {
-        if (_renderer == null || _mpb == null) return;
+        if (_matInst == null) return;
 
-        _renderer.GetPropertyBlock(_mpb);
-        _mpb.SetColor(_colorID,    color);
-        _mpb.SetColor(_emissionID, emissive ? color * 1.5f : Color.black);
-        _renderer.SetPropertyBlock(_mpb);
+        // LED de CRISTAL: el cuerpo se tiñe con el color FÍSICO del LED (cristalTint), DIRECTO en la
+        // instancia del material (no MPB, que no aplicaba). Apagado = cristal tenue de su color;
+        // encendido = cuerpo más sólido + glow fuerte.
+        // Opción B: plástico de color casi sólido (alpha alto) → el cristal se ve pero los PINES
+        // (mismo material) quedan sólidos, no fantasmales. Un toque translúcido al encender.
+        Color baseClr = emissive
+            ? new Color(cristalTint.r, cristalTint.g, cristalTint.b, 0.97f)
+            : new Color(cristalTint.r, cristalTint.g, cristalTint.b, 0.85f);
+        _matInst.SetColor(_colorID, baseClr);
+        if (_matInst.HasProperty(_colorLegacy)) _matInst.SetColor(_colorLegacy, baseClr);
+
+        Color em = emissive ? color * 3.5f : Color.black;
+        _matInst.SetColor(_emissionID, em);
+        if (emissive) _matInst.EnableKeyword("_EMISSION");
     }
 }
 

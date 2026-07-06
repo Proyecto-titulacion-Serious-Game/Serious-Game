@@ -15,17 +15,24 @@ public class CircuitSimulator : MonoBehaviour
     private GameManager _cachedGM;
 
     // ─────────────────────────────────────────────
-    //  PUENTES DE COMPATIBILIDAD TYPECAST (Fix CS0029 / CS1503)
+    //  Puente al motor Electrical (CircuitManager)
     // ─────────────────────────────────────────────
-    // Este operador maestro engaña a Unity convirtiendo automáticamente un 'CircuitSimulator' 
-    // en un 'CircuitManager' o viceversa si un script viejo lo solicita.
-    public static implicit operator CircuitManager(CircuitSimulator instance)
+    /// <summary>
+    /// Devuelve el <see cref="CircuitManager"/> (motor Electrical) que convive en el mismo
+    /// GameObject que este simulador de slots. Los HUD del Técnico (TechnicianWorkstation) y del
+    /// Explorador (ExplorerCircuitPanel) leen la telemetría y la lista real de componentes desde
+    /// ese motor, que es el que pinta el LED y detecta los componentes FIJOS en los Retos 1-3
+    /// (el motor de slots no los ve, ver memoria 'retos123_componentes_fijos').
+    ///
+    /// Reemplaza al antiguo <c>implicit operator CircuitManager(CircuitSimulator)</c>: aquella
+    /// conversión implícita podía dispararse en CUALQUIER asignación sin verse en el código.
+    /// Ahora la resolución es explícita y rastreable. Conserva el fallback de crear un
+    /// CircuitManager si el objeto no lo tiene, para no alterar el comportamiento previo.
+    /// </summary>
+    public CircuitManager GetCompanionCircuitManager()
     {
-        if (instance == null) return null;
-        
-        // Intentamos retornar el componente CircuitManager si coexiste en el mismo objeto
-        CircuitManager cm = instance.GetComponent<CircuitManager>();
-        if (cm == null) cm = instance.gameObject.AddComponent<CircuitManager>();
+        CircuitManager cm = GetComponent<CircuitManager>();
+        if (cm == null) cm = gameObject.AddComponent<CircuitManager>();
         return cm;
     }
 
@@ -206,8 +213,7 @@ public class CircuitSimulator : MonoBehaviour
     /// </summary>
     private LED BuscarLEDActivoEnEscena()
     {
-        foreach (var l in FindObjectsByType<LED>(FindObjectsInactive.Exclude))
-        {
+        foreach (var l in FindObjectsByType<LED>(FindObjectsInactive.Exclude))        {
             if (l == null) continue;
             if (l.nodeA == null || l.nodeB == null) continue;
             return l;

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Globalization;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using TMPro;
 using UnityEngine.UI;
 
@@ -35,10 +36,17 @@ public class ComponentSendingTray : MonoBehaviour
     private DeskComponent _currentSelectedDeskComponent;
     private Coroutine     _feedbackCoroutine;
 
+    // Sonido de "enviar". Se carga de Resources/Audio/sfx_send; si no está, usa un click
+    // genérico que ya viene en el proyecto. 2D, reproducido con un AudioSource propio.
+    private AudioSource _sfx;
+    private AudioClip   _sendClip;
+
     void Awake()
     {
         if (btnEnviar != null)
             btnEnviar.onClick.AddListener(EnviarComponente);
+
+        SetupSendSfx();
 
         // La etiqueta del toggle no se refrescaba al cambiarlo: se quedaba en "CORRECTA" aunque el
         // Técnico mandara el LED invertido. La polaridad es condición de victoria del Reto 4, así que
@@ -112,7 +120,14 @@ public class ComponentSendingTray : MonoBehaviour
             SetTexto(txtComponenteEnBandeja, "Bandeja vacía");
             SetTexto(txtDescripcion, "Haz click en un componente de la mesa");
 
-            if (inputValor       != null) inputValor.gameObject.SetActive(false);
+            // Cerrar la edición del campo de ohms ANTES de desactivarlo. Desactivar el GO de un
+            // TMP_InputField que está en edición deja el sistema de input de TMP "colgado" y el
+            // siguiente campo (el editor de código del IDE) no recibe teclado.
+            if (inputValor != null)
+            {
+                if (inputValor.isFocused) inputValor.DeactivateInputField();
+                inputValor.gameObject.SetActive(false);
+            }
             if (txtInputLabel    != null) txtInputLabel.gameObject.SetActive(false);
             if (togglePolaridad  != null) togglePolaridad.gameObject.SetActive(false);
             if (txtToggleLabel   != null) txtToggleLabel.gameObject.SetActive(false);
@@ -144,24 +159,38 @@ public class ComponentSendingTray : MonoBehaviour
             valorFinal = (togglePolaridad != null && togglePolaridad.isOn) ? 1f : -1f;
         }
 
+        // Variante visual/física concreta (color del LED, color del capacitor, orientación del
+        // resistor) que eligió el Técnico. Sin esto, el Explorador siempre recibía la variante por
+        // defecto (LED verde / resistor horizontal) aunque se enviara otra.
+        int variante = (int)_currentSelectedDeskComponent.ResolveVariant();
+
         if (GameSession.Instance != null)
         {
             // Path de red: el RPC llega al Explorador y su ExplorerComponentReceiver
             // spawna el componente y llama delivery.PrepareForInstall allá.
-            GameSession.Instance.RPC_EnviarComponente((int)tipo, valorFinal);
-            Debug.Log($"[Bandeja] {tipo} ({valorFinal}) enviado por red.");
+            GameSession.Instance.RPC_EnviarComponente((int)tipo, valorFinal, variante);
+            Debug.Log($"[Bandeja] {tipo} ({valorFinal}) variante={(ComponentVariant)variante} enviado por red.");
         }
         else
         {
             // Path offline/sin Fusion: dispara evento local.
             // ExplorerComponentReceiver lo escucha y spawna + llama PrepareForInstall.
-            RaiseOnComponentSentLocal(tipo, valorFinal);
+            RaiseOnComponentSentLocal(tipo, valorFinal, variante);
             // Fallback si no hay ExplorerComponentReceiver en la escena.
             delivery?.PrepareForInstall(tipo, valorFinal);
             Debug.LogWarning("[Bandeja] GameSession.Instance es null — entrega local. " +
                              "Verificar que ConnectionManager.modoOffline = false y que " +
                              "no haya un CM duplicado con rolAutomatico = Ninguno en la escena.");
         }
+
+        // Sonido de envío
+        if (_sfx != null && _sendClip != null) _sfx.PlayOneShot(_sendClip, GameSettings.SfxVolume);
+
+        // Liberar el foco del EventSystem ANTES de limpiar la bandeja: SetSelectedComponent(null)
+        // desactiva 'inputValor' (el campo de ohms), y desactivar un InputField que tiene el foco
+        // deja el EventSystem "atascado" en un objeto inactivo → después NINGÚN otro campo recibe
+        // teclado (p.ej. el editor de código del IDE no deja escribir tras enviar un componente).
+        if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
 
         // Limpiar la bandeja usando el mediador
         SetSelectedComponent(null);
@@ -181,10 +210,28 @@ public class ComponentSendingTray : MonoBehaviour
     // ─────────────────────────────────────────────
     //  Eventos de comunicación (Fix para CS0117)
     // ─────────────────────────────────────────────
-    public static event System.Action<ComponentType, float> OnComponentSentLocal;
+    public static event System.Action<ComponentType, float, int> OnComponentSentLocal;
 
-    public static void RaiseOnComponentSentLocal(ComponentType tipo, float valor)
+    public static void RaiseOnComponentSentLocal(ComponentType tipo, float valor,
+                                                 int variante = (int)ComponentVariant.Default)
     {
-        OnComponentSentLocal?.Invoke(tipo, valor);
+        OnComponentSentLocal?.Invoke(tipo, valor, variante);
+    }
+
+    // ─────────────────────────────────────────────
+    //  Sonido de envío
+    // ─────────────────────────────────────────────
+    void SetupSendSfx()
+    {
+        _sfx = gameObject.AddComponent<AudioSource>();
+        _sfx.playOnAwake  = false;
+        _sfx.spatialBlend = 0f;   // 2D
+        _sfx.volume       = 0.8f;
+
+        // Resources/Audio/sfx_send (ponelo ahí para tu propio sonido). Si no está,
+        // se usa un click/pop que ya viene con los samples del proyecto.
+        _sendClip = Resources.Load<AudioClip>("Audio/sfx_send");
+        if (_sendClip == null)
+            _sendClip = Resources.Load<AudioClip>("Audio/sfx_component_installed");  // fallback al SFX de circuito si existe
     }
 }

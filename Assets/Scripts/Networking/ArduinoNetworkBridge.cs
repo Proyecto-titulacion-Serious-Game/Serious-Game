@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using UnityEngine;
 using Fusion;
 
@@ -99,9 +100,67 @@ public class ArduinoNetworkBridge : NetworkBehaviour
 
         PinMode  mode    = isOutput ? PinMode.OUTPUT : PinMode.INPUT;
         PinState state   = isHigh   ? PinState.HIGH  : PinState.LOW;
-        
+
         // Disparamos el evento con ambos tiempos para que las interfaces (IDE, Telemetría) sean precisas
         OnSketchReceived?.Invoke(pin, mode, state, isBlink, delayOnMs, delayOffMs);
+    }
+
+    /// <summary>
+    /// MULTI-PIN: aplica un sketch entregado como TEXTO. Lo parsea (varios pines OUTPUT con
+    /// blink independiente) y lo carga en el ArduinoCore real. Es el canal que permite
+    /// semáforos / secuencias / varios LEDs selectivos. Notifica con el pin principal para que
+    /// telemetría / IDE / validación sigan reaccionando igual.
+    /// </summary>
+    public static void DeliverSketchText(string code)
+    {
+        var data = ArduinoCodeParser.Parse(code);
+        int offMs = data.blinkOffMs == 0 ? data.blinkMs : data.blinkOffMs;
+
+        var core = UnityEngine.Object.FindAnyObjectByType<ArduinoCore>();
+        if (core != null)
+        {
+            if (data.pins != null && data.pins.Count > 0)
+                core.LoadSketchMulti(data.pins, data.pinNumber, data.mode, data.state,
+                                     data.blink, data.blinkMs, offMs);
+            else
+                core.RecibirCodigoDePC(data.pinNumber, data.mode == PinMode.OUTPUT,
+                                       data.state == PinState.HIGH, data.blinkMs, offMs, data.blink);
+        }
+
+        OnSketchReceived?.Invoke(data.pinNumber, data.mode, data.state, data.blink, data.blinkMs, offMs);
+        Debug.Log($"[ArduinoNetworkBridge] Sketch TEXTO aplicado: " +
+                  $"{(data.pins != null ? data.pins.Count : 0)} pin(es) de salida.");
+    }
+
+    /// <summary>
+    /// PROGRAMA LIBRE: entrega el sketch COMPLETO al intérprete del ArduinoCore (Reto 4 libre).
+    /// El intérprete ejecuta setup()/loop() reales (variables, for/while, analogWrite, …).
+    /// Dispara OnSketchReceived con un pin best-effort para que telemetría/monitor reaccionen.
+    /// </summary>
+    public static void DeliverSketchProgram(string code)
+    {
+        var core = UnityEngine.Object.FindAnyObjectByType<ArduinoCore>();
+        if (core != null) core.LoadSketchProgram(code);
+
+        var data = ArduinoCodeParser.Parse(code);   // solo para la notificación (no ejecuta)
+        int offMs = data.blinkOffMs == 0 ? data.blinkMs : data.blinkOffMs;
+        OnSketchReceived?.Invoke(data.pinNumber, data.mode, data.state, data.blink, data.blinkMs, offMs);
+        Debug.Log($"[ArduinoNetworkBridge] Programa libre entregado ({code?.Length ?? 0} chars).");
+    }
+
+    // Reensamblado de sketches largos enviados por trozos (supera el límite de un RPC).
+    static readonly StringBuilder _rxChunks = new StringBuilder();
+
+    /// <summary>Recibe un trozo del sketch; al llegar el último, lo entrega completo al intérprete.</summary>
+    public static void ReceiveChunk(int idx, int total, string chunk)
+    {
+        if (idx <= 0) _rxChunks.Clear();
+        _rxChunks.Append(chunk);
+        if (idx >= total - 1)
+        {
+            DeliverSketchProgram(_rxChunks.ToString());
+            _rxChunks.Clear();
+        }
     }
 
     // ─────────────────────────────────────────────

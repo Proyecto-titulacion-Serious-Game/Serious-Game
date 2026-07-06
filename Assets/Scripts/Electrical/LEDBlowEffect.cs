@@ -47,10 +47,17 @@ public class LEDBlowEffect : MonoBehaviour
 
     // ─────────────────────────────────────────────
     private LED   _led;
+    private GameManager _gm;
     private bool  _blown;
     private float _scanCd;
     private bool  _hasProtectionCached;
     private bool  _energizedCached;
+    private float _enabledTime;   // para dar una gracia tras cargar el reto (explosión no en frame 0)
+
+    [Header("Gracia al energizar (Reto 2)")]
+    [Tooltip("Segundos tras activar el LED antes de permitir la explosión por polaridad, para que " +
+             "el jugador VEA el estallido y no ocurra instantáneo al cargar la escena.")]
+    public float blowGraceSeconds = 2f;
 
     // Transform original, para devolver la LED a su sitio del circuito tras un reemplazo.
     private Transform  _origParent;
@@ -62,6 +69,7 @@ public class LEDBlowEffect : MonoBehaviour
 
     void OnEnable()
     {
+        _enabledTime = Time.time;
         CircuitManager.OnCircuitChanged      += Evaluate;
         ProtoboardSimulator.OnCircuitChanged += Evaluate;
     }
@@ -80,12 +88,23 @@ public class LEDBlowEffect : MonoBehaviour
         if (_blown || _led == null) return;
         if (_led.nodeA == null || _led.nodeB == null) return; // LED sin cablear (bandeja) → no aplica
 
+        if (_gm == null) _gm = FindAnyObjectByType<GameManager>();
+
         AssessCircuit(); // throttled: refresca _energizedCached y _hasProtectionCached
 
         // IMPORTANTE: no dependemos de _led.current. Cuando falta la resistencia, la sim del Reto 1
         // APAGA el LED (current 0), así que aquí miramos la fuente + el switch directamente.
         if (!_energizedCached) return;
 
+        // Reto 2 (Parallel, diseño de piezas fijas): NO explota — la falla es la POLARIDAD, que se
+        // resuelve corrigiendo el LED (invertido = apagado, no estalla). Los LEDs fijos no tienen
+        // resistencia física de protección (la limita SimulateParallel), así que sin esta exclusión
+        // explotarían al energizar.
+        if (_gm != null && _gm.currentLevel == LevelType.Parallel) return;
+
+        if (Time.time - _enabledTime < blowGraceSeconds) return;
+
+        // Resto de retos: el LED explota por SOBRECORRIENTE o energizado SIN resistencia de protección.
         bool overCurrent  = Mathf.Abs(_led.current) >= blowCurrentThreshold;
         bool noProtection = blowOnMissingResistor && !_hasProtectionCached;
 

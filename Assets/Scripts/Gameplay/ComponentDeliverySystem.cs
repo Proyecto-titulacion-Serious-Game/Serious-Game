@@ -464,12 +464,15 @@ public class ComponentDeliverySystem : MonoBehaviour
         if (_pendingType == ComponentType.LED)
             LEDBlowEffect.RestoreAllBlown(inverted: _pendingValue < 0);
 
-        // Resistor fijo del reto: aplicar el valor erróneo (mantiene hasFault) para que el
-        // Explorador vea la consecuencia (LED sigue rojo / sobrecarga).
+        // Resistor fijo del reto: el valor enviado es INCORRECTO → NO lo aplicamos. Restauramos la
+        // resistencia AVERIADA para que el panel/telemetría y el LED muestren honestamente que el
+        // circuito sigue roto. (Antes se aplicaba el valor propuesto, que podía "verse correcto" en
+        // el panel aunque hasFault siguiera en true → el reto parecía resuelto pero nunca completaba,
+        // porque GetResistance() solo lee 'resistance' y la victoria solo lee 'hasFault'.)
         if (_pendingType == ComponentType.Resistor)
         {
             var r = BuscarResistorDelReto();
-            if (r != null) r.resistance = _pendingValue;   // hasFault permanece en true
+            if (r != null) r.resistance = r.faultyResistance;   // sigue averiado y SE VE averiado
             ResimularCircuitos();
             return;
         }
@@ -483,10 +486,10 @@ public class ComponentDeliverySystem : MonoBehaviour
                 case ComponentType.Resistor:
                     if (comp is Resistor res)
                     {
-                        // Valor erróneo aplicado — el circuito lo simulará
-                        // y el Explorador verá la consecuencia
-                        res.resistance = _pendingValue;
-                        // hasFault permanece en true (sigue siendo incorrecto)
+                        // Valor erróneo → NO lo aplicamos: restauramos la resistencia averiada para que
+                        // el circuito se vea roto (panel honesto). hasFault permanece en true, y ahora
+                        // 'resistance' concuerda con él (nunca un valor "bonito" con la falla activa).
+                        res.resistance = res.faultyResistance;
                     }
                     break;
                 case ComponentType.LED:
@@ -679,4 +682,27 @@ public enum ComponentType
     LED,
     Capacitor,
     ArduinoPin
+}
+
+/// <summary>
+/// Variante VISUAL/física concreta de un componente entregable (color del LED, color del
+/// capacitor, orientación del resistor). Viaja por la red junto al ComponentType+valor para que el
+/// Explorador instancie EXACTAMENTE la pieza que eligió el Técnico (antes siempre caía a la variante
+/// por defecto: enviabas un LED amarillo y llegaba verde, o un resistor vertical y llegaba horizontal).
+///
+/// 'Default' (0) = prefab base del tipo. 'Auto' = SOLO lado Técnico: se infiere del nombre/prefab del
+/// DeskComponent y se resuelve a una variante concreta ANTES de enviar (nunca viaja 'Auto' por red).
+/// </summary>
+public enum ComponentVariant
+{
+    Default = 0,
+    LedGreen,
+    LedRed,
+    LedYellow,
+    CapacitorBlue,
+    CapacitorBlack,
+    CapacitorOrange,
+    ResistorHorizontal,
+    ResistorVertical,
+    Auto = 100   // marcador de inferencia; el Técnico lo resuelve antes de enviar
 }

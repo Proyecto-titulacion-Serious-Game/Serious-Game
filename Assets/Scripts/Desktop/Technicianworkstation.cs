@@ -79,7 +79,7 @@ public class TechnicianWorkstation : MonoBehaviour
         // devolvería el primero encontrado (posiblemente inactivo). OnLevelLoaded lo asigna
         // desde gameManager.circuit, que siempre apunta al reto activo.
         if (circuit == null && gameManager != null)
-            circuit = gameManager.circuit;
+            circuit = gameManager.circuit != null ? gameManager.circuit.GetCompanionCircuitManager() : null;
 
         // Observer Pattern: suscribirse a GameEvents
         GameEvents.OnCircuitUpdated += RefreshDiagnosticPanel;
@@ -114,7 +114,7 @@ public class TechnicianWorkstation : MonoBehaviour
 
     void RefreshDiagnosticPanel()
     {
-        if (gameManager != null) circuit = gameManager.circuit;
+        if (gameManager != null) circuit = gameManager.circuit != null ? gameManager.circuit.GetCompanionCircuitManager() : null;
 
         // Reto 4 usa ArduinoCore + ProtoboardSimulator en lugar de CircuitSimulator
         if (gameManager != null && gameManager.currentLevel == LevelType.Arduino)
@@ -219,7 +219,7 @@ public class TechnicianWorkstation : MonoBehaviour
     {
         // GameManager cambia la referencia circuit al activar cada zona
         if (gameManager != null)
-            circuit = gameManager.circuit;
+            circuit = gameManager.circuit != null ? gameManager.circuit.GetCompanionCircuitManager() : null;
 
         RefreshDiagnosticPanel();
         Debug.Log($"[TechnicianWorkstation] Reto {(int)level + 1} cargado.");

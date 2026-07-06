@@ -73,8 +73,8 @@ public class SerialMonitorFeed : MonoBehaviour
         Sys($"Upload OK. {RoleString()}");
     }
 
-    void HandleComponente(ComponentType tipo, float valor)
-        => Net($"Component packet RX: {tipo} = {valor:0.##}");
+    void HandleComponente(ComponentType tipo, float valor, int variante)
+        => Net($"Component packet RX: {tipo} = {valor:0.##} ({(ComponentVariant)variante})");
 
     void HandleValidacion(bool ok, int cod)
     {

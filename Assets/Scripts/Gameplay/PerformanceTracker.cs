@@ -26,6 +26,9 @@ public class PerformanceTracker : MonoBehaviour
 
     private List<LevelRecord> _records = new List<LevelRecord>();
 
+    // Desglose de errores por tipo (categoría) del reto en curso. Se reinicia por reto.
+    private readonly Dictionary<string, int> _errorsByType = new Dictionary<string, int>();
+
     // Evita el registro DUPLICADO por reto: GameManager.OnLevelCompleted puede dispararse dos veces
     // por la misma compleción (p.ej. con la escena NoonA cargada aditivamente en el Host, o un
     // re-disparo del temporizador). Solo se permite UN registro por cada carga de nivel; un replay
@@ -57,12 +60,26 @@ public class PerformanceTracker : MonoBehaviour
         _startTime         = Time.time;
         _currentErrors     = 0;
         _recordedThisLevel = false;
+        _errorsByType.Clear();
     }
 
-    public void AddError(string errorType = "general")
+    public void AddError(string errorType = "General")
     {
         _currentErrors++;
-        Debug.Log($"[PerformanceTracker] Error #{_currentErrors}: {errorType}");
+        if (string.IsNullOrEmpty(errorType)) errorType = "General";
+        _errorsByType.TryGetValue(errorType, out int n);
+        _errorsByType[errorType] = n + 1;
+        Debug.Log($"[PerformanceTracker] Error #{_currentErrors} [{errorType}]");
+    }
+
+    /// <summary>Desglose de errores por tipo (categoría) del reto en curso.</summary>
+    public ErrorTagCount[] GetErrorBreakdown()
+    {
+        var arr = new ErrorTagCount[_errorsByType.Count];
+        int i = 0;
+        foreach (var kv in _errorsByType)
+            arr[i++] = new ErrorTagCount { tipo = kv.Key, count = kv.Value };
+        return arr;
     }
 
     public float GetTime()   => Time.time - _startTime;
@@ -117,7 +134,8 @@ public class PerformanceTracker : MonoBehaviour
             timeSeconds = GetTime(),
             errors     = _currentErrors,
             success    = success,
-            evaluation = GetEvaluation()
+            evaluation = GetEvaluation(),
+            errorTypes = GetErrorBreakdown()
         });
     }
 }
@@ -125,9 +143,17 @@ public class PerformanceTracker : MonoBehaviour
 [System.Serializable]
 public struct LevelRecord
 {
-    public LevelType level;
-    public float     timeSeconds;
-    public int       errors;
-    public bool      success;
-    public string    evaluation;
+    public LevelType       level;
+    public float           timeSeconds;
+    public int             errors;
+    public bool            success;
+    public string          evaluation;
+    public ErrorTagCount[] errorTypes;
+}
+
+[System.Serializable]
+public struct ErrorTagCount
+{
+    public string tipo;
+    public int    count;
 }

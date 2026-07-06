@@ -4,7 +4,7 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// Salto rápido de retos con <b>F1-F4</b> en Play Mode (ayuda de prueba, dev-only).
-///   F1 → Reto 1 · F2 → Reto 2 · F3 → Reto 3 · F4 → Reto 4
+///   F1 → Reto 1 · F2 → Reto 2 · F3 → Reto 3 · F4 → completar reto actual (como ganado) y avanzar
 ///
 /// Auto-bootstrap: se crea solo en Editor / Development Build, en CUALQUIER escena (incluida
 /// Tecnico.unity, que no tiene GameManager local — ahí el salto viaja por red al Host). Antes el
@@ -58,7 +58,39 @@ public class DebugLevelSkipper : MonoBehaviour
         if      (kb.f1Key.wasPressedThisFrame) JumpTo(0);
         else if (kb.f2Key.wasPressedThisFrame) JumpTo(1);
         else if (kb.f3Key.wasPressedThisFrame) JumpTo(2);
-        else if (kb.f4Key.wasPressedThisFrame) JumpTo(3);
+        else if (kb.f4Key.wasPressedThisFrame) CompleteCurrentReto();
+    }
+
+    /// <summary>F4: marca el reto ACTUAL como COMPLETADO (como si se hubiera ganado) — registra la
+    /// métrica, dispara ¡FELICIDADES! y transiciona al siguiente reto. Útil para recorrer y probar
+    /// los retos (p. ej. el Reto 2). Host-autoritativo: el cliente se lo pide al Host.</summary>
+    private void CompleteCurrentReto()
+    {
+        EnsureGameManager();
+
+        var gs = GameSession.Instance;
+        bool enRed = gs != null && gs.Object != null && gs.Object.IsValid;
+
+        // Cliente (Explorador / Técnico sin autoridad): pedir al Host que complete. Él corre
+        // CompleteLevel en su GameManager (métrica) y propaga el avance a todos por RPC_CambiarReto.
+        if (enRed && !gs.Object.HasStateAuthority)
+        {
+            Debug.Log("[DEBUG] F4: pidiendo al Host completar el reto actual (como ganado)...");
+            gs.RPC_SolicitarCompletarReto();
+            return;
+        }
+
+        // Host en red, o GameManager local (offline): completar aquí.
+        if (_gameManager != null)
+        {
+            Debug.Log($"[DEBUG] F4: completando el Reto {(int)_gameManager.currentLevel + 1} " +
+                      "(como ganado) y avanzando al siguiente...");
+            _gameManager.DebugCompleteCurrentLevel();
+        }
+        else
+        {
+            Debug.LogWarning("[DEBUG] F4: no hay GameManager ni autoridad de red para completar el reto.");
+        }
     }
 
     private void JumpTo(int index)

@@ -13,12 +13,8 @@ using UnityEngine;
 ///   - digitalRead(pin)            → lee estado de un pin digital
 ///   - analogRead(A0)              → ADC 10 bits: mapea 0–5 V a 0–1023
 ///   - delay(ms)                   → pausa el ciclo simulado
-///
-/// SETUP: añadir al GameObject del Arduino 3D en el Reto 4.
-///        Arrastrar Nodo_P13, Nodo_GND y Nodo_A0 a sus campos en el Inspector.
-///        Rellenar pinNodeMap con ArduinoModelCreator (Tools > TITA > Arduino).
 /// </summary>
-public class ArduinoCore : MonoBehaviour
+public class ArduinoCore : MonoBehaviour, ArduinoInterpreter.IBoard
 {
     // ─────────────────────────────────────────────
     //  Inspector
@@ -41,14 +37,12 @@ public class ArduinoCore : MonoBehaviour
     [Tooltip("Activar blink (alterna HIGH/LOW según los intervalos).")]
     public bool     blinkEnabled    = false;
     
-    // CORRECCIÓN: Tiempos de encendido y apagado separados para asimetría
+    // Tiempos de encendido y apagado separados para onda asimétrica
     [SerializeField] private int _blinkIntervalOnMs  = 500;
     [SerializeField] private int _blinkIntervalOffMs = 500;
 
     [Header("Mapa de pines digitales (sandbox — Reto 4)")]
-    [Tooltip("Mapea número de pin → ElectricalNode en el modelo 3D del Arduino. " +
-             "Rellenar con el ArduinoModelCreator o manualmente en el Inspector. " +
-             "Si vacío, solo el pin 13 (nodoP13) está disponible como fallback.")]
+    [Tooltip("Mapea número de pin → ElectricalNode en el modelo 3D del Arduino.")]
     public List<PinNodeMapping> pinNodeMap = new List<PinNodeMapping>();
 
     [Header("Hardware")]
@@ -65,7 +59,7 @@ public class ArduinoCore : MonoBehaviour
     public int   AdcValue       => _adcValue;
     public float OutputVoltage  => _outputVoltage;
     
-    // CORRECCIÓN: Lectura pública de los tiempos para el CircuitSimulator
+    // Lectura pública de los tiempos para el CircuitSimulator
     public int   blinkIntervalOnMs  => _blinkIntervalOnMs;
     public int   blinkIntervalOffMs => _blinkIntervalOffMs;
 
@@ -81,11 +75,69 @@ public class ArduinoCore : MonoBehaviour
     // ─────────────────────────────────────────────
     public static event Action<int> OnAdcSampleReady;
 
+    /// <summary>Salida de Serial.print del programa (la consola del IDE se suscribe).</summary>
+    public static event Action<string> OnProgramSerial;
+    /// <summary>Errores de compilación/ejecución del programa libre.</summary>
+    public static event Action<string> OnProgramError;
+
     // ─────────────────────────────────────────────
     //  Estado interno
     // ─────────────────────────────────────────────
-    private bool                _blinkState = true; // Inicia en HIGH
-    private ProtoboardSimulator _protoSim;   // motor del Reto 4 (sandbox)
+    private bool                _blinkState = true; // Inicia en HIGH (pin legacy)
+    private ProtoboardSimulator _protoSim;   // Motor del Reto 4 (sandbox)
+
+    // MULTI-PIN: estado independiente de cada pin OUTPUT del sketch (semáforos, secuencias…).
+    private readonly List<ActivePinState> _pins = new List<ActivePinState>();
+
+    // ── Modo PROGRAMA (intérprete Arduino libre — Reto 4) ────────────────
+    private ArduinoInterpreter _interp;
+    private bool       _programMode;
+    private Coroutine  _programCo;
+    private float      _programStartTime;
+    // Salida actual de cada pin escrito por el programa: duty 0..1 (PWM) + nivel lógico.
+    private readonly Dictionary<int, PinOut> _programPins = new Dictionary<int, PinOut>();
+    private struct PinOut { public bool high; public float duty01; }
+
+    // Detección de "parpadeo" para la validación de victoria (sin parsear texto):
+    // si un pin OUTPUT alterna su nivel, se considera blink en ese pin.
+    private readonly Dictionary<int, bool> _lastLevel = new Dictionary<int, bool>();
+    private int   _blinkPin = -1;
+    private float _blinkLastToggle = -999f;
+
+    /// <summary>Estado runtime de un pin de salida (su propio blink).</summary>
+    private class ActivePinState
+    {
+        public int   pin;
+        public bool  isHigh;     // estado fijo cuando NO hay blink
+        public bool  blink;
+        public int   onMs, offMs;
+        public bool  phaseOn = true;
+        public float nextToggle;
+        public bool  CurrentlyHigh => blink ? phaseOn : isHigh;
+    }
+
+    /// <summary>Pines de salida y su voltaje relativo (duty01: 0=LOW, 1=5V, intermedio=PWM).
+    /// Lo usa la simulación para tratar cada pin encendido como una fuente independiente.</summary>
+    public IEnumerable<(ElectricalNode node, bool high, float duty01)> ActivePinStates()
+    {
+        if (_programMode)
+        {
+            foreach (var kv in _programPins)
+            {
+                var n = PinToNode(kv.Key);
+                if (n != null) yield return (n, kv.Value.duty01 > 0f, kv.Value.duty01);
+            }
+            yield break;
+        }
+        foreach (var p in _pins)
+        {
+            var n = PinToNode(p.pin);
+            if (n != null) yield return (n, p.CurrentlyHigh, p.CurrentlyHigh ? 1f : 0f);
+        }
+    }
+
+    /// <summary>True si hay al menos un pin de salida configurado (multi-pin o programa).</summary>
+    public bool HasActivePins => _programMode ? _programPins.Count > 0 : _pins.Count > 0;
 
     // ─────────────────────────────────────────────
     //  Unity
@@ -97,36 +149,60 @@ public class ArduinoCore : MonoBehaviour
         StartCoroutine(ArduinoLoop());
     }
 
-    void OnDisable() => StopAllCoroutines();
+    void OnDisable() { _programMode = false; _programCo = null; StopAllCoroutines(); }
 
     // ─────────────────────────────────────────────
     //  Ciclo simulado (equivale al loop() de Arduino)
     // ─────────────────────────────────────────────
     IEnumerator ArduinoLoop()
     {
+        var tick = new WaitForSeconds(0.05f);   // 20 Hz: resuelve cualquier ritmo de blink por pin
         while (true)
         {
             _adcValue = AnalogRead();
             OnAdcSampleReady?.Invoke(_adcValue);
 
-            if (activePinMode == PinMode.OUTPUT)
+            if (_programMode)
             {
-                bool state = blinkEnabled ? _blinkState : (activePinState == PinState.HIGH);
-                DigitalWrite(activePinNumber, state);
+                // En modo programa, el intérprete escribe los pines directamente.
+                // Aquí solo refrescamos la "bandera de parpadeo" para la validación de victoria.
+                UpdateBlinkFlag();
+            }
+            else
+            {
+                // MULTI-PIN (modo Bloques): cada pin de salida avanza su propio blink y escribe su voltaje.
+                bool changed = false;
+                float now = Time.time;
+                foreach (var p in _pins)
+                {
+                    if (p.blink && now >= p.nextToggle)
+                    {
+                        p.phaseOn   = !p.phaseOn;
+                        p.nextToggle = now + (p.phaseOn ? p.onMs : p.offMs) / 1000f;
+                    }
+                    if (WritePinVoltage(p.pin, p.CurrentlyHigh)) changed = true;
+                }
+
+                // Compatibilidad: mantener el _blinkState del pin legacy en sincronía.
+                if (_pins.Count > 0) _blinkState = _pins[0].CurrentlyHigh;
+
+                if (changed) MarkProtoboardDirty();
             }
 
-            // CORRECCIÓN: Esperar el tiempo exacto dependiendo de si el LED está ON u OFF
-            float waitSec = 0.05f;
-            if (blinkEnabled)
-            {
-                waitSec = _blinkState ? (_blinkIntervalOnMs / 1000f) : (_blinkIntervalOffMs / 1000f);
-                if (waitSec <= 0f) waitSec = 0.05f; // Seguro anti-congelamiento
-            }
-            
-            yield return new WaitForSeconds(waitSec);
-
-            if (blinkEnabled) _blinkState = !_blinkState;
+            yield return tick;
         }
+    }
+
+    /// <summary>Escribe el voltaje de un pin a su nodo; devuelve true si cambió.</summary>
+    bool WritePinVoltage(int pin, bool high)
+    {
+        var node = PinToNode(pin);
+        if (node == null) return false;
+        float v = high ? outputVoltageTTL : 0f;
+        if (Mathf.Approximately(node.voltage, v)) return false;
+        node.voltage = v;
+        if (pin == activePinNumber) _outputVoltage = v;   // telemetría del pin principal
+        return true;
     }
 
     // ─────────────────────────────────────────────
@@ -162,20 +238,55 @@ public class ArduinoCore : MonoBehaviour
     //  API para ArduinoIDEUI / esquemas modernos
     // ─────────────────────────────────────────────
 
-    // CORRECCIÓN: La carga de Sketch ahora recibe ambos tiempos
     public void LoadSketch(int pinNumber, PinMode mode, PinState state, bool blink, int blinkOnMs, int blinkOffMs)
     {
-        activePinNumber      = pinNumber;
-        activePinMode        = mode;
-        activePinState       = state;
-        blinkEnabled         = blink;
-        _blinkIntervalOnMs   = blinkOnMs;
-        _blinkIntervalOffMs  = blinkOffMs;
-        
-        if (blink) _blinkState = true; // Reiniciar estado al cargar código
+        // Un solo pin (compat). Si es OUTPUT, lo convertimos en la única entrada multi-pin.
+        var pins = new List<ArduinoCodeParser.PinConfig>();
+        if (mode == PinMode.OUTPUT)
+            pins.Add(new ArduinoCodeParser.PinConfig
+            {
+                pin = pinNumber, isHigh = state == PinState.HIGH,
+                blink = blink, blinkOnMs = blinkOnMs, blinkOffMs = blinkOffMs
+            });
 
-        Debug.Log($"[ArduinoCore] Sketch cargado: pin={pinNumber}, mode={mode}, " +
-                  $"state={state}, blink={blink} (ON:{blinkOnMs}ms, OFF:{blinkOffMs}ms)");
+        LoadSketchMulti(pins, pinNumber, mode, state, blink, blinkOnMs, blinkOffMs);
+    }
+
+    /// <summary>
+    /// Carga un sketch MULTI-PIN: cada pin de salida puede tener su propio HIGH/LOW/BLINK
+    /// independiente (semáforos, secuencias, varios LEDs selectivos). El primer pin se usa
+    /// además como "pin principal" para la telemetría y la validación.
+    /// </summary>
+    public void LoadSketchMulti(List<ArduinoCodeParser.PinConfig> configs,
+                                int mainPin, PinMode mainMode, PinState mainState,
+                                bool mainBlink, int mainOnMs, int mainOffMs)
+    {
+        StopProgram();   // el modo Bloques reemplaza a cualquier programa libre en curso
+        _pins.Clear();
+        float now = Time.time;
+        if (configs != null)
+        {
+            foreach (var c in configs)
+                _pins.Add(new ActivePinState
+                {
+                    pin = c.pin, isHigh = c.isHigh, blink = c.blink,
+                    onMs = Mathf.Max(50, c.blinkOnMs), offMs = Mathf.Max(50, c.blinkOffMs),
+                    phaseOn = true, nextToggle = now + Mathf.Max(50, c.blinkOnMs) / 1000f
+                });
+        }
+
+        // Pin principal (telemetría + validación legacy).
+        activePinNumber     = mainPin;
+        activePinMode       = mainMode;
+        activePinState      = mainState;
+        blinkEnabled        = mainBlink;
+        _blinkIntervalOnMs  = mainOnMs;
+        _blinkIntervalOffMs = mainOffMs;
+        _blinkState         = true;
+
+        Debug.Log($"[ArduinoCore] Sketch MULTI-PIN cargado: {_pins.Count} pin(es) de salida. " +
+                  $"Principal=D{mainPin} ({mainMode}, blink={mainBlink}).");
+        MarkProtoboardDirty();
     }
 
     // ─────────────────────────────────────────────
@@ -183,10 +294,8 @@ public class ArduinoCore : MonoBehaviour
     // ─────────────────────────────────────────────
 
     /// <summary>
-    /// Recibe el sketch del Técnico por red.
-    /// <paramref name="pin"/> es el número de pin D# seleccionado en el ArduinoIDEUI.
+    /// Recibe el sketch del Técnico por red utilizando los 6 parámetros asimétricos.
     /// </summary>
-    // CORRECCIÓN: Firma de 6 argumentos
     public void RecibirCodigoDePC(int pin, bool isOutput, bool isHigh, int delayOnMs, int delayOffMs, bool isBlink)
     {
         LoadSketch(
@@ -203,11 +312,144 @@ public class ArduinoCore : MonoBehaviour
 
     public int GetAnalogReadA0() => _adcValue;
 
+    // ═════════════════════════════════════════════
+    //  Modo PROGRAMA — intérprete Arduino libre (Reto 4)
+    // ═════════════════════════════════════════════
+
+    /// <summary>True si hay un programa libre compilado y corriendo.</summary>
+    public bool ProgramRunning => _programMode;
+
     /// <summary>
-    /// Marca sucio el motor del Reto 4 (<see cref="ProtoboardSimulator"/>) para que
-    /// recalcule MNA + validación tras un cambio del Arduino. Antes se notificaba al
-    /// CircuitSimulator (motor Retos 1-3, null en Reto 4), por lo que subir el sketch
-    /// no refrescaba el circuito del Explorador.
+    /// Compila y arranca un sketch LIBRE (texto completo) con el intérprete.
+    /// Reemplaza cualquier modo Bloques o programa anterior. Si no compila, no cambia nada
+    /// (los errores van por <see cref="OnProgramError"/>).
+    /// </summary>
+    public void LoadSketchProgram(string code)
+    {
+        StopProgram();
+        if (string.IsNullOrWhiteSpace(code)) return;
+
+        _pins.Clear();
+        _programPins.Clear();
+        _lastLevel.Clear();
+        _blinkPin = -1;
+        _blinkLastToggle = -999f;
+
+        _interp = new ArduinoInterpreter(this)
+        {
+            OnSerial = s => OnProgramSerial?.Invoke(s),
+            OnError  = s => { Debug.LogWarning("[Arduino] " + s, this); OnProgramError?.Invoke(s); }
+        };
+
+        if (!_interp.Compile(code)) { _programMode = false; return; }
+
+        _programMode      = true;
+        _programStartTime = Time.time;
+        _interp.Start();
+
+        if (isActiveAndEnabled) _programCo = StartCoroutine(ProgramCoroutine());
+        MarkProtoboardDirty();
+        Debug.Log("[ArduinoCore] Programa libre compilado y en ejecución.", this);
+    }
+
+    /// <summary>Solo compila (para el botón "Compilar"): reporta errores sin ejecutar.</summary>
+    public bool CompileOnly(string code, out string error)
+    {
+        error = null;
+        string captured = null;
+        var probe = new ArduinoInterpreter(this) { OnError = s => captured = s };
+        bool ok = probe.Compile(code);
+        if (!ok) error = captured;
+        return ok;
+    }
+
+    /// <summary>Detiene el programa libre en curso (si lo hay).</summary>
+    public void StopProgram()
+    {
+        _programMode = false;
+        if (_programCo != null) { StopCoroutine(_programCo); _programCo = null; }
+    }
+
+    IEnumerator ProgramCoroutine()
+    {
+        // setup() una vez
+        foreach (var sig in _interp.RunSetup())
+            yield return sig.Kind == ArduinoInterpreter.SignalKind.Wait
+                ? (object)new WaitForSeconds(sig.Seconds) : null;
+
+        // loop() para siempre
+        while (_programMode)
+        {
+            foreach (var sig in _interp.RunLoop())
+                yield return sig.Kind == ArduinoInterpreter.SignalKind.Wait
+                    ? (object)new WaitForSeconds(sig.Seconds) : null;
+            yield return null;   // cede al menos un frame por iteración de loop()
+        }
+    }
+
+    // ── ArduinoInterpreter.IBoard ────────────────────────────────────────
+    void ArduinoInterpreter.IBoard.PinMode(int pin, int mode)
+    {
+        if (mode == 1) // OUTPUT
+        {
+            if (!_programPins.ContainsKey(pin))
+                _programPins[pin] = new PinOut { high = false, duty01 = 0f };
+            activePinMode = PinMode.OUTPUT;
+        }
+    }
+
+    void ArduinoInterpreter.IBoard.DigitalWrite(int pin, bool high)
+        => SetProgramPin(pin, high ? 1f : 0f);
+
+    void ArduinoInterpreter.IBoard.AnalogWrite(int pin, int duty)
+        => SetProgramPin(pin, Mathf.Clamp01(duty / 255f));
+
+    bool ArduinoInterpreter.IBoard.DigitalRead(int pin)
+    {
+        var node = PinToNode(pin);
+        return node != null && node.voltage >= 2.5f;
+    }
+
+    int  ArduinoInterpreter.IBoard.AnalogRead(int pin) => _adcValue;
+
+    long ArduinoInterpreter.IBoard.MillisNow()
+        => (long)((Time.time - _programStartTime) * 1000f);
+
+    /// <summary>Fija la salida de un pin (duty 0..1) y detecta parpadeo para la validación.</summary>
+    void SetProgramPin(int pin, float duty01)
+    {
+        bool level = duty01 > 0f;
+        _programPins[pin] = new PinOut { high = level, duty01 = duty01 };
+
+        var node = PinToNode(pin);
+        if (node != null) node.voltage = duty01 * outputVoltageTTL;
+        if (pin == activePinNumber) _outputVoltage = duty01 * outputVoltageTTL;
+
+        // Detección de parpadeo (para "Comprobar"): un pin que alterna su nivel = blink.
+        if (_lastLevel.TryGetValue(pin, out bool prev) && prev != level)
+        {
+            _blinkPin = pin;
+            _blinkLastToggle = Time.time;
+        }
+        _lastLevel[pin] = level;
+
+        MarkProtoboardDirty();
+    }
+
+    /// <summary>Refresca blinkEnabled/activePin para que EvaluateSandbox reconozca el objetivo.</summary>
+    void UpdateBlinkFlag()
+    {
+        bool blinking = (Time.time - _blinkLastToggle) < 3f && _blinkPin >= 2;
+        blinkEnabled = blinking;
+        if (blinking)
+        {
+            activePinNumber = _blinkPin;
+            activePinMode   = PinMode.OUTPUT;
+        }
+    }
+
+    /// <summary>
+    /// Marca sucio el motor del Reto 4 para que recalcule el MNA.
     /// </summary>
     void MarkProtoboardDirty()
     {
@@ -221,9 +463,7 @@ public class ArduinoCore : MonoBehaviour
     // ─────────────────────────────────────────────
 
     /// <summary>
-    /// Resuelve un número de pin a su <see cref="ElectricalNode"/> en el modelo 3D.
-    /// Prioridad: 1) <see cref="pinNodeMap"/> explícito (pin físico real),
-    /// 2) pin 13 → nodoP13, 3) proxy a nodoP13 si no hay mapa (modo educativo simple).
+    /// Resuelve un número de pin a su ElectricalNode en el modelo 3D.
     /// </summary>
     public ElectricalNode PinToNode(int pin)
     {
@@ -233,46 +473,91 @@ public class ArduinoCore : MonoBehaviour
         // Compatibilidad legacy: pin 13 siempre disponible via nodoP13
         if (pin == 13) return nodoP13;
 
-        // Sin mapa por pin: cualquier pin cae a nodoP13 (proxy). El número de pin
-        // es cosmético hasta que se generen los nodos por pin (ArduinoPinNodeGenerator).
+        // Fallback: Si no hay mapa, cualquier pin cae a nodoP13
         if (pinNodeMap.Count == 0) return nodoP13;
 
         return null;
     }
 
     /// <summary>
-    /// Si <see cref="pinNodeMap"/> está vacío, descubre nodos hijos nombrados
-    /// "Nodo_D7", "Nodo_P7", "Pin_7" o "Nodo_7" y los registra, de modo que cada pin
-    /// tenga su propio <see cref="ElectricalNode"/>. Hace que el número de pin del
-    /// Técnico sea físicamente significativo en el modo creativo sin requerir el
-    /// Inspector (lo llena el editor tool, pero esto cubre el caso sin tool).
+    /// Escanea la jerarquía buscando componentes 'ArduinoPin' leyendo su variable 'isDigital' y 'pinNumber'.
+    /// Esto permite que los prefabs modulares actúen como pines reales.
     /// </summary>
     void AutoDiscoverPinNodes()
     {
-        if (pinNodeMap.Count > 0) return;
+        bool faltanNodos = pinNodeMap.Count == 0;
+        foreach (var m in pinNodeMap) if (m.node == null) { faltanNodos = true; break; }
+        if (!faltanNodos && nodoGND != null) return;
 
-        foreach (var node in GetComponentsInChildren<ElectricalNode>(true))
+        // 1. Buscar todos los scripts ArduinoPin adjuntos al modelo 3D
+        var pinesFisicos = GetComponentsInChildren<ArduinoPin>(true);
+
+        foreach (var pinFisico in pinesFisicos)
         {
-            int pin = ParsePinFromName(node.name);
-            if (pin >= 2 && pin <= 13) RegisterPinNode(pin, node);
+            // Leer directamente las variables del script ArduinoPin.cs
+            bool esDigital = pinFisico.isDigital;
+            int numPin = pinFisico.pinNumber;
+            
+            // Buscar el nodo eléctrico en ese mismo objeto prefab
+            var nodoElectrico = pinFisico.GetComponent<ElectricalNode>();
+            
+            if (nodoElectrico == null) continue;
+
+            // Llenar el mapa de pines digitales (2 al 13)
+            if (esDigital && numPin >= 2 && numPin <= 13)
+            {
+                if (PinToNode(numPin) == null) 
+                {
+                    RegisterPinNode(numPin, nodoElectrico);
+                }
+                
+                // Actualizar alias si es el pin 13
+                if (numPin == 13 && nodoP13 == null) nodoP13 = nodoElectrico;
+            }
+            // Mapear entradas analógicas asumiendo que isDigital es false y pinNumber es 0
+            else if (!esDigital && numPin == 0 && nodoA0 == null)
+            {
+                nodoA0 = nodoElectrico;
+            }
+            // Mapear los GND evaluando si el nombre del GameObject contiene "GND"
+            else if (pinFisico.gameObject.name.ToUpper().Contains("GND") && nodoGND == null)
+            {
+                nodoGND = nodoElectrico;
+            }
         }
 
-        if (pinNodeMap.Count > 0)
-            Debug.Log($"[ArduinoCore] Auto-descubiertos {pinNodeMap.Count} nodos de pin " +
-                      "desde el modelo 3D (modo creativo: pin físico real activo).");
+        // Fallback de compatibilidad si no encuentra los ArduinoPin o faltan referencias
+        if (nodoGND == null) nodoGND = FindNearestNamedNode("GND");
+        if (nodoP13 == null) { var n13 = PinToNode(13); if (n13 != null) nodoP13 = n13; }
+
+        int validos = 0;
+        foreach (var m in pinNodeMap) if (m.node != null) validos++;
+        Debug.Log($"[ArduinoCore] Auto-enlace adaptado a prefabs ArduinoPin: {validos}/{pinNodeMap.Count} pines, " +
+                  $"GND={(nodoGND != null)}, P13={(nodoP13 != null)}.", this);
     }
 
-    /// <summary>Extrae el número de pin de un nombre tipo "Nodo_D7"/"Nodo_P13"/"Pin_2". −1 si no aplica.</summary>
-    static int ParsePinFromName(string name)
+    /// <summary>
+    /// Busca el nodo más cercano que contenga el texto buscado en su nombre.
+    /// </summary>
+    ElectricalNode FindNearestNamedNode(string contains)
     {
-        var m = Regex.Match(name, @"(?:Nodo_[DP]|Pin_?|Nodo_D)(\d{1,2})\b", RegexOptions.IgnoreCase);
-        if (m.Success && int.TryParse(m.Groups[1].Value, out int p)) return p;
-        return -1;
+        ElectricalNode Buscar(ElectricalNode[] nodos)
+        {
+            ElectricalNode best = null; float bestD = float.MaxValue;
+            foreach (var n in nodos)
+            {
+                if (n.name.IndexOf(contains, System.StringComparison.OrdinalIgnoreCase) < 0) continue;
+                float d = (n.transform.position - transform.position).sqrMagnitude;
+                if (d < bestD) { bestD = d; best = n; }
+            }
+            return best;
+        }
+        return Buscar(GetComponentsInChildren<ElectricalNode>(true))
+            ?? Buscar(FindObjectsByType<ElectricalNode>(FindObjectsInactive.Include));
     }
 
     /// <summary>
     /// Registra en runtime la asociación pin → nodo.
-    /// Útil para que el ArduinoModelCreator llame esto en Awake después de generar el modelo.
     /// </summary>
     public void RegisterPinNode(int pin, ElectricalNode node)
     {

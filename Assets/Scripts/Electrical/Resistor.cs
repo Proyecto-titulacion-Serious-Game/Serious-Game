@@ -120,7 +120,12 @@ public class Resistor : ElectricalComponent
     /// </summary>
     public bool IsValueCorrect(float proposedValue)
     {
-        float margin = correctResistance * (tolerancePercent / 100f);
+        // Piso de tolerancia: ningún reto exige al estudiante más precisión que esto. Antes el valor
+        // por-instancia (p. ej. 8.5% en Reto 1 → solo 778–922 Ω) rechazaba valores razonables que ya
+        // encendían bien el LED, dejando el reto "visualmente resuelto" pero sin completar.
+        const float tolerancePisoPct = 12f;
+        float effTol  = Mathf.Max(tolerancePercent, tolerancePisoPct);
+        float margin  = correctResistance * (effTol / 100f);
         return Mathf.Abs(proposedValue - correctResistance) <= margin;
     }
 

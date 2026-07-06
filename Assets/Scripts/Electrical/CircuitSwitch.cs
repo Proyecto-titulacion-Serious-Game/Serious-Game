@@ -65,6 +65,7 @@ public class CircuitSwitch : ElectricalComponent
             var kb = Keyboard.current;
             bool pressed = kb != null && (debugKey switch
             {
+                KeyCode.S      => kb.sKey.wasPressedThisFrame,
                 KeyCode.E      => kb.eKey.wasPressedThisFrame,
                 KeyCode.T      => kb.tKey.wasPressedThisFrame,
                 KeyCode.Space  => kb.spaceKey.wasPressedThisFrame,

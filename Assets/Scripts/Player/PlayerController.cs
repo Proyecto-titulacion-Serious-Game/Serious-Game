@@ -18,6 +18,9 @@ public class PlayerController : MonoBehaviour
     [Header("Modo de locomocion")]
     [Tooltip("True = caminadora KAT VR.  False = joystick Meta Quest (fallback).")]
     public bool useKatVR = true;
+    [Tooltip("True = SOLO caminadora: nunca se usa el joystick para trasladarse. " +
+             "Si la KAT no esta disponible/conectada, el jugador no se mueve (no hay fallback a mando).")]
+    public bool katOnly = true;
 
     [Header("Velocidad (joystick VR)")]
     public float walkSpeed = 2.0f;
@@ -33,8 +36,14 @@ public class PlayerController : MonoBehaviour
     [Header("KAT VR")]
     [Tooltip("Numero de serie del dispositivo. Dejar vacio para detectar automaticamente.")]
     public string katSerialNumber = "";
-    [Tooltip("Multiplicador sobre la velocidad reportada por la caminadora.")]
-    [Range(0.1f, 3f)] public float katSpeedMultiplier = 1.0f;
+    [Tooltip("Multiplicador sobre la velocidad reportada por la caminadora. Subir si los pasos se sienten lentos.")]
+    [Range(0.1f, 6f)] public float katSpeedMultiplier = 1.8f;
+    [Tooltip("Correccion de giro manual en grados. Usar si para ir RECTO toca caminar en diagonal: " +
+             "ajusta hasta que caminar de frente avance derecho. + gira el avance a la derecha, - a la izquierda.")]
+    [Range(-90f, 90f)] public float katYawOffset = 0f;
+    [Tooltip("Segundos a esperar tras iniciar la KAT antes de auto-calibrar la orientacion, " +
+             "para dar tiempo a que el visor empiece a rastrear (evita la calibracion en pose invalida).")]
+    [Range(0f, 5f)] public float katAutoCalibDelay = 1.0f;
 
     [Header("Referencia VR")]
     [Tooltip("XR Origin o CameraOffset de la escena VR.")]
@@ -48,6 +57,10 @@ public class PlayerController : MonoBehaviour
     [Header("Input Actions (New Input System)")]
     [Tooltip("Accion de movimiento del joystick izquierdo (Vector2). Asignar desde InputSystem_Actions.")]
     public InputActionReference moveAction;
+
+    [Tooltip("Atajo OPCIONAL para recentrar la orientacion de la KAT a mano. " +
+             "Si se deja vacio, por defecto: boton B/Y de cualquiera de los dos controles, o tecla R (PCVR/editor).")]
+    public InputActionReference recenterAction;
 
     [Header("Interaccion")]
     public PlayerInteraction interaction;
@@ -69,10 +82,16 @@ public class PlayerController : MonoBehaviour
     private float   _lastKatDiag;
     private double  _lastKatUpdateTime;
     private string  _resolvedSerial = "";
+    private bool    _needsInitialCalib;   // calibrar al primer frame con pose de visor valida
+    private float   _katInitTime;         // momento en que se inicio la KAT (para el delay de auto-calib)
 
     // Snap turn
     private InputAction _snapTurnAct;
     private bool        _snapTurnHeld;
+
+    // Recentrar manual (atajo)
+    private InputAction _recenterFallback;
+    InputAction RecenterAction => recenterAction?.action ?? _recenterFallback;
 
     // Fallback when moveAction reference is unassigned in Inspector
     private InputAction _moveFallback;
@@ -118,12 +137,14 @@ public class PlayerController : MonoBehaviour
             act.Enable();
         }
         _snapTurnAct?.Enable();
+        RecenterAction?.Enable();
     }
 
     void OnDisable()
     {
         MoveAction?.Disable();
         _snapTurnAct?.Disable();
+        RecenterAction?.Disable();
     }
 
     void Start()
@@ -159,6 +180,20 @@ public class PlayerController : MonoBehaviour
 
         DiagnosticarMovimiento();
         InitSnapTurn();
+        InitRecenter();
+    }
+
+    void InitRecenter()
+    {
+        // Si el usuario asignó una acción en el Inspector, basta con habilitarla.
+        if (recenterAction?.action != null) { recenterAction.action.Enable(); return; }
+
+        // Fallback en código: botón B/Y de cualquiera de los dos controles + tecla R (PCVR/editor).
+        _recenterFallback = new InputAction("KAT Recenter", InputActionType.Button);
+        _recenterFallback.AddBinding("<XRController>{RightHand}/secondaryButton");
+        _recenterFallback.AddBinding("<XRController>{LeftHand}/secondaryButton");
+        _recenterFallback.AddBinding("<Keyboard>/r");
+        _recenterFallback.Enable();
     }
 
     void DisableConflictingXRILocomotion()
@@ -217,8 +252,9 @@ public class PlayerController : MonoBehaviour
         {
             if (useKatVR)
                 HandleKatVRLocomotion();
-            else
+            else if (!katOnly)
                 HandleJoystickLocomotion();
+            // katOnly y KAT no disponible → sin traslado (solo caminadora, sin joystick).
 
             // Gravedad SIEMPRE que no se haya usado SimpleMove (KAT), que ya la aplica
             // internamente. Sin esto, en modo joystick el rig nunca cae al suelo → flota.
@@ -227,6 +263,10 @@ public class PlayerController : MonoBehaviour
 
             HandleSnapTurn();
         }
+
+        // El recentrado se atiende aun congelado (p.ej. usando el multímetro) por si quedó torcido.
+        if (useKatVR && RecenterAction != null && RecenterAction.WasPressedThisFrame())
+            RecenterOrientation();
     }
 
     void LateUpdate()
@@ -264,8 +304,9 @@ public class PlayerController : MonoBehaviour
             {
                 Debug.LogWarning("[PlayerController/KAT] No se detectó ninguna caminadora KAT. " +
                                  "Verifica KAT Gateway abierto y la caminadora conectada/encendida. " +
-                                 "→ Fallback a joystick.");
-                useKatVR = false;
+                                 (katOnly ? "→ Modo SOLO caminadora: se reintenta cada frame (sin joystick)."
+                                          : "→ Fallback a joystick."));
+                if (!katOnly) useKatVR = false;
                 return;
             }
 
@@ -282,23 +323,30 @@ public class PlayerController : MonoBehaviour
             if (!data.connected)
             {
                 Debug.LogWarning("[PlayerController/KAT] La caminadora aparece pero NO está 'connected'. " +
-                                 "→ Fallback a joystick.");
-                useKatVR = false;
+                                 (katOnly ? "→ Modo SOLO caminadora: se reintenta cada frame (sin joystick)."
+                                          : "→ Fallback a joystick."));
+                if (!katOnly) useKatVR = false;
                 return;
             }
 
-            CalibrateOrientation(data);
-            Debug.Log("[PlayerController/KAT] ✓ Caminadora KAT inicializada y calibrada. Camina sobre la plataforma.");
+            // NO calibrar aquí: en Start el visor casi nunca tiene una pose válida todavía, así que
+            // _yawCorrection quedaría en 0 y caminar de frente avanzaría en diagonal. Diferimos la
+            // calibración hasta que el HMD esté rastreando (ver HandleKatVRLocomotion).
+            _needsInitialCalib = true;
+            _katInitTime = Time.unscaledTime;
+            Debug.Log("[PlayerController/KAT] ✓ Caminadora KAT inicializada. Auto-calibración de orientación pendiente (esperando pose del visor).");
         }
         catch (System.DllNotFoundException e)
         {
             Debug.LogError("[PlayerController/KAT] No se cargó KATSDKWarpper.dll: " + e.Message +
-                           "\n→ Fallback a joystick.");
+                           (katOnly ? "\n→ Modo SOLO caminadora: sin locomoción (revisa la DLL de KAT)."
+                                    : "\n→ Fallback a joystick."));
             useKatVR = false;
         }
         catch (System.Exception e)
         {
-            Debug.LogError("[PlayerController/KAT] Error inicializando KAT: " + e.Message + "\n→ Fallback a joystick.");
+            Debug.LogError("[PlayerController/KAT] Error inicializando KAT: " + e.Message +
+                           (katOnly ? "\n→ Modo SOLO caminadora: sin locomoción." : "\n→ Fallback a joystick."));
             useKatVR = false;
         }
     }
@@ -352,8 +400,13 @@ public class PlayerController : MonoBehaviour
         // si lo exigíamos, la KAT siempre caía a joystick y nunca movía.
         if (!data.connected)
         {
-            DiagKat("NO conectada (connected=false) → joystick. ¿KAT Gateway abierto y caminadora encendida?");
-            HandleJoystickLocomotion();
+            if (katOnly)
+                DiagKat("NO conectada (connected=false) → sin movimiento (modo SOLO caminadora). ¿KAT Gateway abierto y caminadora encendida?");
+            else
+            {
+                DiagKat("NO conectada (connected=false) → joystick. ¿KAT Gateway abierto y caminadora encendida?");
+                HandleJoystickLocomotion();
+            }
             return;
         }
 
@@ -373,8 +426,25 @@ public class PlayerController : MonoBehaviour
             if (!btn) _katBtnWasPressed = false;
         }
 
+        // ¿El SDK está entregando datos VIVOS? (se calcula antes para usarlo en la auto-calibración)
+        bool datosFrescosTmp = data.lastUpdateTimePoint != _lastKatUpdateTime;
+
+        // Auto-calibración diferida: en cuanto el visor tenga una pose válida y haya pasado el delay,
+        // calibramos UNA vez. Esto corrige la diagonal de "para ir recto hay que caminar de lado",
+        // que ocurría porque la calibración de Start se hacía con el visor aún sin rastrear.
+        if (_needsInitialCalib && datosFrescosTmp
+            && Time.unscaledTime - _katInitTime >= katAutoCalibDelay
+            && HeadPoseValid())
+        {
+            CalibrateOrientation(data);
+            _needsInitialCalib = false;
+            Debug.Log("[PlayerController/KAT] Auto-calibración de orientación aplicada (visor ya rastreando). " +
+                      "Mira al frente y, si hace falta, pulsa el botón de la KAT para recentrar.");
+        }
+
         Quaternion bodyRot = data.bodyRotationRaw
-                           * Quaternion.Inverse(Quaternion.Euler(0f, _yawCorrection, 0f));
+                           * Quaternion.Inverse(Quaternion.Euler(0f, _yawCorrection, 0f))
+                           * Quaternion.Euler(0f, katYawOffset, 0f);
 
         Vector3 moveVelocity = bodyRot * data.moveSpeed * katSpeedMultiplier;
 
@@ -384,7 +454,7 @@ public class PlayerController : MonoBehaviour
         // ¿El SDK está entregando datos VIVOS? Si lastUpdateTimePoint avanza pero moveSpeed=0,
         // el dispositivo reporta bien pero NO detecta pasos → calibración/sensores de la KAT.
         // Si lastUpdateTimePoint NO avanza, los datos están congelados/mal marshalados.
-        bool datosFrescos = data.lastUpdateTimePoint != _lastKatUpdateTime;
+        bool datosFrescos = datosFrescosTmp;
         _lastKatUpdateTime = data.lastUpdateTimePoint;
 
         DiagKat($"moveSpeed raw=({data.moveSpeed.x:0.000}, {data.moveSpeed.y:0.000}, {data.moveSpeed.z:0.000}) " +
@@ -402,6 +472,43 @@ public class PlayerController : MonoBehaviour
         if (Time.unscaledTime - _lastKatDiag < 1f) return;
         _lastKatDiag = Time.unscaledTime;
         Debug.Log("[PlayerController/KAT] " + msg);
+    }
+
+    /// <summary>
+    /// Recentra a mano la orientación de la KAT: tras esto, caminar de frente avanza hacia donde
+    /// mira el visor AHORA. Llamar mirando al frente. Atajo por defecto: botón B/Y del mando o tecla R.
+    /// También invocable desde el menú contextual del componente o desde un botón de UI.
+    /// </summary>
+    [ContextMenu("Recentrar orientación KAT")]
+    public void RecenterOrientation()
+    {
+        if (!useKatVR) return;
+        try
+        {
+            var data = KATNativeSDK.GetWalkStatus(KatSerial());
+            if (!data.connected)
+            {
+                Debug.LogWarning("[PlayerController/KAT] Recentrar manual ignorado: caminadora no conectada.");
+                return;
+            }
+            CalibrateOrientation(data);
+            _needsInitialCalib = false;
+            Debug.Log("[PlayerController/KAT] Recentrado MANUAL aplicado (se tomó la dirección del visor al pulsar).");
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[PlayerController/KAT] Recentrar manual falló: " + e.Message);
+        }
+    }
+
+    /// <summary>True si la cámara del visor ya entrega una pose razonable (no NaN y no pegada al origen).</summary>
+    bool HeadPoseValid()
+    {
+        if (headCamera == null) return false;
+        Vector3 p = headCamera.transform.position;
+        if (float.IsNaN(p.x) || float.IsNaN(p.y) || float.IsNaN(p.z)) return false;
+        // En el frame 0 la cámara suele estar en el origen exacto hasta que el HMD empieza a rastrear.
+        return p.sqrMagnitude > 0.0001f;
     }
 
     void CalibrateOrientation(KATNativeSDK.TreadMillData data)

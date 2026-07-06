@@ -81,7 +81,8 @@ public class MultimeterDebugHelper : MonoBehaviour
         var order = new List<CircuitManager>();
 
         var gm = FindAnyObjectByType<GameManager>();
-        if (gm?.circuit != null) { order.Add(gm.circuit); seen.Add(gm.circuit); }
+        CircuitManager gmCircuit = (gm != null && gm.circuit != null) ? gm.circuit.GetCompanionCircuitManager() : null;
+        if (gmCircuit != null) { order.Add(gmCircuit); seen.Add(gmCircuit); }
 
         foreach (var c in FindObjectsByType<CircuitManager>(FindObjectsInactive.Include))
             if (seen.Add(c)) order.Add(c);

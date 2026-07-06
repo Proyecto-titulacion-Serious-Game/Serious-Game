@@ -42,6 +42,18 @@ public static class ArduinoPinNodeGenerator
         float z    = -0.0025f;
         float x13  = PCB_W - PIN_S * 0.5f;
 
+        // Las constantes están en METROS reales, pero la posición de los nodos es LOCAL al
+        // GO del Arduino. Si ese GO tiene escala ≠ 1 (en escena está a 0.2), un valor local
+        // metido tal cual se reduce por la escala del padre y los pines quedan amontonados
+        // fuera de los headers. Compensamos dividiendo por la escala mundial del padre, así
+        // los nodos caen a tamaño/posición real en MUNDO sea cual sea la escala del GO.
+        Vector3 ls = parent.lossyScale;
+        Vector3 inv = new Vector3(
+            Mathf.Approximately(ls.x, 0f) ? 1f : 1f / ls.x,
+            Mathf.Approximately(ls.y, 0f) ? 1f : 1f / ls.y,
+            Mathf.Approximately(ls.z, 0f) ? 1f : 1f / ls.z);
+        float radius = 0.0016f * Mathf.Max(inv.x, inv.y, inv.z);  // ~1.6 mm en MUNDO
+
         Undo.RecordObject(core, "Llenar pinNodeMap");
         core.pinNodeMap.Clear();
 
@@ -52,10 +64,10 @@ public static class ArduinoPinNodeGenerator
         {
             int   stepsFrom13 = 13 - pin;
             float gap         = pin <= 7 ? PIN_S : 0f;   // hueco real entre D7 y D8
-            var   pos         = new Vector3(x13 - stepsFrom13 * PIN_S - gap, y, z);
+            var   pos         = Vector3.Scale(new Vector3(x13 - stepsFrom13 * PIN_S - gap, y, z), inv);
 
             bool existed;
-            var node = FindOrCreatePinNode(parent, pin, pos, out existed);
+            var node = FindOrCreatePinNode(parent, pin, pos, radius, out existed);
             if (existed) reusados++; else creados++;
 
             core.RegisterPinNode(pin, node);
@@ -77,7 +89,7 @@ public static class ArduinoPinNodeGenerator
             "y cablea el multímetro con Tools → TITA → Multímetro → Cablear Multímetro ART.", "OK");
     }
 
-    static ElectricalNode FindOrCreatePinNode(Transform parent, int pin, Vector3 pos, out bool existed)
+    static ElectricalNode FindOrCreatePinNode(Transform parent, int pin, Vector3 pos, float radius, out bool existed)
     {
         // Nombres aceptados (reutiliza Nodo_P13 legacy para el pin 13)
         string primary = $"Nodo_D{pin}";
@@ -109,7 +121,7 @@ public static class ArduinoPinNodeGenerator
         if (!go.TryGetComponent<SphereCollider>(out var col))
             col = Undo.AddComponent<SphereCollider>(go);
         col.isTrigger = false;   // no-trigger: detectable por SphereCast del multímetro y cables
-        col.radius    = 0.0016f;
+        col.radius    = radius;  // compensado por la escala del padre → ~1.6 mm en MUNDO
 
         // NodeInteractable para poder medir directamente sobre el header del pin.
         // (RequireComponent(Collider) ya satisfecho por el SphereCollider de arriba.)

@@ -91,9 +91,9 @@ public class ObjectiveSystem : MonoBehaviour
                 break;
 
             case LevelType.Parallel:
-                AddObjective("Identificar qué ramas del paralelo están activas", 150);
-                AddObjective("Localizar la rama abierta con el multímetro",       200);
-                AddObjective("Reconectar el cable roto en la rama correcta",      250);
+                AddObjective("Identificar el sensor (LED) que no enciende",       150);
+                AddObjective("Medir el LED: 0V / sin corriente = polaridad invertida", 200);
+                AddObjective("Colocar el LED con la polaridad correcta",          250);
                 break;
 
             case LevelType.Mixed:
@@ -202,13 +202,13 @@ public class ObjectiveSystem : MonoBehaviour
                 break;
 
             case LevelType.Parallel:
-                // Obj 0: multímetro en uso — solo si el jugador conectó las puntas
+                // Obj 0: sensor apagado identificado — el jugador midió con el multímetro
                 if (_multimeterUsed)
                     CompleteObjectiveOnce(0);
-                // Obj 1: rama rota identificada — solo tras medir y haber un LED apagado
-                if (_multimeterUsed && circuit.totalCurrent > 0f)
+                // Obj 1: polaridad invertida diagnosticada — tras medir (LED a 0V / sin corriente)
+                if (_multimeterUsed)
                     CompleteObjectiveOnce(1);
-                // Obj 2: reparación → HandleLevelCompleted
+                // Obj 2: LED colocado con polaridad correcta → HandleLevelCompleted
                 break;
 
             case LevelType.Mixed:

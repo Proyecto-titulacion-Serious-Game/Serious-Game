@@ -46,6 +46,7 @@ public class NetworkDemoOverlay : MonoBehaviour
     bool  _visible = true;
     bool  _useWorldCanvas;
     float _runnerSearchCd;
+    bool  _bothHandled;       // ya se ocultó al conectarse ambos (2 jugadores)
 
     NetworkRunner _runner;
     Camera        _cam;
@@ -77,8 +78,8 @@ public class NetworkDemoOverlay : MonoBehaviour
 
     void HandleSketch(int pin, PinMode mode, PinState state, bool blink, int delayOnMs, int delayOffMs)        => Push($"SKETCH   pin D{pin}  {state}{(blink ? "  BLINK " + delayOnMs + "ms" : "")}");
 
-    void HandleComponente(ComponentType tipo, float valor)
-        => Push($"COMPONENTE   {tipo} = {valor:0.##}");
+    void HandleComponente(ComponentType tipo, float valor, int variante)
+        => Push($"COMPONENTE   {tipo} = {valor:0.##}  ({(ComponentVariant)variante})");
 
     void HandleResultado(bool ok, int cod)
         => Push($"VALIDACION   {(ok ? "PASS" : "FAIL")}  cod={cod}");
@@ -115,6 +116,23 @@ public class NetworkDemoOverlay : MonoBehaviour
                 _runner = FindAnyObjectByType<NetworkRunner>();
                 _runnerSearchCd = 1f;
             }
+        }
+
+        // Apenas estén conectados AMBOS (Técnico + Explorador = 2 jugadores en la sala),
+        // ocultar el overlay: la evidencia de red sigue saliendo por Debug.Log (logs del
+        // juego). F9 lo vuelve a mostrar manualmente. Se re-arma si baja a <2 (reconexión).
+        int players = (_runner != null && _runner.IsRunning &&
+                       _runner.SessionInfo != null && _runner.SessionInfo.IsValid)
+                      ? _runner.SessionInfo.PlayerCount : 0;
+        if (players >= 2 && !_bothHandled)
+        {
+            _bothHandled = true;
+            _visible = false;
+            Debug.Log("[NetDemo] Ambos conectados (2 jugadores) → overlay oculto; la evidencia de red continúa en los logs. F9 para mostrarlo.");
+        }
+        else if (players < 2)
+        {
+            _bothHandled = false;
         }
 
         if (_useWorldCanvas && _text != null)

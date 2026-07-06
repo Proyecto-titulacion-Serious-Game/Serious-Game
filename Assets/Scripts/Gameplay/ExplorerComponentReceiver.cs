@@ -110,15 +110,16 @@ public class ExplorerComponentReceiver : MonoBehaviour
     //  Handlers
     // ─────────────────────────────────────────────
 
-    // GameSession (multijugador) — sin info de variante, usa prefab base
-    void HandleComponenteRecibido(ComponentType tipo, float valor)
-        => SpawnComponente(tipo, valor, null);
+    // GameSession (multijugador) — la variante (color/orientación) viaja en el RPC.
+    void HandleComponenteRecibido(ComponentType tipo, float valor, int variante)
+        => SpawnComponente(tipo, valor, null, (ComponentVariant)variante);
 
-    // OnComponentSentLocal (editor/offline) — misma firma que el evento Action<ComponentType, float>
-    void HandleComponenteRecibidoLocal(ComponentType tipo, float valor)
-        => SpawnComponente(tipo, valor, null);
+    // OnComponentSentLocal (editor/offline) — misma firma que el evento Action<ComponentType, float, int>
+    void HandleComponenteRecibidoLocal(ComponentType tipo, float valor, int variante)
+        => SpawnComponente(tipo, valor, null, (ComponentVariant)variante);
 
-    void SpawnComponente(ComponentType tipo, float valor, GameObject prefabOverride)
+    void SpawnComponente(ComponentType tipo, float valor, GameObject prefabOverride,
+                         ComponentVariant variante = ComponentVariant.Default)
     {
         // Reto 4: el Arduino YA NO se entrega como componente físico. Es un objeto fijo en la
         // escena y se programa por código (Técnico → ArduinoNetworkBridge → ArduinoCore), sus
@@ -139,7 +140,7 @@ public class ExplorerComponentReceiver : MonoBehaviour
             delivery.CancelDelivery();
 
         // Prioridad: prefab enviado desde el Técnico → variante específica → prefab base.
-        GameObject prefab = prefabOverride != null ? prefabOverride : SeleccionarPrefab(tipo, valor);
+        GameObject prefab = prefabOverride != null ? prefabOverride : SeleccionarPrefab(tipo, valor, variante);
 
         Transform slot = tipo switch
         {
@@ -228,6 +229,11 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
         delivery?.PrepareForInstall(tipo, valor);
 
+        // Reto 2 (protoboard determinista): si es un LED, el guard lo cablea a la rama dañada al
+        // soltarlo (ánodo=COL_1 → cátodo=COL_2, polaridad correcta). No-op fuera del Reto 2.
+        if (tipo == ComponentType.LED)
+            Reto2CircuitGuard.NotifyLedDelivered(nuevoComponente);
+
         Debug.Log($"[Receiver] Componente recibido y acumulado: {tipo} ({(prefabOverride != null ? prefabOverride.name : "base")}) = {valor}");
     }
 
@@ -249,24 +255,43 @@ public class ExplorerComponentReceiver : MonoBehaviour
     }
 
     /// <summary>
-    /// Elige el prefab a instanciar: usa la VARIANTE específica si está asignada, si no el base.
-    /// Nota: el evento de entrega (ComponentType, valor) no transporta color, así que se usa una
-    /// variante por defecto coherente (LED verde = pieza sana entregada; capacitor azul). Las demás
-    /// variantes (rojo/amarillo, negro/naranja, resistor vertical) quedan listas para cuando el
-    /// Técnico envíe el color en el RPC (ampliar GameSession.OnComponenteRecibido con un parámetro).
+    /// Elige el prefab a instanciar según la VARIANTE concreta que envió el Técnico (color del LED,
+    /// color del capacitor, orientación del resistor). Si esa variante no tiene prefab asignado en el
+    /// Inspector, cae a un default coherente (LED verde, capacitor azul, resistor horizontal) y por
+    /// último al prefab base del tipo. Así enviar un LED amarillo llega amarillo, y un resistor
+    /// vertical llega vertical, en vez de caer siempre a la variante por defecto.
     /// </summary>
-    GameObject SeleccionarPrefab(ComponentType tipo, float valor)
+    GameObject SeleccionarPrefab(ComponentType tipo, float valor, ComponentVariant variante)
     {
         switch (tipo)
         {
             case ComponentType.Resistor:
+                if (variante == ComponentVariant.ResistorVertical && resistorVerticalPrefab != null)
+                    return resistorVerticalPrefab;
                 return resistorPrefab;
+
             case ComponentType.LED:
-                return ledGreenPrefab      != null ? ledGreenPrefab      : ledPrefab;
+                switch (variante)
+                {
+                    case ComponentVariant.LedRed:    if (ledRedPrefab    != null) return ledRedPrefab;    break;
+                    case ComponentVariant.LedYellow: if (ledYellowPrefab != null) return ledYellowPrefab; break;
+                    case ComponentVariant.LedGreen:  if (ledGreenPrefab  != null) return ledGreenPrefab;  break;
+                }
+                // Default LED: verde si existe, si no el base.
+                return ledGreenPrefab != null ? ledGreenPrefab : ledPrefab;
+
             case ComponentType.Capacitor:
+                switch (variante)
+                {
+                    case ComponentVariant.CapacitorBlack:  if (capacitorBlackPrefab  != null) return capacitorBlackPrefab;  break;
+                    case ComponentVariant.CapacitorOrange: if (capacitorOrangePrefab != null) return capacitorOrangePrefab; break;
+                    case ComponentVariant.CapacitorBlue:   if (capacitorBluePrefab   != null) return capacitorBluePrefab;   break;
+                }
                 return capacitorBluePrefab != null ? capacitorBluePrefab : capacitorPrefab;
+
             case ComponentType.ArduinoPin:
                 return arduinoPinPrefab;
+
             default:
                 return null;
         }
@@ -306,9 +331,22 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
     void ConfigurarComponente(GameObject obj, ComponentType tipo, float valor)
     {
+        // Reto 4 (modo protoboard): fijar la escala del resistor para que sus patas alcancen
+        // huecos distintos. Escala ABSOLUTA (la define el modo protoboard). Se aplica ANTES de
+        // EnsureOn para que el bounding box ya estirado defina la posición de las patas (leadA/leadB).
+        if (tipo == ComponentType.Resistor && Reto4BreadboardMode.ResistorScaleReto4.HasValue
+            && Reto4BreadboardMode.ResistorScaleReto4.Value != Vector3.zero)
+            obj.transform.localScale = Reto4BreadboardMode.ResistorScaleReto4.Value;
+
         // Reto 4: garantizar ProtoboardConnector en el componente recibido por red,
         // si no el CircuitSimulator nunca lo engancha a los nodos de la protoboard.
         ProtoboardConnector.EnsureOn(obj);
+
+        // Reto 4: enderezar la pieza a la cuadrícula al soltarla (en vez de heredar la
+        // inclinación de la mano), para que sus patas entren rectas en los huecos.
+        // Requiere GrabbableComponent (lo traen los prefabs entregables).
+        if (obj.GetComponent<GrabbableComponent>() != null && obj.GetComponent<Reto4StraightenOnPlace>() == null)
+            obj.AddComponent<Reto4StraightenOnPlace>();
 
         switch (tipo)
         {

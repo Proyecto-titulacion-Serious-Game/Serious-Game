@@ -179,7 +179,7 @@ public class Multimeter : MonoBehaviour
         CircuitManager gmCircuit = null;
         if (gm != null)
         {
-            gmCircuit = gm.circuit;
+            gmCircuit = gm.circuit != null ? gm.circuit.GetCompanionCircuitManager() : null;
             string circuitInfo = gmCircuit != null
                 ? $"'{gmCircuit.name}' path={GetPath(gmCircuit.transform)}"
                 : "NULL ← CRÍTICO";

@@ -13,7 +13,12 @@ using UnityEngine.InputSystem;
 /// con falla y lo repara pasando por <c>ComponentDeliverySystem.ValidateValueForRepair</c> →
 /// <c>BuscarResistorDelReto</c> → <c>ApplyRepairToCircuit</c>. A diferencia de F8 (que llama
 /// <c>Repair()</c> directo), F9 SÍ ejercita esa validación, por lo que sirve para probar sin VR el
-/// fix de la entrega. Log "REPARADO ✅" = fix OK; "RECHAZADO ❌" = la validación está rota.
+/// fix de la entrega. Log "REPARADO" = fix OK; "RECHAZADO" = la validación está rota.
+///
+/// Tecla <b>F10</b> = entrega un valor en el BORDE de la tolerancia (correctResistance x 1.10):
+/// fuera del +-8.5% viejo pero dentro del +-12% nuevo => debe COMPLETAR (prueba el piso de tolerancia).
+/// Tecla <b>F11</b> = entrega un valor claramente incorrecto (x 1.30): debe RECHAZAR y dejar el
+/// circuito VISIBLEMENTE roto (resistance = faultyResistance), no "verse bien" (prueba panel honesto).
 ///
 /// Auto-bootstrap: no requiere ponerlo en ninguna escena. Solo compila/corre en Editor o
 /// Development Build, así que NO se va en un build de release.
@@ -27,6 +32,11 @@ public class SoloTechnicianDebug : MonoBehaviour
 {
     static SoloTechnicianDebug _instance;
 
+    /// <summary>PRUEBA SOLO: si true, en la escena del Explorador fuerza modoOffline para que NO se
+    /// intente la conexión Fusion, cuyo shutdown (GameNotFound) desactivaba el GameManager y dejaba
+    /// el Reto 1 sin poder evaluarse. Ponlo en false para probar en RED.</summary>
+    public static bool forzarOfflineParaPruebaSolo = true;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
     {
@@ -35,8 +45,42 @@ public class SoloTechnicianDebug : MonoBehaviour
         var go = new GameObject("[SoloTechnicianDebug]");
         _instance = go.AddComponent<SoloTechnicianDebug>();
         DontDestroyOnLoad(go);
+        if (forzarOfflineParaPruebaSolo) _instance.ForzarOfflineExploradorSolo();
 #endif
     }
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+    /// <summary>
+    /// PRUEBA SOLO: si la escena es la del Explorador (rol Explorador), fuerza modoOffline en el
+    /// ConnectionManager ANTES de que intente conectarse. Así NO ocurre el shutdown de Fusion
+    /// (GameNotFound) que desactivaba el GameManager y bloqueaba la evaluación del reto.
+    /// </summary>
+    void ForzarOfflineExploradorSolo()
+    {
+        var cm = FindFirstObjectByType<ConnectionManager>(FindObjectsInactive.Include);
+        if (cm == null) return;
+        if (cm.rolAutomatico == ConnectionManager.AutoConnectRole.Explorador && !cm.modoOffline)
+        {
+            cm.modoOffline = true;
+            Debug.Log("[SoloDebug] PRUEBA SOLO: modoOffline forzado en el Explorador (sin Fusion) → el " +
+                      "GameManager permanece activo. Pon SoloTechnicianDebug.forzarOfflineParaPruebaSolo=false para probar en red.");
+        }
+    }
+
+    /// <summary>Devuelve el GameManager incluyendo inactivos; si quedó inactivo (p. ej. por un shutdown
+    /// de red anterior), reactiva su cadena de padres para poder evaluar el reto en prueba solo.</summary>
+    GameManager ObtenerGM()
+    {
+        var gm = FindFirstObjectByType<GameManager>(FindObjectsInactive.Include);
+        if (gm != null && !gm.gameObject.activeInHierarchy)
+        {
+            for (var t = gm.transform; t != null; t = t.parent)
+                if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+            Debug.Log("[SoloDebug] GameManager estaba inactivo → reactivado para prueba solo.");
+        }
+        return gm;
+    }
+#endif
 
     void Update()
     {
@@ -48,6 +92,15 @@ public class SoloTechnicianDebug : MonoBehaviour
         // F9 = simular la ENTREGA correcta del Técnico por la RUTA REAL (valida el fix de
         // BuscarResistorDelReto/ValidateValueForRepair, que F8 se salta al llamar Repair() directo).
         if (kb.f9Key.wasPressedThisFrame) SimularEntregaCorrecta();
+
+        // F10 = valor en el BORDE de la tolerancia nueva (correctResistance × 1.10): cae fuera del
+        //       ±8.5% viejo pero dentro del ±12% nuevo → debe COMPLETAR. Prueba el piso de tolerancia.
+        if (kb.f10Key.wasPressedThisFrame) SimularEntregaConFactor(1.10f, "borde tolerancia (debe REPARAR)");
+
+        // F11 = valor claramente incorrecto (correctResistance × 1.30): fuera del ±12% → debe ser
+        //       RECHAZADO y el circuito quedar VISIBLEMENTE roto (resistance = faultyResistance), no
+        //       "verse bien" en el panel. Prueba el fix de honestidad del panel.
+        if (kb.f11Key.wasPressedThisFrame) SimularEntregaConFactor(1.30f, "fuera de tolerancia (debe RECHAZAR y verse roto)");
 #endif
     }
 
@@ -57,7 +110,7 @@ public class SoloTechnicianDebug : MonoBehaviour
     // ─────────────────────────────────────────────
     void SimularEntregaCorrecta()
     {
-        var gm = FindAnyObjectByType<GameManager>();
+        var gm = ObtenerGM();
         if (gm == null)
         {
             if (!_avisoSinGM) { Debug.LogWarning("[SoloDebug][F9] No hay GameManager en escena."); _avisoSinGM = true; }
@@ -65,7 +118,7 @@ public class SoloTechnicianDebug : MonoBehaviour
         }
         _avisoSinGM = false;
 
-        var delivery = FindAnyObjectByType<ComponentDeliverySystem>();
+        var delivery = FindFirstObjectByType<ComponentDeliverySystem>(FindObjectsInactive.Include);
         if (delivery == null)
         {
             Debug.LogWarning("[SoloDebug][F9] No hay ComponentDeliverySystem en escena (¿estás en Explorador?).");
@@ -97,6 +150,35 @@ public class SoloTechnicianDebug : MonoBehaviour
                 Debug.Log("[SoloDebug][F9] F9 prueba la entrega de resistor (Reto 1/3). Reto 2 → usa F8; Reto 4 es sandbox.");
                 break;
         }
+    }
+
+    // ─────────────────────────────────────────────
+    //  F10/F11 — entrega con un valor a medida por la RUTA REAL (probar tolerancia + panel honesto)
+    // ─────────────────────────────────────────────
+    void SimularEntregaConFactor(float factor, string etiqueta)
+    {
+        var gm = ObtenerGM();
+        if (gm == null) { Debug.LogWarning("[SoloDebug] No hay GameManager en escena."); return; }
+
+        if (gm.currentLevel != LevelType.OhmLaw && gm.currentLevel != LevelType.Mixed)
+        {
+            Debug.Log("[SoloDebug] F10/F11 prueban la entrega de resistor (Reto 1/3).");
+            return;
+        }
+
+        var delivery = FindFirstObjectByType<ComponentDeliverySystem>(FindObjectsInactive.Include);
+        if (delivery == null) { Debug.LogWarning("[SoloDebug] No hay ComponentDeliverySystem (¿estás en Explorador?)."); return; }
+
+        Resistor faulty = null;
+        foreach (var r in FindObjectsByType<Resistor>(FindObjectsInactive.Exclude))
+            if (r != null && r.nodeA != null && r.nodeB != null && r.hasFault) { faulty = r; break; }
+
+        if (faulty == null) { Debug.LogWarning("[SoloDebug] No hay resistor con falla activo (¿ya reparado?)."); return; }
+
+        float valor = faulty.correctResistance * factor;
+        bool ok = delivery.DebugSimularEntregaEInstalacion(ComponentType.Resistor, valor);
+        Debug.Log($"[SoloDebug] Entrega {valor:0.#}Ω (×{factor}, {etiqueta}) → {(ok ? "REPARADO ✅" : "RECHAZADO ❌")}. " +
+                  $"Resistencia ahora = {faulty.resistance:0.#}Ω, hasFault = {faulty.hasFault}.");
     }
 #endif
 

@@ -80,10 +80,24 @@ public class GrabbableComponent : MonoBehaviour
         // instalar antes de que la gravedad tome efecto.
         Invoke(nameof(OnReleasedNextFrame), 0f);
 
+        // Sonido de "colocado en slot": SOLO al soltar Y si la pieza quedó encajada en un slot
+        // del protoboard (patas con nodo). Se difiere para dar tiempo al simulador (20 Hz) a
+        // re-enganchar las patas. Al AGARRAR no suena (esto solo corre al soltar). Los slots
+        // fijos (ComponentSlot) avisan por su cuenta al instalar.
+        Invoke(nameof(AnunciarSiEncajoEnSlot), 0.2f);
+
         haptics?.PlayLight();
         playerInteraction?.OnReleaseComponent(selectable);
 
         Debug.Log($"[GrabbableComponent] Soltado: {name}");
+    }
+
+    void AnunciarSiEncajoEnSlot()
+    {
+        var comp = GetComponent<ElectricalComponent>() ?? GetComponentInChildren<ElectricalComponent>(true);
+        var conn = GetComponent<ProtoboardConnector>() ?? GetComponentInChildren<ProtoboardConnector>(true);
+        bool encajado = conn != null && comp != null && (comp.nodeA != null || comp.nodeB != null);
+        if (encajado) RaisePlacedInSlot();
     }
 
     void OnReleasedNextFrame()
@@ -104,6 +118,13 @@ public class GrabbableComponent : MonoBehaviour
 
     /// <summary>Se dispara un frame después de soltar. ComponentSlot se suscribe para snap-on-release.</summary>
     public event System.Action<GrabbableComponent> Released;
+
+    /// <summary>Se dispara cuando una pieza queda COLOCADA en un slot (protoboard o ComponentSlot).
+    /// Lo usa CircuitAudioManager para el sonido de "colocado" — que ya NO suena al agarrar/mover.</summary>
+    public static event System.Action PlacedInSlot;
+
+    /// <summary>Notifica una colocación en slot (lo llaman ComponentSlot al instalar y el release-si-encajó).</summary>
+    public static void RaisePlacedInSlot() => PlacedInSlot?.Invoke();
 
     /// <summary>Llamado por ComponentSlot tras instalación exitosa. El componente queda fijo.</summary>
     public void DisableGrab() => _grab.enabled = false;

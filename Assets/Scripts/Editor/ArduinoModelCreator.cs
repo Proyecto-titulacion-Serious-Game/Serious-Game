@@ -8,16 +8,22 @@ using UnityEngine;
 /// que tiene ArduinoCore y reposiciona los nodos eléctricos a sus pines físicos.
 ///
 /// El modelo OBJ se encuentra en:
-///   Assets/Art/Arduino_Modelo/Meshy_AI_Arduino_Uno_Board_Ill_0529053438_texture.obj
+///   Assets/Art/Arduino/model 2/source/Arduino_uno_r3_v2.obj
 ///
 /// Tools > TITA > Aplicar Modelo 3D Arduino Uno
 /// </summary>
 public static class ArduinoModelCreator
 {
     const string MODEL_PATH =
-        "Assets/Art/Arduino_Modelo/Meshy_AI_Arduino_Uno_Board_Ill_0529053438_texture.obj";
+        "Assets/Art/Arduino/model 2/source/Arduino_uno_r3_v2.obj";
 
-    // Dimensiones reales Arduino Uno para calcular posiciones de nodos (metros)
+    // Si la fila de pines digitales queda en el borde LARGO opuesto (modelo espejado
+    // por la conversión de handedness del OBJ), pon esto en true para girar la malla 180°.
+    const bool FLIP_180_Y = false;
+
+    // Dimensiones reales Arduino Uno para calcular posiciones de nodos (metros).
+    // El OBJ "Arduino_uno_r3_v2" mide 9.04 x 7.04 unidades (ratio 1.284 ≈ Uno real 1.285),
+    // así que estas constantes ya encajan: solo hay que escalarlo y alinear su esquina.
     const float PCB_W = 0.0686f;
     const float PCB_D = 0.0534f;
     const float PCB_H = 0.0016f;
@@ -70,31 +76,50 @@ public static class ArduinoModelCreator
         Undo.RegisterCreatedObjectUndo(modelGO, "Modelo Arduino OBJ");
         modelGO.name = "[Arduino_Model]";
         modelGO.transform.localPosition = Vector3.zero;
-        modelGO.transform.localRotation = Quaternion.identity;
+        modelGO.transform.localRotation = FLIP_180_Y ? Quaternion.Euler(0f, 180f, 0f)
+                                                     : Quaternion.identity;
 
-        // Escalar de unidades del OBJ a metros reales (el OBJ de Meshy viene en mm)
-        // Arduino Uno real: 68.6 mm de ancho. Ajustar según bounding box del modelo.
+        // ── Escalar a tamaño real por la PROFUNDIDAD (eje Z) ──────────────
+        // A diferencia del ancho (X), la profundidad del Uno no tiene voladizos
+        // (el USB y el jack salen por el lado X), así que Z→PCB_D da la escala
+        // correcta aunque el OBJ traiga conectores que sobresalen. Para este modelo:
+        // Zspan 7.04 u → PCB_D 0.0534 m  ⇒  escala ≈ 0.00759 (PCB queda 0.0686 x 0.0534).
         var renderers = modelGO.GetComponentsInChildren<Renderer>();
         if (renderers.Length > 0)
         {
-            Bounds bounds = renderers[0].bounds;
-            foreach (var r in renderers) bounds.Encapsulate(r.bounds);
-            float maxDim = Mathf.Max(bounds.size.x, bounds.size.z);
-            if (maxDim > 0.001f)
-            {
-                float targetSize = PCB_W;  // 68.6 mm en la dimensión mayor
-                float scale = targetSize / maxDim;
-                modelGO.transform.localScale = Vector3.one * scale;
-            }
+            Bounds wb = renderers[0].bounds;
+            foreach (var r in renderers) wb.Encapsulate(r.bounds);
+            if (wb.size.z > 1e-5f)
+                modelGO.transform.localScale = Vector3.one * (PCB_D / wb.size.z);
+
+            // ── Alinear la esquina de la PCB al origen del ArduinoCore ────
+            // Convención de los nodos: X∈[0,PCB_W], Z∈[-PCB_D,0], Y desde la base.
+            // Este OBJ tiene el pivote CENTRADO, así que sin este corrimiento la
+            // malla quedaría medio tablero desfasada de los nodos. Se recalculan los
+            // bounds ya escalados y se lleva la esquina (minX, maxZ, minY) al origen.
+            wb = renderers[0].bounds;
+            foreach (var r in renderers) wb.Encapsulate(r.bounds);
+            Vector3 lMin = arduinoGO.transform.InverseTransformPoint(wb.min);
+            Vector3 lMax = arduinoGO.transform.InverseTransformPoint(wb.max);
+            Vector3 p = modelGO.transform.localPosition;
+            modelGO.transform.localPosition = new Vector3(p.x - lMin.x, p.y - lMin.y, p.z - lMax.z);
         }
 
         // ── Reubicar Nodo_P13, Nodo_GND, Nodo_A0 a pines físicos reales ──
+        // Mismas constantes en METROS que ArduinoPinNodeGenerator; se dividen por la escala
+        // mundial del GO para que caigan a tamaño real aunque el Arduino esté escalado (0.2).
+        Vector3 ls = arduinoGO.transform.lossyScale;
+        Vector3 inv = new Vector3(
+            Mathf.Approximately(ls.x, 0f) ? 1f : 1f / ls.x,
+            Mathf.Approximately(ls.y, 0f) ? 1f : 1f / ls.y,
+            Mathf.Approximately(ls.z, 0f) ? 1f : 1f / ls.z);
+
         float pinTopZ = -0.0025f;
         float pinBotZ = -PCB_D - 0.0025f;
 
-        Vector3 posP13 = new Vector3(PCB_W - PIN_S * 0.5f,           HDR_H + PCB_H, pinTopZ);
-        Vector3 posGND = new Vector3(PCB_W - PIN_S * 0.5f - PIN_S*7, HDR_H + PCB_H, pinTopZ);
-        Vector3 posA0  = new Vector3(PCB_W * 0.90f,                   HDR_H + PCB_H, pinBotZ);
+        Vector3 posP13 = Vector3.Scale(new Vector3(PCB_W - PIN_S * 0.5f,           HDR_H + PCB_H, pinTopZ), inv);
+        Vector3 posGND = Vector3.Scale(new Vector3(PCB_W - PIN_S * 0.5f - PIN_S*7, HDR_H + PCB_H, pinTopZ), inv);
+        Vector3 posA0  = Vector3.Scale(new Vector3(PCB_W * 0.90f,                   HDR_H + PCB_H, pinBotZ), inv);
 
         int reubicados = 0;
         foreach (Transform child in arduinoGO.transform)

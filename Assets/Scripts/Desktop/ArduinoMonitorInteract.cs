@@ -30,6 +30,10 @@ public class ArduinoMonitorInteract : MonoBehaviour,
     // ── Estado ────────────────────────────────────────────────────────────
     private bool _isOpen;
 
+    /// <summary>True si algún panel de Arduino está abierto. Lo consulta PauseMenu para que
+    /// Escape cierre el panel en vez de abrir la pausa cuando hay un HUD abierto.</summary>
+    public static bool AnyOpen { get; private set; }
+
     // ── Hover glow ────────────────────────────────────────────────────────
     private Renderer              _renderer;
     private MaterialPropertyBlock _mpb;
@@ -92,7 +96,10 @@ public class ArduinoMonitorInteract : MonoBehaviour,
     //  Pointer events
     // ─────────────────────────────────────────────
 
-    void IPointerClickHandler.OnPointerClick(PointerEventData _) => Toggle();
+    // El clic en el monitor SOLO ABRE el panel (idempotente). Antes hacía Toggle, y los
+    // clics sobre los botones del HUD que "atravesaban" al monitor lo cerraban sin querer.
+    // Para CERRAR el panel se usa Escape (ver Update + coordinación con PauseMenu).
+    void IPointerClickHandler.OnPointerClick(PointerEventData _) { if (!_isOpen) Open(); }
     void IPointerEnterHandler.OnPointerEnter(PointerEventData _) => SetHover(true);
     void IPointerExitHandler.OnPointerExit(PointerEventData _)   => SetHover(false);
 
@@ -109,6 +116,7 @@ public class ArduinoMonitorInteract : MonoBehaviour,
     void Open()
     {
         _isOpen = true;
+        AnyOpen = true;
         SetHover(false);
 
         if (arduinoHUD != null)
@@ -154,6 +162,7 @@ public class ArduinoMonitorInteract : MonoBehaviour,
     public void Close()
     {
         _isOpen = false;
+        AnyOpen = false;
         if (arduinoHUD  != null) arduinoHUD.SetActive(false);
         if (circuitPanel != null) circuitPanel.SetActive(false);
         Debug.Log("[ArduinoMonitor] Panel Reto 4 cerrado.");

@@ -22,6 +22,7 @@ public class GameManager : MonoBehaviour
     public Multimeter          multimeter;
     public PerformanceTracker  performance;
     public InstructionSystem   instructionSystem;
+    
 
     [Header("Zonas de Reto")]
     public GameObject reto1Zone;
@@ -41,7 +42,7 @@ public class GameManager : MonoBehaviour
 
     [Header("Configuración de niveles")]
     [Tooltip("Tiempo límite en segundos para cada reto (0 = sin límite).")]
-    public float[] timeLimits = { 480f, 600f, 720f, 900f };
+    public float[] timeLimits = { 600f, 600f, 600f, 900f };
 
     // ─────────────────────────────────────────────
     //  Estado
@@ -53,9 +54,13 @@ public class GameManager : MonoBehaviour
     [SerializeField] private bool      _repairPerformed = false;
     private bool _vistoIncorrectoEnReto = false;   // el reto 1-3 estuvo incorrecto (para auto-completar al repararlo)
     private bool? _lastCorrectoLogged    = null;    // diagnóstico: último valor de 'correcto' logueado (evita spam)
+    private string _diagOhm = "";                   // diagnóstico Reto 1: desglose de por qué no cumple victoria
+    private string _diagParallel = "";              // diagnóstico Reto 2: estado de cada LED del paralelo
+    private float  _lastParallelDiag = -10f;        // throttle del log de diagnóstico del Reto 2
     [SerializeField] private int       _wrongAttempts   = 0;
     [SerializeField] private float     _remainingTime   = 0f;
     [SerializeField] private bool      _timerActive     = false;
+    private float _tiempoInicioReto = 0f;
 
     public LevelType currentLevel     => _currentLevel;
     public bool      levelCompleted   => _levelCompleted;
@@ -106,6 +111,9 @@ public class GameManager : MonoBehaviour
 
         // Auto-evaluación de Retos 1-3: al cambiar el circuito, si ya está correcto, completa el reto.
         CircuitManager.OnCircuitChanged += OnCircuitChangedAutoCheck;
+        // Reto 2 protoboard libre: el ProtoboardSimulator (MNA) también dispara la auto-evaluación,
+        // así colocar/mover un componente en la placa reevalúa la victoria (LED encendido correcto).
+        ProtoboardSimulator.OnCircuitChanged += OnCircuitChangedAutoCheck;
 
         if (FindAnyObjectByType<ExplorerOnboarding>() != null)
             ExplorerOnboarding.OnOnboardingComplete += OnOnboardingDone;
@@ -171,6 +179,7 @@ public class GameManager : MonoBehaviour
         GameSession.OnValidacionSolicitada     -= OnNetworkValidacionSolicitada;
         ProtoboardSimulator.OnSandboxValidated -= OnSandboxResult;
         CircuitManager.OnCircuitChanged        -= OnCircuitChangedAutoCheck;
+        ProtoboardSimulator.OnCircuitChanged   -= OnCircuitChangedAutoCheck;
     }
 
     // ─────────────────────────────────────────────
@@ -187,8 +196,51 @@ public class GameManager : MonoBehaviour
     public void RegisterWrongAttempt(string reason = "")
     {
         _wrongAttempts++;
-        performance?.AddError(reason);
-        Debug.Log($"[GameManager] Intento incorrecto #{_wrongAttempts}: {reason}");
+        string categoria = ClasificarError();
+        performance?.AddError(categoria);
+        Debug.Log($"[GameManager] Intento incorrecto #{_wrongAttempts} [{categoria}]: {reason}");
+    }
+
+    /// <summary>
+    /// Clasifica el tipo de error vigente en el reto actual inspeccionando el estado del
+    /// circuito y las fallas presentes. Alimenta el desglose "tipo de errores" del dashboard
+    /// docente (categorías del documento: cortocircuito, polaridad, valor, voltaje, abierto, sobrecarga).
+    /// </summary>
+    string ClasificarError()
+    {
+        // Reto 4 (sandbox): clasificar por el mensaje de validación.
+        if (_currentLevel == LevelType.Arduino)
+        {
+            string m = (_lastSandboxResult.message ?? "").ToLowerInvariant();
+            if (m.Contains("corto"))                       return "Cortocircuito";
+            if (m.Contains("resist") || m.Contains("ohm")) return "Valor de resistencia";
+            if (m.Contains("pin"))                         return "Conexión/pin";
+            if (m.Contains("led") || m.Contains("cable") ||
+                m.Contains("conect") || m.Contains("abiert")) return "Conexión abierta";
+            return "Otro";
+        }
+
+        var c = circuit != null ? circuit : FindAnyObjectByType<CircuitSimulator>();
+        if (c != null)
+        {
+            if (c.isShortCircuited) return "Cortocircuito";
+            if (c.components != null)
+            {
+                foreach (var comp in c.components)
+                {
+                    if (comp is LED led && led.polarityInverted)       return "Polaridad";
+                    if (comp is Capacitor cap && cap.polarityInverted) return "Polaridad";
+                    if (comp is VoltageSource vs && vs.hasFault)       return "Voltaje de fuente";
+                    if (comp is Resistor r)
+                    {
+                        if (r.isOverloaded) return "Sobrecarga";
+                        if (r.hasFault)     return "Valor de resistencia";
+                    }
+                }
+            }
+            if (c.totalCurrent <= 0.0001f) return "Conexión abierta";
+        }
+        return "Otro";
     }
 
     public (bool pass, string motivo) EvaluacionManualBotonFisicoConResultado()
@@ -263,10 +315,59 @@ public class GameManager : MonoBehaviour
                     if (l != null && l.nodeA != null && l.nodeB != null && l.isOn && l.state != LEDState.Overload)
                     { ledOn = true; break; }
 
+                // Diagnóstico: si falla, deja claro QUÉ sub-condición no se cumple (resistor vs LED).
+                _diagOhm = $"resistorOk={resistorOk}, ledOn={ledOn}";
+                if (!resistorOk || !ledOn)
+                {
+                    var sbR = new System.Text.StringBuilder();
+                    foreach (var r in FindObjectsByType<Resistor>(FindObjectsInactive.Exclude))
+                        if (r != null) sbR.Append($" [R '{r.name}' {r.resistance:0}Ω hasFault={r.hasFault}]");
+                    var sbL = new System.Text.StringBuilder();
+                    foreach (var l in FindObjectsByType<LED>(FindObjectsInactive.Exclude))
+                        if (l != null)
+                        {
+                            float va = l.nodeA != null ? l.nodeA.voltage : 0f;
+                            float vb = l.nodeB != null ? l.nodeB.voltage : 0f;
+                            sbL.Append($" [LED '{l.name}' isOn={l.isOn} state={l.state} I={l.current*1000f:0.#}mA Va={va:0.##} Vb={vb:0.##} invertido={l.polarityInverted}]");
+                        }
+                    // Estado del/los CircuitManager activos: dice si el reto tiene fuente/corriente y
+                    // si el LED/resistor están realmente en la lista simulada (clave para I=0mA).
+                    var sbC = new System.Text.StringBuilder();
+                    foreach (var cm in FindObjectsByType<CircuitManager>(FindObjectsInactive.Exclude))
+                        if (cm != null && cm.components != null && cm.components.Count > 0)
+                        {
+                            sbC.Append($" [CM '{cm.name}' top={cm.topology} Vsrc={cm.sourceVoltage:0.##} I={cm.totalCurrent*1000f:0.#}mA comps:");
+                            foreach (var c in cm.components)
+                                if (c != null) sbC.Append($" {c.GetType().Name}'{c.name}'={c.GetResistance():0}Ω");
+                            sbC.Append("]");
+                        }
+                    _diagOhm += " |R:" + sbR + " |LED:" + sbL + " |CM:" + sbC;
+                }
+
                 return resistorOk && ledOn;
             }
             case LevelType.Parallel:
-                return circuit != null && circuit.AreAllLEDsOn();
+            {
+                // Reto 2: TODOS los LEDs del paralelo (piezas fijas, scene-wide) deben estar
+                // encendidos en estado SEGURO (verde/Correct). Chequeo inline —en vez de
+                // AreAllLEDsOn, que mira slots primero— para evitar que slots ajenos (p.ej. el
+                // protoboard del Reto 4) rompan el conteo, y con diagnóstico del estado real.
+                int total = 0, ok = 0;
+                var sbP = new System.Text.StringBuilder();
+                foreach (var l in FindObjectsByType<LED>(FindObjectsInactive.Exclude))
+                {
+                    if (l == null || l.nodeA == null || l.nodeB == null) continue;
+                    total++;
+                    bool ledOk = l.isOn && l.state == LEDState.Correct;
+                    if (ledOk) ok++;
+                    sbP.Append($" [LED '{l.name}' isOn={l.isOn} state={l.state} " +
+                               $"I={l.current * 1000f:0.#}mA inv={l.polarityInverted} " +
+                               $"Va={(l.nodeA != null ? l.nodeA.voltage : 0):0.#} " +
+                               $"Vb={(l.nodeB != null ? l.nodeB.voltage : 0):0.#} R={l.resistance:0}]");
+                }
+                _diagParallel = $"LEDs total={total} ok={ok} →{sbP}";
+                return total > 0 && ok == total;
+            }
 
             case LevelType.Mixed:
             {
@@ -305,7 +406,17 @@ public class GameManager : MonoBehaviour
         {
             _lastCorrectoLogged = correcto;
             Debug.Log($"[GameManager] AutoCheck Reto {(int)_currentLevel + 1}: correcto={correcto} " +
-                      $"(vistoIncorrecto={_vistoIncorrectoEnReto}, repair={_repairPerformed}).");
+                      $"(vistoIncorrecto={_vistoIncorrectoEnReto}, repair={_repairPerformed})." +
+                      (_currentLevel == LevelType.OhmLaw   ? "  " + _diagOhm      :
+                       _currentLevel == LevelType.Parallel ? "  " + _diagParallel : ""));
+        }
+
+        // Reto 2: mientras siga incompleto, loguear el estado de los LEDs cada ~1.5s para depurar
+        // (por qué "ambos prendidos" no cuenta como victoria: overload, polaridad, conteo, etc.).
+        if (_currentLevel == LevelType.Parallel && !correcto && Time.unscaledTime - _lastParallelDiag > 1.5f)
+        {
+            _lastParallelDiag = Time.unscaledTime;
+            Debug.Log($"[GameManager] Reto 2 incompleto → {_diagParallel}");
         }
 
         if (!correcto) { _vistoIncorrectoEnReto = true; return; }   // recuerda que estuvo mal
@@ -314,7 +425,15 @@ public class GameManager : MonoBehaviour
         // (RegisterRepairAction → _repairPerformed). Ambos descartan el auto-completar en el
         // instante de carga (ahí los dos son false). Más robusto que depender solo del primero.
         if (_vistoIncorrectoEnReto || _repairPerformed)
+        {
+        // Bloqueamos la victoria durante los primeros 2 segundos de carga.
+        // Esto le da tiempo al CircuitSimulator de detectar que faltan los cables
+        // y apagar los LEDs antes de que se evalúe como correcto por error.
+        if (Time.time - _tiempoInicioReto > 2.0f)
+            {
             CompleteLevel(true);
+            }
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -357,6 +476,12 @@ public class GameManager : MonoBehaviour
         if (GameSession.Instance == null) return;
         var motivo = Reto4Feedback.Clasificar(r);
         GameSession.Instance.RPC_PublicarDiagnostico(exito, nivel, r.activatedPin, (int)motivo);
+
+        // También al clipboard del Técnico: éxito, o el mismo feedback GRADUADO (síntoma→pista→causa).
+        string resumen = exito
+            ? "✅ Circuito Arduino correcto."
+            : Reto4Feedback.Construir(nivel, r.activatedPin, motivo);
+        GameSession.ReportarDiagnosticoReto(4, resumen);
     }
 
     // ─────────────────────────────────────────────
@@ -373,11 +498,12 @@ public class GameManager : MonoBehaviour
         _wrongAttempts   = 0;
         _vistoIncorrectoEnReto = false;
         _lastCorrectoLogged    = null;
+        _tiempoInicioReto      = Time.time;
 
         float limit = (index < timeLimits.Length) ? timeLimits[index] : 0f;
         _remainingTime = limit;
         _timerActive   = limit > 0f;
-
+        
         performance?.ResetTracker();
         multimeter?.ResetProbes();
         instructionSystem?.ResetInstructions();
@@ -420,6 +546,16 @@ public class GameManager : MonoBehaviour
     {
         if (!_debugMode) return;
         LoadLevel(Mathf.Clamp(index, 0, 3));
+    }
+
+    /// <summary>DEBUG (tecla F4): marca el reto ACTUAL como completado con éxito —igual que si el
+    /// jugador lo hubiera ganado— disparando OnLevelCompleted (métrica en PerformanceTracker,
+    /// ¡FELICIDADES!, congelado de piezas) y la transición automática al siguiente reto.
+    /// El guard _levelCompleted evita doble conteo.</summary>
+    public void DebugCompleteCurrentLevel()
+    {
+        _debugMode = true;   // auto-habilita debug (por si se llega vía RPC desde un cliente)
+        CompleteLevel(true);
     }
 
     // ─────────────────────────────────────────────

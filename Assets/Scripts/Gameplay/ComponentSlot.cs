@@ -164,8 +164,11 @@ public class ComponentSlot : MonoBehaviour
         _installed    = comp;
 
         Transform anchor = installAnchor != null ? installAnchor : transform;
-        comp.transform.SetPositionAndRotation(anchor.position, anchor.rotation);
-        comp.transform.SetParent(anchor);
+        // Posición al slot, pero CONSERVAR la rotación con la que el Explorador colocó la pieza:
+        // así la orientación física del componente se respeta en todos los retos (igual que en el
+        // bareboard del Reto 4, donde no hay imán y la pieza queda tal cual la dejás).
+        comp.transform.position = anchor.position;
+        comp.transform.SetParent(anchor, worldPositionStays: true);
 
         if (comp.TryGetComponent<Rigidbody>(out var rb))
         {
@@ -186,6 +189,10 @@ public class ComponentSlot : MonoBehaviour
         {
             gameManager.circuit.MarkDirty();
         }
+
+        // Sonido de "colocado en slot" (CircuitAudioManager). Suena SOLO al instalar en un slot,
+        // no al agarrar.
+        GrabbableComponent.RaisePlacedInSlot();
     }
 
     void LiberarSlotPorRetiro()

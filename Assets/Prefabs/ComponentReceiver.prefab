@@ -207,6 +207,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ExplorerComponentReceiver
   puntoDeEntrega: {fileID: 0}
   radioDispersion: 0.08
+  modoBandejaHibrida: 1
   slotResistor: {fileID: 0}
   slotLED: {fileID: 0}
   slotCapacitor: {fileID: 0}
@@ -307,7 +308,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 0
+  m_PresetInfoIsWorld: 1
 --- !u!1 &8544618663596137248
 GameObject:
   m_ObjectHideFlags: 0

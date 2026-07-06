@@ -141,7 +141,9 @@ public static class ExplorerPrefabUpdater
     {
         log.AppendLine("\n[PlayerController]");
 
-        pc.useKatVR           = false;
+        // NO tocar useKatVR: lo gestiona Tools → TITA → Explorador → Activar/Desactivar KAT VR.
+        // Antes esto lo forzaba a false y apagaba la caminadora cada vez que se corría el updater.
+        log.AppendLine($"  — useKatVR preservado ({pc.useKatVR})");
         pc.xrRig              = xrOriginGO.transform;
         if (pc.snapTurnAngle    <= 0f) pc.snapTurnAngle    = 45f;
         if (pc.snapTurnThreshold <= 0f) pc.snapTurnThreshold = 0.5f;

@@ -234,5 +234,13 @@ public class TechnicianActions : MonoBehaviour
     public bool HasSelectedResistor() => selectedComponent is Resistor;
 
     void RegisterError(string reason)
-        => performance?.AddError(reason);
+    {
+        // Normaliza el motivo a una categoría corta para el desglose "tipo de errores".
+        string cat =
+            (reason.Contains("R incorrecta") || reason.Contains("Ohm")) ? "Valor de resistencia" :
+            reason.Contains("incorrect")                                ? "Selección incorrecta" :
+            "Procedimiento";
+        performance?.AddError(cat);
+        Debug.Log($"[TechnicianActions] Error [{cat}]: {reason}");
+    }
 }

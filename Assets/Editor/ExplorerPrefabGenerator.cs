@@ -82,7 +82,7 @@ public static class ExplorerPrefabGenerator
         playerInter.playerController  = playerCtrl;
         playerInter.haptics           = haptics;
 
-        playerCtrl.useKatVR           = false;
+        playerCtrl.useKatVR           = true;   // KAT VR por defecto; cae a joystick si no hay caminadora
         playerCtrl.walkSpeed          = 2f;
         playerCtrl.katSpeedMultiplier = 1f;
 

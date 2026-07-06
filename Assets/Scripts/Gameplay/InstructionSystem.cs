@@ -9,7 +9,7 @@ using UnityEngine;
 /// Flujo por reto:
 /// <list type="bullet">
 ///   <item>Reto 1: medir → verificar voltaje → seleccionar resistencia → reemplazar</item>
-///   <item>Reto 2: medir → identificar rama rota → reconectar</item>
+///   <item>Reto 2: medir → identificar LED con polaridad invertida → enviar LED bien orientado</item>
 ///   <item>Reto 3: capacitor → LED → resistencia</item>
 ///   <item>Reto 4: Sandbox — Tecnico escribe sketch (pin libre) → Explorador arma circuito → DFS valida</item>
 /// </list>
@@ -117,19 +117,22 @@ public class InstructionSystem : MonoBehaviour
             case LevelType.OhmLaw:
                 instructions = new[]
                 {
-                    "Paso 1: Pide al Explorador conectar el multímetro a dos nodos.",
+                    "Paso 1: Pide al Explorador ENCENDER el interruptor de energía (rojo→verde) " +
+                    "para cerrar el circuito, y conectar el multímetro a dos nodos.",
                     "Paso 2: Lee el voltaje medido e identifica la anomalía.",
                     "Paso 3: Selecciona la resistencia defectuosa en el panel.",
-                    "Paso 4: Calcula el valor correcto y envíalo al Explorador."
+                    "Paso 4: Calcula el valor correcto y envíalo al Explorador. " +
+                    "Si el LED no enciende, verifica que el interruptor esté encendido (verde)."
                 };
                 break;
 
             case LevelType.Parallel:
                 instructions = new[]
                 {
-                    "Paso 1: Pide al Explorador medir voltaje en cada sensor.",
-                    "Paso 2: Identifica la rama con voltaje 0V (rama rota).",
-                    "Paso 3: Autoriza la reparación del circuito paralelo."
+                    "Paso 1: El Explorador conecta los cables de cada rama (VCC -> R -> LED -> GND).",
+                    "Paso 2: Pide medir el LED dañado: 0V / sin corriente = polaridad invertida.",
+                    "Paso 3: Envía un LED NUEVO. El Explorador lo coloca donde estaba el dañado " +
+                    "y al soltarlo se conecta y enciende solo. Los 2 LED en verde = reto superado."
                 };
                 break;
 

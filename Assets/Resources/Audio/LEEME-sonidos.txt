@@ -1,0 +1,58 @@
+═══════════════════════════════════════════════════════════════════════
+  SONIDOS DEL JUEGO — Proyecto TITA
+═══════════════════════════════════════════════════════════════════════
+
+Suelta aquí (Assets/Resources/Audio/) tus archivos de audio .wav, .ogg o .mp3
+con EXACTAMENTE estos nombres. CircuitAudioManager los carga solo en runtime;
+no hace falta tocar el Inspector ni colocar nada en las escenas.
+
+Un nombre que no esté = ese sonido simplemente no suena (no rompe nada).
+
+─── EFECTOS DE CIRCUITO ───────────────────────────────────────────────
+  sfx_component_installed   Al instalar/cambiar un componente.  (clic/beep corto)
+  sfx_short_circuit         Cortocircuito. Suena en los 4 retos. (zumbido/chispa)
+  sfx_fault                 Falla detectada.                     (alarma)
+  sfx_led_blown             LED quemado por sobrevoltaje.        (chispazo/pop)
+
+─── PROGRESO ──────────────────────────────────────────────────────────
+  sfx_level_start           Inicio de un reto (genérico).        (sting corto)
+  sfx_success               Reto completado bien.                (jingle ok)
+  sfx_failure               Reto fallado / se acabó el tiempo.   (buzzer)
+  sfx_victory               Victoria de un reto.                 (jingle victoria)
+  sfx_fanfarria_mision      Fin de la MISIÓN (los 4 retos).      (fanfarria larga)
+
+─── INICIO DISTINTO POR RETO (opcional) ───────────────────────────────
+  sfx_reto1_start           Reemplaza a sfx_level_start en el Reto 1.
+  sfx_reto2_start           ... Reto 2.
+  sfx_reto3_start           ... Reto 3.
+  sfx_reto4_start           ... Reto 4.
+
+─── SONIDO DE ENVÍO (Técnico) ─────────────────────────────────────────
+  sfx_send                  Al ENVIAR un componente desde la bandeja del Técnico.
+                            (whoosh/click de envío). Si falta, usa sfx_component_installed.
+
+─── MÚSICA DE FONDO POR ROL (loop) ────────────────────────────────────  ★ NUEVO
+  music_office              Ambiente de OFICINA para el TÉCNICO.   (loop, suave de fondo)
+  music_space_explorer      "Space shuttle of the future" para el  EXPLORADOR. (loop)
+                            → GameMusicManager elige según el rol y loopea automáticamente.
+                            → Volumen por defecto: oficina 0.35, espacio 0.45 (ajustable
+                              en GameMusicManager: volumeOffice / volumeSpace).
+                            → Para música usá .ogg o .mp3 (comprimido) y en el Inspector del
+                              clip poné "Load Type = Streaming" para no cargarla entera en RAM
+                              (importa para la APK de la Quest).
+
+─── DE DÓNDE SACAR SONIDOS (gratis / CC0) ─────────────────────────────
+  Kenney Interface Sounds   kenney.nl/assets/interface-sounds   (clics, beeps)
+  Kenney Sci-Fi Sounds      kenney.nl/assets/sci-fi-sounds      (laboratorio)
+  Kenney Music Jingles      kenney.nl/assets/music-jingles      (victoria/error)
+  freesound.org  "multimeter beep"  ID 263133
+  freesound.org  "electric spark"   ID 253173
+  freesound.org  "capacitor charge" ID 399095
+  freesound.org  "circuit click"    ID 220206
+
+CONSEJO: en el Inspector de cada .wav marca "Load Type = Decompress On Load"
+para clips cortos, y baja "Quality" si pesan mucho (importa para la APK Quest).
+
+El volumen ya está al máximo en CircuitAudioManager (volumeCircuit / volumeProgress
+/ volumeFanfarria = 1.0). Si un sonido se oye bajo, normaliza el .wav o súbele
+ganancia en Audacity antes de importarlo.
