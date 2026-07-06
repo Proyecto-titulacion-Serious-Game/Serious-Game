@@ -100,9 +100,13 @@ public class SessionDataExporter : MonoBehaviour
     // ─────────────────────────────────────────────
     void Update()
     {
-        // Tecla de PRUEBA: F8 sube una fila de test a Google Sheets (verificar la conexión sin jugar).
+        // Tecla de PRUEBA: Ctrl+F8 sube una fila de test a Google Sheets (verificar la conexión sin
+        // jugar). Requiere Ctrl porque F8 sola ya la usan TecnicoValidarPrecaucion (re-verificar el
+        // reto online) y SoloTechnicianDebug (offline) — sin el modificador, cada F8 del Técnico
+        // metía además una fila [PRUEBA] en la hoja del docente.
         var kb = Keyboard.current;
-        if (kb != null && kb.f8Key.wasPressedThisFrame)
+        if (kb != null && kb.f8Key.wasPressedThisFrame &&
+            (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed))
             StartCoroutine(SubirPrueba());
 
         if (Time.unscaledTime < _nextLiveRefresh) return;

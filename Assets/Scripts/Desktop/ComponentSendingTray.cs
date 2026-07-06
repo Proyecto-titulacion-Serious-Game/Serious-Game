@@ -103,7 +103,22 @@ public class ComponentSendingTray : MonoBehaviour
             // BUG FIX: inputValor solo para tipos que requieren valor numérico
             bool necesitaValor = _currentSelectedDeskComponent.componentType == ComponentType.Resistor
                               || _currentSelectedDeskComponent.componentType == ComponentType.ArduinoPin;
-            if (inputValor  != null) { inputValor.gameObject.SetActive(necesitaValor);  inputValor.text = ""; }
+            if (inputValor  != null)
+            {
+                // Igual que en la rama de limpieza: cerrar la edición y soltar la selección ANTES
+                // de desactivar el campo. Si se desactiva con el foco puesto (p.ej. el Técnico
+                // tecleaba ohms y clickeó un LED), el EventSystem queda atascado en un objeto
+                // inactivo y el editor de código del IDE deja de recibir teclado.
+                if (!necesitaValor)
+                {
+                    if (inputValor.isFocused) inputValor.DeactivateInputField();
+                    if (EventSystem.current != null &&
+                        EventSystem.current.currentSelectedGameObject == inputValor.gameObject)
+                        EventSystem.current.SetSelectedGameObject(null);
+                }
+                inputValor.gameObject.SetActive(necesitaValor);
+                inputValor.text = "";
+            }
             if (txtInputLabel != null)  txtInputLabel.gameObject.SetActive(necesitaValor);
 
             // Toggle de polaridad solo para LED y Capacitor

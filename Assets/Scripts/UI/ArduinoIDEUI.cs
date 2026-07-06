@@ -219,7 +219,12 @@ public class ArduinoIDEUI : MonoBehaviour
         {
             var es  = UnityEngine.EventSystems.EventSystem.current;
             var sel = es != null ? es.currentSelectedGameObject : null;
-            bool otroCampo = sel != null && sel.GetComponent<TMP_InputField>() != null;
+            // Solo cede el teclado si el otro campo REALMENTE está recibiendo input (activo y con
+            // foco). Una selección colgada en un TMP_InputField inactivo o desenfocado (p.ej. el
+            // campo de ohms de la bandeja tras cambiar de componente) se traga las teclas: nadie
+            // las recibe y "no se puede escribir" — en ese caso recuperamos el editor.
+            var otroField  = sel != null ? sel.GetComponent<TMP_InputField>() : null;
+            bool otroCampo = otroField != null && sel.activeInHierarchy && otroField.isFocused;
             if (!otroCampo) codeEditor.ActivateInputField();
         }
 
@@ -490,6 +495,15 @@ public class ArduinoIDEUI : MonoBehaviour
     public void ComprobarCircuito()
     {
         var gm = FindAnyObjectByType<GameManager>();
+
+        // ONLINE asimétrico: el Técnico SÍ tiene un GameManager local (alimenta su dashboard),
+        // pero los motores del Reto 4 (ProtoboardSimulator/ArduinoCore) viven en el Explorador.
+        // Evaluar aquí daría siempre "incorrecto" contra un protoboard vacío → si hay red y no
+        // hay motor local, la validación se pide POR RED aunque exista GameManager.
+        bool sinMotorLocal = FindAnyObjectByType<ProtoboardSimulator>() == null;
+        if (gm != null && sinMotorLocal && GameSession.Instance != null)
+            gm = null;   // fuerza la rama de red de abajo
+
         if (gm == null)
         {
             // ONLINE (setup asimétrico de 2 escenas): el GameManager + ProtoboardSimulator viven en

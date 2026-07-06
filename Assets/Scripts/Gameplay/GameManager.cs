@@ -150,6 +150,21 @@ public class GameManager : MonoBehaviour
     /// <summary>El Explorador solicitó validación desde el botón físico en red.</summary>
     void OnNetworkValidacionSolicitada()
     {
+        // El RPC llega a TODOS los clientes, pero solo debe evaluar la máquina que tiene los
+        // motores del reto (el Explorador). El Técnico también tiene GameManager (dashboard),
+        // y sin motor local su evaluación daría SIEMPRE "incorrecto": inflaría sus métricas de
+        // errores (las que suben a Sheets) y publicaría un diagnóstico falso que compite con el
+        // real del Explorador.
+        if (_currentLevel == LevelType.Arduino)
+        {
+            if (protoSim == null) protoSim = FindProtoSim();
+            if (protoSim == null) return;   // Técnico: sin sandbox local → no evalúa
+        }
+        else if (circuit == null && FindAnyObjectByType<CircuitSimulator>() == null)
+        {
+            return;                          // Técnico: sin circuito local → no evalúa
+        }
+
         bool paso = EvaluacionManualBotonFisico();
         int  cod  = paso ? 0 : _wrongAttempts;
         GameSession.Instance?.ReportarResultado(paso, cod);
@@ -658,6 +673,16 @@ public class GameManager : MonoBehaviour
 
         OnLevelCompleted?.Invoke(_currentLevel, success);
         OnZoneTransitionStart?.Invoke(_currentLevel, success);
+
+        // ONLINE: si quien completó es el CLIENTE (Explorador), avisar al Host para que su
+        // GameManager también complete. Sin esto la victoria queda solo en la Quest: el avance
+        // de reto es host-autoritativo (AvanzarReto es no-op en el cliente), así que el Técnico
+        // nunca registraba el reto en su PerformanceTracker ni — tras el reto 4 — disparaba
+        // ObjectiveSystem.OnSessionEnded, y la sesión jamás se subía a Google Sheets.
+        var gs = GameSession.Instance;
+        if (success && gs != null && gs.Object != null && gs.Object.IsValid && !gs.Object.HasStateAuthority)
+            gs.RPC_SolicitarCompletarReto();
+
         StartCoroutine(TransitionToNextLevel());
     }
 
