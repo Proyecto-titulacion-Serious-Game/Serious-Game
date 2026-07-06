@@ -456,6 +456,7 @@ public class CableBoxSpawner : MonoBehaviour
         if (cr.origin == null) cr.origin = probeA;
         if (cr.target == null) cr.target = probeB;
         cr.segments    = 20;     // curva suave
+        cr.straight    = false;  // los cables del Reto 4 SIEMPRE parabólicos (nunca rectos, aunque exista el modo)
         cr.arcUpward   = true;   // arquea hacia arriba (agarrable + legible)
         cr.arcPerMeter = 0.4f;   // 40% de la distancia = altura del arco (parábola natural)
         cr.minArc      = 0.02f;  // 2 cm de arco aunque las puntas estén juntas

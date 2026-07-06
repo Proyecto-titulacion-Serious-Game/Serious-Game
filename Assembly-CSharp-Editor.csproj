@@ -24,7 +24,7 @@
   </PropertyGroup>
   <PropertyGroup>
     <NoWarn>0169;USG0001</NoWarn>
-    <DefineConstants>UNITY_6000_4_3;UNITY_6000_4;UNITY_6000;UNITY_5_3_OR_NEWER;UNITY_5_4_OR_NEWER;UNITY_5_5_OR_NEWER;UNITY_5_6_OR_NEWER;UNITY_2017_1_OR_NEWER;UNITY_2017_2_OR_NEWER;UNITY_2017_3_OR_NEWER;UNITY_2017_4_OR_NEWER;UNITY_2018_1_OR_NEWER;UNITY_2018_2_OR_NEWER;UNITY_2018_3_OR_NEWER;UNITY_2018_4_OR_NEWER;UNITY_2019_1_OR_NEWER;UNITY_2019_2_OR_NEWER;UNITY_2019_3_OR_NEWER;UNITY_2019_4_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_2020_2_OR_NEWER;UNITY_2020_3_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2021_2_OR_NEWER;UNITY_2021_3_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_2022_2_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_2023_1_OR_NEWER;UNITY_2023_2_OR_NEWER;UNITY_2023_3_OR_NEWER;UNITY_6000_0_OR_NEWER;UNITY_6000_1_OR_NEWER;UNITY_6000_2_OR_NEWER;UNITY_6000_3_OR_NEWER;UNITY_6000_4_OR_NEWER;PLATFORM_ARCH_64;UNITY_64;UNITY_INCLUDE_TESTS;ENABLE_AR;ENABLE_AUDIO;ENABLE_AUDIO_SCRIPTABLE_PIPELINE;ENABLE_CACHING;ENABLE_CLOTH;ENABLE_EVENT_QUEUE;ENABLE_MICROPHONE;ENABLE_MULTIPLE_DISPLAYS;ENABLE_PHYSICS;ENABLE_TEXTURE_STREAMING;ENABLE_VIRTUALTEXTURING;ENABLE_LZMA;ENABLE_UNITYEVENTS;ENABLE_VR;ENABLE_WEBCAM;ENABLE_UNITYWEBREQUEST;ENABLE_WWW;ENABLE_CLOUD_SERVICES;ENABLE_CLOUD_SERVICES_ADS;ENABLE_CLOUD_SERVICES_USE_WEBREQUEST;ENABLE_UNITY_CONSENT;ENABLE_UNITY_CLOUD_IDENTIFIERS;ENABLE_CLOUD_SERVICES_CRASH_REPORTING;ENABLE_CLOUD_SERVICES_NATIVE_CRASH_REPORTING;ENABLE_CLOUD_SERVICES_PURCHASING;ENABLE_CLOUD_SERVICES_ANALYTICS;ENABLE_CLOUD_SERVICES_BUILD;ENABLE_EDITOR_GAME_SERVICES;ENABLE_UNITY_GAME_SERVICES_ANALYTICS_SUPPORT;ENABLE_CLOUD_LICENSE;ENABLE_EDITOR_HUB_LICENSE;ENABLE_WEBSOCKET_CLIENT;ENABLE_GENERATE_NATIVE_PLUGINS_FOR_ASSEMBLIES_API;ENABLE_DIRECTOR_AUDIO;ENABLE_DIRECTOR_TEXTURE;ENABLE_MANAGED_JOBS;ENABLE_MANAGED_TRANSFORM_JOBS;ENABLE_MANAGED_ANIMATION_JOBS;ENABLE_MANAGED_AUDIO_JOBS;ENABLE_MANAGED_UNITYTLS;INCLUDE_DYNAMIC_GI;ENABLE_SCRIPTING_GC_WBARRIERS;PLATFORM_SUPPORTS_MONO;RENDER_SOFTWARE_CURSOR;ENABLE_MARSHALLING_TESTS;ENABLE_VIDEO;ENABLE_NAVIGATION_OFFMESHLINK_TO_NAVMESHLINK;ENABLE_ACCELERATOR_CLIENT_DEBUGGING;ENABLE_ACCESSIBILITY_SCREEN_READER;TEXTCORE_1_0_OR_NEWER;EDITOR_ONLY_NAVMESH_BUILDER_DEPRECATED;PLATFORM_STANDALONE_WIN;PLATFORM_STANDALONE;UNITY_STANDALONE_WIN;UNITY_STANDALONE;ENABLE_RUNTIME_GI;ENABLE_MOVIES;ENABLE_NETWORK;ENABLE_NVIDIA;ENABLE_AMD;ENABLE_CRUNCH_TEXTURE_COMPRESSION;ENABLE_CLOUD_SERVICES_ENGINE_DIAGNOSTICS;ENABLE_OUT_OF_PROCESS_CRASH_HANDLER;ENABLE_CLUSTER_SYNC;ENABLE_CLUSTERINPUT;PLATFORM_UPDATES_TIME_OUTSIDE_OF_PLAYER_LOOP;GFXDEVICE_WAITFOREVENT_MESSAGEPUMP;PLATFORM_USES_EXPLICIT_MEMORY_MANAGER_INITIALIZER;PLATFORM_SUPPORTS_WAIT_FOR_PRESENTATION;PLATFORM_SUPPORTS_SPLIT_GRAPHICS_JOBS;ENABLE_MONO;NET_4_6;NET_UNITY_4_8;ENABLE_PROFILER;ENABLE_PROFILER_ASSISTANT_INTEGRATION;DEBUG;TRACE;UNITY_ASSERTIONS;UNITY_EDITOR;UNITY_EDITOR_64;UNITY_EDITOR_WIN;ENABLE_UNITY_COLLECTIONS_CHECKS;ENABLE_BURST_AOT;UNITY_TEAM_LICENSE;ENABLE_CUSTOM_RENDER_TEXTURE;ENABLE_DIRECTOR;ENABLE_LOCALIZATION;ENABLE_SPRITES;ENABLE_TERRAIN;ENABLE_TILEMAP;ENABLE_TIMELINE;ENABLE_INPUT_SYSTEM;TEXTCORE_FONT_ENGINE_1_5_OR_NEWER;TEXTCORE_TEXT_ENGINE_1_5_OR_NEWER;TEXTCORE_FONT_ENGINE_1_6_OR_NEWER;FUSION_LOGLEVEL_INFO;FUSION_WEAVER;FUSION2;FUSION_2;FUSION_2_0;FUSION_2_0_12;FUSION_2_OR_NEWER;FUSION_2_0_OR_NEWER;USE_INPUT_SYSTEM_POSE_CONTROL;USE_STICK_CONTROL_THUMBSTICKS;META_USE_STICK_CONTROL_THUMBSTICKS;READY_PLAYER_ME;OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING;CSHARP_7_OR_LATER;CSHARP_7_3_OR_NEWER;UNITY_EDITOR_ONLY_COMPILATION</DefineConstants>
+    <DefineConstants>UNITY_6000_4_3;UNITY_6000_4;UNITY_6000;UNITY_5_3_OR_NEWER;UNITY_5_4_OR_NEWER;UNITY_5_5_OR_NEWER;UNITY_5_6_OR_NEWER;UNITY_2017_1_OR_NEWER;UNITY_2017_2_OR_NEWER;UNITY_2017_3_OR_NEWER;UNITY_2017_4_OR_NEWER;UNITY_2018_1_OR_NEWER;UNITY_2018_2_OR_NEWER;UNITY_2018_3_OR_NEWER;UNITY_2018_4_OR_NEWER;UNITY_2019_1_OR_NEWER;UNITY_2019_2_OR_NEWER;UNITY_2019_3_OR_NEWER;UNITY_2019_4_OR_NEWER;UNITY_2020_1_OR_NEWER;UNITY_2020_2_OR_NEWER;UNITY_2020_3_OR_NEWER;UNITY_2021_1_OR_NEWER;UNITY_2021_2_OR_NEWER;UNITY_2021_3_OR_NEWER;UNITY_2022_1_OR_NEWER;UNITY_2022_2_OR_NEWER;UNITY_2022_3_OR_NEWER;UNITY_2023_1_OR_NEWER;UNITY_2023_2_OR_NEWER;UNITY_2023_3_OR_NEWER;UNITY_6000_0_OR_NEWER;UNITY_6000_1_OR_NEWER;UNITY_6000_2_OR_NEWER;UNITY_6000_3_OR_NEWER;UNITY_6000_4_OR_NEWER;PLATFORM_ARCH_64;UNITY_64;UNITY_INCLUDE_TESTS;ENABLE_AR;ENABLE_AUDIO;ENABLE_AUDIO_SCRIPTABLE_PIPELINE;ENABLE_CACHING;ENABLE_CLOTH;ENABLE_EVENT_QUEUE;ENABLE_MICROPHONE;ENABLE_MULTIPLE_DISPLAYS;ENABLE_PHYSICS;ENABLE_TEXTURE_STREAMING;ENABLE_VIRTUALTEXTURING;ENABLE_LZMA;ENABLE_UNITYEVENTS;ENABLE_VR;ENABLE_WEBCAM;ENABLE_UNITYWEBREQUEST;ENABLE_WWW;ENABLE_CLOUD_SERVICES;ENABLE_CLOUD_SERVICES_ADS;ENABLE_CLOUD_SERVICES_USE_WEBREQUEST;ENABLE_UNITY_CONSENT;ENABLE_UNITY_CLOUD_IDENTIFIERS;ENABLE_CLOUD_SERVICES_CRASH_REPORTING;ENABLE_CLOUD_SERVICES_NATIVE_CRASH_REPORTING;ENABLE_CLOUD_SERVICES_PURCHASING;ENABLE_CLOUD_SERVICES_ANALYTICS;ENABLE_CLOUD_SERVICES_BUILD;ENABLE_EDITOR_GAME_SERVICES;ENABLE_UNITY_GAME_SERVICES_ANALYTICS_SUPPORT;ENABLE_CLOUD_LICENSE;ENABLE_EDITOR_HUB_LICENSE;ENABLE_WEBSOCKET_CLIENT;ENABLE_GENERATE_NATIVE_PLUGINS_FOR_ASSEMBLIES_API;ENABLE_DIRECTOR_AUDIO;ENABLE_DIRECTOR_TEXTURE;ENABLE_MANAGED_JOBS;ENABLE_MANAGED_TRANSFORM_JOBS;ENABLE_MANAGED_ANIMATION_JOBS;ENABLE_MANAGED_AUDIO_JOBS;ENABLE_MANAGED_UNITYTLS;INCLUDE_DYNAMIC_GI;ENABLE_SCRIPTING_GC_WBARRIERS;PLATFORM_SUPPORTS_MONO;RENDER_SOFTWARE_CURSOR;ENABLE_MARSHALLING_TESTS;ENABLE_VIDEO;ENABLE_NAVIGATION_OFFMESHLINK_TO_NAVMESHLINK;ENABLE_ACCELERATOR_CLIENT_DEBUGGING;ENABLE_ACCESSIBILITY_SCREEN_READER;TEXTCORE_1_0_OR_NEWER;EDITOR_ONLY_NAVMESH_BUILDER_DEPRECATED;PLATFORM_STANDALONE_WIN;PLATFORM_STANDALONE;UNITY_STANDALONE_WIN;UNITY_STANDALONE;ENABLE_RUNTIME_GI;ENABLE_MOVIES;ENABLE_NETWORK;ENABLE_NVIDIA;ENABLE_AMD;ENABLE_CRUNCH_TEXTURE_COMPRESSION;ENABLE_CLOUD_SERVICES_ENGINE_DIAGNOSTICS;ENABLE_OUT_OF_PROCESS_CRASH_HANDLER;ENABLE_CLUSTER_SYNC;ENABLE_CLUSTERINPUT;PLATFORM_UPDATES_TIME_OUTSIDE_OF_PLAYER_LOOP;GFXDEVICE_WAITFOREVENT_MESSAGEPUMP;PLATFORM_USES_EXPLICIT_MEMORY_MANAGER_INITIALIZER;PLATFORM_SUPPORTS_WAIT_FOR_PRESENTATION;PLATFORM_SUPPORTS_SPLIT_GRAPHICS_JOBS;ENABLE_MONO;NET_4_6;NET_UNITY_4_8;ENABLE_PROFILER;ENABLE_PROFILER_ASSISTANT_INTEGRATION;DEBUG;TRACE;UNITY_ASSERTIONS;UNITY_EDITOR;UNITY_EDITOR_64;UNITY_EDITOR_WIN;ENABLE_UNITY_COLLECTIONS_CHECKS;ENABLE_BURST_AOT;UNITY_TEAM_LICENSE;ENABLE_CUSTOM_RENDER_TEXTURE;ENABLE_DIRECTOR;ENABLE_LOCALIZATION;ENABLE_SPRITES;ENABLE_TERRAIN;ENABLE_TILEMAP;ENABLE_TIMELINE;ENABLE_INPUT_SYSTEM;ENABLE_LEGACY_INPUT_MANAGER;TEXTCORE_FONT_ENGINE_1_5_OR_NEWER;TEXTCORE_TEXT_ENGINE_1_5_OR_NEWER;TEXTCORE_FONT_ENGINE_1_6_OR_NEWER;FUSION_LOGLEVEL_INFO;FUSION_WEAVER;FUSION2;FUSION_2;FUSION_2_0;FUSION_2_0_12;FUSION_2_OR_NEWER;FUSION_2_0_OR_NEWER;USE_INPUT_SYSTEM_POSE_CONTROL;USE_STICK_CONTROL_THUMBSTICKS;META_USE_STICK_CONTROL_THUMBSTICKS;READY_PLAYER_ME;OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING;CSHARP_7_OR_LATER;CSHARP_7_3_OR_NEWER;UNITY_EDITOR_ONLY_COMPILATION</DefineConstants>
     <AllowUnsafeBlocks>True</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup>
@@ -51,18 +51,24 @@
   <ItemGroup>
     <Compile Include="Assets\Editor\TechnicianVRSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\ExplorerAssetsSetup.cs" />
+    <Compile Include="Assets\Editor\CircuitFaultFXSetup.cs" />
     <Compile Include="Assets\Editor\ExplorerSceneSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\BuildExploradorPCVR.cs" />
     <Compile Include="Assets\UnityJapanOffice\Editor\IterateLightBake.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto4TrackerDedupTest.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Editor\ReadmeEditor.cs" />
     <Compile Include="Assets\Scripts\Editor\SendingTrayCanvasFixer.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4TecnicoSkinTool.cs" />
     <Compile Include="Assets\Editor\OnboardingSetup.cs" />
     <Compile Include="Assets\Editor\MultimeterPrefabGenerator.cs" />
+    <Compile Include="Assets\LightningBolt\Editor\LightningBoltEditor.cs" />
     <Compile Include="Assets\Editor\CircuitNodeSetupTool.cs" />
     <Compile Include="Assets\Editor\MetaXRFusionFix.cs" />
     <Compile Include="Assets\Editor\URPMaterialConverter.cs" />
     <Compile Include="Assets\Scripts\Editor\ArduinoPinNodeGenerator.cs" />
     <Compile Include="Assets\Editor\TechnicianPrefabGenerator.cs" />
+    <Compile Include="Assets\Editor\TecnicoRespawnTool.cs" />
+    <Compile Include="Assets\Scripts\Editor\AudioFXResourcesSetup.cs" />
     <Compile Include="Assets\Editor\VRHandSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\MapVRSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4BocetoImporter.cs" />
@@ -79,7 +85,9 @@
     <Compile Include="Assets\Editor\LooseCableButtonGenerator.cs" />
     <Compile Include="Assets\Scripts\Editor\UISetupFixer.cs" />
     <Compile Include="Assets\Editor\TecnicoSceneSetupTool.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto2CablesFisicosTool.cs" />
     <Compile Include="Assets\Editor\IntegratedDemoSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\LEDCristalSetup.cs" />
     <Compile Include="Assets\Editor\CableBoxSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\SteamVRConflictResolver.cs" />
     <Compile Include="Assets\Editor\GameUIPrefabGenerator.cs" />
@@ -91,25 +99,34 @@
     <Compile Include="Assets\Editor\QuestLinkSetup.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4ExploradorHUDTool.cs" />
     <Compile Include="Assets\Scripts\Editor\ProtoboardSlotGenerator.cs" />
+    <Compile Include="Assets\Editor\ArduinoPinNodeCalibrator.cs" />
     <Compile Include="Assets\Scripts\Editor\ArduinoModelCreator.cs" />
     <Compile Include="Assets\Editor\EstacionDesanclarTool.cs" />
     <Compile Include="Assets\Scripts\Editor\PlayerControllerComponentFixer.cs" />
     <Compile Include="Assets\Scripts\Editor\AssignClipboardToZonesTool.cs" />
     <Compile Include="Assets\Editor\VRValidator.cs" />
+    <Compile Include="Assets\Editor\CameraFixBatch.cs" />
     <Compile Include="Assets\Scripts\Editor\ExplorerXRSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto4CableBoxVerify.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4AutoSetup.cs" />
     <Compile Include="Assets\Editor\ExplorerWorkstationBuilder.cs" />
+    <Compile Include="Assets\Scripts\Editor\BuildTecnico.cs" />
     <Compile Include="Assets\Editor\ResultsPanelSetup.cs" />
     <Compile Include="Assets\Editor\ExplorerPrefabUpdater.cs" />
     <Compile Include="Assets\Scripts\Editor\JapanOfficeURPConverter.cs" />
     <Compile Include="Assets\Scripts\Editor\MultimeterArtWiringTool.cs" />
+    <Compile Include="Assets\Editor\DeliveryBoxSetupTool.cs" />
     <Compile Include="Assets\Editor\ExplorerPrefabGenerator.cs" />
     <Compile Include="Assets\UnityJapanOffice\Editor\UTJOfficeLightBaker.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto2SlotFemalesTool.cs" />
     <Compile Include="Assets\Scripts\Editor\VRSceneGuard.cs" />
     <Compile Include="Assets\Editor\ManualOverlaySetupTool.cs" />
     <Compile Include="Assets\Editor\ExploradorSceneSetupTool.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto2BateriaCablesTool.cs" />
+    <Compile Include="Assets\Editor\Reto4BreadboardModeSetup.cs" />
     <Compile Include="Assets\Editor\RobotKyleHandIKSetup.cs" />
     <Compile Include="Assets\Scripts\Editor\ArduinoBatchSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\DashboardSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\TechnicianMonitorHUDBuilderV2.cs" />
     <Compile Include="Assets\Editor\BreadboardGridGenerator.cs" />
     <Compile Include="Assets\Scripts\Editor\TMPFixer.cs" />
@@ -119,6 +136,7 @@
     <Compile Include="Assets\Scripts\Editor\FijarEstacionTool.cs" />
     <Compile Include="Assets\Scripts\Editor\WalkerPCSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\ComponentReceiverUnnestTool.cs" />
+    <Compile Include="Assets\Editor\RobotKyleHandsToggle.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4SetupWizard.cs" />
     <Compile Include="Assets\Editor\URPPipelineFixer.cs" />
     <Compile Include="Assets\Editor\MultimeterRebuildTool.cs" />
@@ -132,10 +150,13 @@
     <Compile Include="Assets\Editor\Reto4DisplaySetup.cs" />
     <Compile Include="Assets\Editor\ResistorV2Builder.cs" />
     <Compile Include="Assets\Editor\CableBoxBatchSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto2ProtoboardSetup.cs" />
     <Compile Include="Assets\Editor\ExplorerPrefabUIBuilder.cs" />
     <Compile Include="Assets\Scripts\Editor\ComprobarCircuitoButtonTool.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto4InterpreterTest.cs" />
     <Compile Include="Assets\Editor\TechnicianWorkstationGenerator.cs" />
     <Compile Include="Assets\Editor\MetaXRSetupTool.cs" />
+    <Compile Include="Assets\Scripts\Editor\TecnicoDiagnosticoClipboardTool.cs" />
     <Compile Include="Assets\Editor\Vol2RetosBuilder.cs" />
     <Compile Include="Assets\Scripts\Editor\TechnicianMonitorHUDBuilder.cs" />
     <Compile Include="Assets\Editor\XRPlayModeGuard.cs" />
@@ -152,6 +173,9 @@
     <Compile Include="Assets\Editor\Reto4ArduinoProtoboardTool.cs" />
     <Compile Include="Assets\Scripts\Editor\ProtoboardConnectorSetup.cs" />
     <Compile Include="Assets\Editor\HUDZoneGateSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto2PowerSwitchSetup.cs" />
+    <Compile Include="Assets\Editor\WalkerPCRemoveTool.cs" />
+    <Compile Include="Assets\Scripts\Editor\Reto4VoltageTest.cs" />
     <Compile Include="Assets\Editor\CharacterControllerConsolidateTool.cs" />
     <Compile Include="Assets\ObjectClipboard\Editor\ObjectClipboardWindow.cs" />
     <Compile Include="Assets\Scripts\Editor\MultimeterDeduplicateTool.cs" />
@@ -162,6 +186,8 @@
     <Compile Include="Assets\Scripts\Editor\ProtoboardModelCreator.cs" />
     <Compile Include="Assets\Editor\SpaceshipAmbientSetupTool.cs" />
     <Compile Include="Assets\Editor\ArduinoNetworkSetup.cs" />
+    <Compile Include="Assets\Editor\ArduinoPinNodeLinker.cs" />
+    <Compile Include="Assets\Scripts\Editor\FireBarrierSetup.cs" />
     <Compile Include="Assets\Editor\Reto4HUDResetTool.cs" />
     <Compile Include="Assets\Editor\GameSceneGenerator.cs" />
     <Compile Include="Assets\Editor\Vol2DeliveredSetup.cs" />
@@ -1997,9 +2023,11 @@
     <ProjectReference Include="CFXRRuntime.csproj" />
     <ProjectReference Include="KinoBloom.Runtime.csproj" />
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.csproj" />
+    <ProjectReference Include="NaughtyAttributes.Core.csproj" />
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Samples.Hands.csproj" />
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Analytics.Editor.csproj" />
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Analytics.Hooks.Editor.csproj" />
+    <ProjectReference Include="NaughtyAttributes.Editor.csproj" />
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Editor.csproj" />
     <ProjectReference Include="CFXREditor.csproj" />
     <ProjectReference Include="URPWizard.csproj" />
@@ -2009,6 +2037,7 @@
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Samples.StarterAssets.Editor.csproj" />
     <ProjectReference Include="CFXRDemo.csproj" />
     <ProjectReference Include="ReadyPlayerMe.Samples.AvatarLoading.csproj" />
+    <ProjectReference Include="NaughtyAttributes.Test.csproj" />
     <ProjectReference Include="Fusion.Unity.Editor.csproj" />
     <ProjectReference Include="CFXR.WelcomeScreen.csproj" />
     <ProjectReference Include="Unity.XR.Interaction.Toolkit.Samples.Hands.Editor.csproj" />

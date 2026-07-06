@@ -26,7 +26,7 @@ Before editing, confirm which clone you are in and which has the work you expect
 
 This is an Editor-driven Unity project: no lint step, and tests run from the Editor (not CI).
 
-- **Open in Editor:** Unity Hub → open the clone with editor **6000.4.3f1**. Main scenes in `Assets/Scenes/`: `Tecnico.unity` (PC host), `Explorador.unity` (VR client), `IntegratedDemo.unity` (both roles, for end-to-end testing). `Tecnico` additively loads `NoonA.unity` at runtime via `TecnicoBootstrapper`. (`Assets/MapVR.unity` and `Assets/serious game.unity` are legacy.)
+- **Open in Editor:** Unity Hub → open the clone with editor **6000.4.3f1**. Main scenes: `Assets/Scenes/Tecnico/Tecnico.unity` (PC host) + its additively-loaded `Assets/Scenes/Tecnico/NoonA.unity`, `Assets/Scenes/Explorador.unity` (VR client), `Assets/Scenes/IntegratedDemo.unity` (both roles, for end-to-end testing). `Tecnico` additively loads `NoonA.unity` by name at runtime via `TecnicoBootstrapper`. (`Assets/MapVR.unity` and `Assets/serious game.unity` are legacy.)
 - **CI** (`.github/workflows/main.yml`, self-hosted CachyOS Linux runner, on push to `main`/`development`): builds a Windows64 player, runs Doxygen, regenerates `README.md`, deploys docs to GitHub Pages.
   ```bash
   "$UNITY_EDITOR" -batchmode -nographics -silent-crashes -quit \
@@ -36,7 +36,11 @@ This is an Editor-driven Unity project: no lint step, and tests run from the Edi
   ```
   `UNITY_EDITOR` defaults to a hardcoded runner path, overridable via repo variable `UNITY_EDITOR_PATH`.
 - **`README.md` is auto-generated on every push** by `generate_readme.py` (along with `progreso.txt`). Do not hand-edit it — changes are overwritten. Put durable docs elsewhere.
-- **Explorador (Quest)** ships as an Android APK built from the Editor; the **Técnico** build is the Windows64 player (the only one CI produces).
+- **Local builds run from the Editor menu** `Tools → TITA → Build → …` (these scripts set the per-role scene list and player settings for you — prefer them over hand-driving Build Profiles):
+  - `EXE Técnico (Windows)` → `BuildTecnico.cs` (Windows64 player, Tecnico + NoonA)
+  - `APK Quest (Explorador)` → `BuildQuest.cs` (Android/Quest APK, Explorador only)
+  - `EXE PCVR (Explorador)` → `BuildExploradorPCVR.cs` (Windows PCVR for Quest Link testing)
+- **Explorador (Quest)** ships as an Android APK; the **Técnico** build is the Windows64 player (the only one CI produces). Install the Quest APK over adb with `Proyecto-TITA/Instalar-Explorador.ps1`; `Medir-PCVR.ps1` benchmarks the PCVR build.
 - **Tests:** Unity Test Framework — EditMode for the electrical engine, PlayMode + a Photon sandbox for integration — run via the Editor Test Runner.
 
 ## Architecture (the parts that span files)
@@ -60,7 +64,7 @@ The `Electrical` module holds the component model: abstract `ElectricalComponent
 
 ## Editor tooling (use it instead of hand-wiring scenes)
 
-Scene setup is heavily automated. `Assets/Scripts/Editor/` (~27 tools) exposes generators and fixers under the Unity menu **`Tools → TITA → …`** (Reto 4 auto-setup, network-reference fillers, canvas/UI repair, duplicate `ConnectionManager` cleanup, Quest Link config, art/prefab generators). Many Inspector references are auto-resolved at runtime in `Awake()` even when serialized null, so a `{fileID: 0}` in YAML is not necessarily a bug. Prefer running the relevant `Tools → TITA` command over manually re-wiring references.
+Scene setup is heavily automated. `Assets/Scripts/Editor/` (~57 scripts exposing ~70 `Tools/TITA` menu items) holds generators and fixers under the Unity menu **`Tools → TITA → …`** (Reto 4 auto-setup, the `[Batch] Workstream A2/A3` one-click scene builders for Tecnico/Explorador, `Reto 4 → Setup Monitor Arduino`, network-reference fillers, `Red → Limpiar NetworkManagers duplicados`, canvas/UI repair, Quest Link config, art/prefab generators). Many Inspector references are auto-resolved at runtime in `Awake()` even when serialized null, so a `{fileID: 0}` in YAML is not necessarily a bug. Prefer running the relevant `Tools → TITA` command over manually re-wiring references.
 
 ## Non-obvious traps (learned debugging this codebase)
 
@@ -69,7 +73,14 @@ Scene setup is heavily automated. `Assets/Scripts/Editor/` (~27 tools) exposes g
 - **Win for Retos 1–3 is auto, not a button.** `GameManager.OnCircuitChangedAutoCheck` completes the reto only if it was seen *incorrect first* (`_vistoIncorrectoEnReto`) and then becomes correct. `PlayerFeedbackUI` shows "¡FELICIDADES!" on `OnLevelCompleted`. Reto 4 instead validates via the physical button → `EvaluarReto4`.
 - **Several singletons auto-create at runtime via `RuntimeInitializeOnLoadMethod`** and are NOT in any scene: `NetworkDemoOverlay`, `TelemetryPublisher`, `RoomCodeEntryUI`, `ExplorerLinkOverlay`, `SoloTechnicianDebug`. Grepping scene YAML for them will falsely report "missing".
 - **Solo testing (offline, no Técnico):** the delivery token defaults to 100 Ω (the Técnico injects the real value over the network), so placing it solo never matches e.g. Reto 1's 850 Ω. Use the dev-only helper **F8** (`Gameplay/SoloTechnicianDebug`, `#if UNITY_EDITOR || DEVELOPMENT_BUILD`) to apply the current reto's correct fix directly. F1–F4 are the `DebugLevelSkipper` (switch reto), F5 = validate (IDE), F9 = network overlay.
+- **F8 means two different things depending on network state.** Offline, F8 is `SoloTechnicianDebug` (force-apply the correct fix, editor/dev-build only). Online, on the **host** it's instead `Gameplay/TecnicoValidarPrecaucion`: a "just in case" re-check that calls `GameSession.SolicitarValidacion()` → `EvaluarCircuitSimulator`, which only completes the reto if `CumpleVictoriaRetos123()` is already true — it can't force a win. Both auto-instantiate and key off `GameSession.Instance`/host authority, so they don't collide, but don't assume "F8" means the same behavior in both contexts.
+- **Teacher metrics dashboard auto-starts on the Técnico only.** `Networking/DashboardBootstrap` (`RuntimeInitializeOnLoadMethod`) skips Android and any scene not named `Tecnico`, then spins up `DashboardServer` (embedded HTTP server, prints `http://localhost:8080/` to the console) wired to `SessionDataExporter`, which reads from `Gameplay/PerformanceTracker` (subscribed to `GameManager` events). It was previously not present in any scene, so the panel silently never ran until this bootstrap was added. `DashboardBootstrap` also has an **optional Google Sheets upload** (`ENABLE_SHEETS`) — ⚠ the Apps Script webhook URL and a shared secret token (`SHEETS_TOKEN`) are currently **hardcoded in source** (already committed/pushed); treat that token as compromised and rotate it in the Apps Script project rather than trusting it as a secret.
 - **Per-role build scene list:** the **Técnico** (Windows) build needs `Tecnico` (index 0) **and** `NoonA` enabled (NoonA is additively loaded by name at runtime); the **Explorador** (Android/Quest) build needs only `Explorador`. Use Unity 6 Build Profiles with a per-role Scene List override.
+- **VR rig is fixed up at runtime, not in the scene.** `Player/ExplorerVRAutoFix` runs in the Explorador scene to repair hands (TPD hand prefabs bound to the HMD eye), camera (RobotKyle body fixed, ReadyPlayerMe off) and locomotion (it removes a double-locomotion conflict). Don't try to "fix" the rig by hand-editing the scene YAML for these — confirm what AutoFix already does first.
+- **Configurable room code.** Fusion's `SessionName` is no longer fixed: the Técnico picks a sala code in UI and the Explorador is forced to match (`esperarEntradaDeCodigo` flag, `RoomCodeEntryUI`), so classroom groups don't collide into one session. If two players can't see each other, check they entered the same code.
+- **LED can blow up.** Catastrophic overload (no resistor / I ≥ 1 A) launches the LED with `LEDBlowEffect` (auto-added by `AutoSmokeSetup`); the Técnico re-delivers a fresh LED over the network to restore it. A "missing" LED mid-reto may be an intentional blow, not a bug.
+- **Reto 4 cable is a flexible jumper with independent tips.** Wiring in Reto 4 uses a flexible jumper whose two ends are placed independently into `pinNodeMap` pins — the old uniform `cableEscala` scaling is obsolete. Particle FX in Reto 4 must subscribe to `ProtoboardSimulator.OnCircuitChanged` (see the dual-event note above).
+- **VR multimeter grab orientation lives in the `Grab_Attach` child, edited via a script.** `Assets/Prefabs/Multimeter_VR_Art.prefab`'s grab pose is the `Grab_Attach` transform's X tilt (sign matters: `+35°` faces the screen toward you, `−35°` feels upside-down). Adjust it with **Unity CLOSED** via `C:\Users\holaq\Proyecto-TITA\Fix-Multimeter-Grab.ps1` (`-X/-Y/-Z`, backs up first), not by hand. The probe tips have their own attach-less `XRGrabInteractable`, so grabbing a tip instead of the body makes it hang crooked.
 
 ## Conventions
 

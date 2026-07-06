@@ -15018,8 +15018,8 @@ Transform:
   m_GameObject: {fileID: 145077301}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: -0.013, z: 0}
-  m_LocalScale: {x: 1.5, y: 0.025, z: 1}
+  m_LocalPosition: {x: 0.036, y: -0.013, z: -0.0109}
+  m_LocalScale: {x: 1.572, y: 0.025, z: 1.4802027}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
@@ -32180,7 +32180,7 @@ Transform:
   m_GameObject: {fileID: 327184607}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 4, y: -0.85, z: 0}
+  m_LocalPosition: {x: -0.05, y: -0.85, z: 1.492}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -55786,7 +55786,7 @@ Transform:
   m_GameObject: {fileID: 532605567}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.2, y: 0.13599999, z: 0}
+  m_LocalPosition: {x: -0.2, y: 0.0043, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -55810,7 +55810,7 @@ MonoBehaviour:
   delivery: {fileID: 0}
   gameManager: {fileID: 0}
   slotRenderer: {fileID: 663600944}
-  colorNormal: {r: 0.3, g: 0.3, b: 0.3, a: 1}
+  colorNormal: {r: 0.3, g: 0.3, b: 0.3, a: 0}
   colorHover: {r: 0.9, g: 0.9, b: 0.2, a: 1}
   colorCorrect: {r: 0.2, g: 0.9, b: 0.3, a: 1}
   colorWrong: {r: 0.9, g: 0.2, b: 0.2, a: 1}
@@ -60821,8 +60821,8 @@ Transform:
   m_GameObject: {fileID: 588279655}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.6, y: 0.025, z: 0}
-  m_LocalScale: {x: 0.042, y: 0.003, z: 0.042}
+  m_LocalPosition: {x: 0.6, y: 0.0098, z: 0}
+  m_LocalScale: {x: 0.024, y: 0.024, z: 0.024}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
@@ -60883,7 +60883,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 588279655}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &588280581
 GameObject:
   m_ObjectHideFlags: 0
@@ -87244,8 +87244,8 @@ Transform:
   m_GameObject: {fileID: 842473619}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.26999998, y: 0.025, z: 0}
-  m_LocalScale: {x: 0.042, y: 0.003, z: 0.042}
+  m_LocalPosition: {x: 0.27, y: 0.0114, z: -0.0013}
+  m_LocalScale: {x: 0.024, y: 0.024, z: 0.024}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
@@ -87306,7 +87306,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 842473619}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &843413899
 GameObject:
   m_ObjectHideFlags: 0
@@ -89730,8 +89730,8 @@ Transform:
   m_GameObject: {fileID: 865792021}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.5, y: 0.025, z: 0}
-  m_LocalScale: {x: 0.042, y: 0.003, z: 0.042}
+  m_LocalPosition: {x: -0.5, y: 0.0098, z: 0}
+  m_LocalScale: {x: 0.024, y: 0.024, z: 0.024}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
@@ -89792,7 +89792,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 865792021}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &865979555
 GameObject:
   m_ObjectHideFlags: 0
@@ -98923,7 +98923,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: fc7a69ef58dc4f04e9c2dc7c7eecee40, type: 2}
+  - {fileID: 2100000, guid: f4f3736b7fc3a7144a01b128c2ba2783, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -114693,7 +114693,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 516f1a4d21367fb45b56166163763fb2, type: 2}
+  - {fileID: 2100000, guid: f4f3736b7fc3a7144a01b128c2ba2783, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -115147,7 +115147,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 31e150e0e7a3a584bbb88459a80b97d5, type: 2}
+  - {fileID: 2100000, guid: 6a36b453541f6bc43981105ac90ae736, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -126739,7 +126739,7 @@ Transform:
   m_GameObject: {fileID: 1213945030}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.35, y: 0.13599999, z: 0.35}
+  m_LocalPosition: {x: 0.35, y: 0.0057, z: 0.35}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -126763,10 +126763,10 @@ MonoBehaviour:
   delivery: {fileID: 0}
   gameManager: {fileID: 0}
   slotRenderer: {fileID: 324453529}
-  colorNormal: {r: 0.3, g: 0.3, b: 0.3, a: 1}
-  colorHover: {r: 0.9, g: 0.9, b: 0.2, a: 1}
-  colorCorrect: {r: 0.2, g: 0.9, b: 0.3, a: 1}
-  colorWrong: {r: 0.9, g: 0.2, b: 0.2, a: 1}
+  colorNormal: {r: 0.3, g: 0.3, b: 0.3, a: 0}
+  colorHover: {r: 0.9, g: 0.9, b: 0.2, a: 0}
+  colorCorrect: {r: 0.2, g: 0.9, b: 0.3, a: 0}
+  colorWrong: {r: 0.9, g: 0.2, b: 0.2, a: 0}
   installAnchor: {fileID: 1213945031}
   damagedComponent: {fileID: 0}
   _hasComponent: 0
@@ -168417,13 +168417,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1541402535}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0.004, z: 0}
-  m_LocalScale: {x: 1.4, y: 0.008, z: 0.9}
+  m_LocalRotation: {x: 0, y: 0.7071068, z: 0, w: 0.7071068}
+  m_LocalPosition: {x: 0.001, y: -0.077, z: 0.001}
+  m_LocalScale: {x: 2.084675, y: 1, z: 1.9197612}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 90, z: 0}
 --- !u!23 &1541402537
 MeshRenderer:
   m_ObjectHideFlags: 0
@@ -168449,7 +168449,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 70b6b35703421154a84b49e4f507f56b, type: 2}
+  - {fileID: 2100000, guid: 8c82bf749831d9f4c823ff25b45cb35b, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -168480,7 +168480,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1541402535}
-  m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: -4183173047792777080, guid: 76d218785ff44abca28da3b8c72325ab, type: 3}
 --- !u!1 &1542881402
 GameObject:
   m_ObjectHideFlags: 0
@@ -169437,7 +169437,7 @@ Transform:
   m_GameObject: {fileID: 1549568762}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.35, y: 0.16600001, z: -0.35}
+  m_LocalPosition: {x: 0.35, y: 0.0043, z: -0.35}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -169461,10 +169461,10 @@ MonoBehaviour:
   delivery: {fileID: 0}
   gameManager: {fileID: 0}
   slotRenderer: {fileID: 1801489194}
-  colorNormal: {r: 0.3, g: 0.3, b: 0.3, a: 1}
-  colorHover: {r: 0.9, g: 0.9, b: 0.2, a: 1}
-  colorCorrect: {r: 0.2, g: 0.9, b: 0.3, a: 1}
-  colorWrong: {r: 0.9, g: 0.2, b: 0.2, a: 1}
+  colorNormal: {r: 0.3, g: 0.3, b: 0.3, a: 0}
+  colorHover: {r: 0.9, g: 0.9, b: 0.2, a: 0}
+  colorCorrect: {r: 0.2, g: 0.9, b: 0.3, a: 0}
+  colorWrong: {r: 0.9, g: 0.2, b: 0.2, a: 0}
   installAnchor: {fileID: 1549568763}
   damagedComponent: {fileID: 0}
   _hasComponent: 0
@@ -181659,8 +181659,8 @@ Transform:
   m_GameObject: {fileID: 1647888253}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.35, y: 0.025, z: -0.35}
-  m_LocalScale: {x: 0.042, y: 0.003, z: 0.042}
+  m_LocalPosition: {x: 0.35, y: 0.0147, z: -0.35}
+  m_LocalScale: {x: 0.024, y: 0.024, z: 0.024}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
@@ -181721,7 +181721,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1647888253}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1001 &1648766388
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -182985,7 +182985,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!4 &1671127159
 Transform:
   m_ObjectHideFlags: 0
@@ -197709,7 +197709,7 @@ Transform:
   m_GameObject: {fileID: 1801489192}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 0, y: 0.0037, z: 0}
   m_LocalScale: {x: 0.14, y: 0.008, z: 0.14}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -226080,7 +226080,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 4d7b6cdccb7410e46ac4c58dbb656e20, type: 2}
+  - {fileID: 2100000, guid: 3b4b5166b40a1754ab24dd867cc19442, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -232243,8 +232243,8 @@ Transform:
   m_GameObject: {fileID: 2140801164}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0.35, y: 0.025, z: 0.35}
-  m_LocalScale: {x: 0.042, y: 0.003, z: 0.042}
+  m_LocalPosition: {x: 0.35, y: 0.0105, z: 0.35}
+  m_LocalScale: {x: 0.024, y: 0.024, z: 0.024}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1671127159}
@@ -232305,7 +232305,7 @@ MeshFilter:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2140801164}
-  m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
+  m_Mesh: {fileID: 10207, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!1 &2142619750
 GameObject:
   m_ObjectHideFlags: 0
