@@ -147,8 +147,9 @@ public class Reto2CircuitGuard : MonoBehaviour
              "En cualquier otro lugar sigue agarrable.")]
     public int   filaSlotCorrecto = 3;
     public int   colSlotCorrecto  = 5;
-    [Tooltip("Distancia máxima (m) entre el LED soltado y el slot correcto para que encaje.")]
-    public float snapDistancia    = 0.08f;
+    [Tooltip("Distancia máxima (m) entre el LED soltado y el slot correcto para que encaje. " +
+             "15 cm: en la prueba real un drop 'encima' del slot midió 9 cm y el umbral de 8 lo rechazaba.")]
+    public float snapDistancia    = 0.15f;
 
     /// <summary>El Técnico envió un LED. Solo relevante en Reto 2: queda AGARRABLE hasta que el
     /// jugador lo suelte sobre el slot correcto (filaSlotCorrecto/colSlotCorrecto); ahí se fija
@@ -210,7 +211,19 @@ public class Reto2CircuitGuard : MonoBehaviour
         {
             yield return wait;
             bool sostenido = grab != null && grab.isSelected;
-            if (!sostenido) IntentarEncajar(e);   // silencioso: solo encaja si está cerca
+            if (sostenido) continue;
+
+            // RESCATE: si el LED cayó al vacío (atravesó el piso — en la prueba real llegó a
+            // -300 m), devolverlo flotando sobre la protoboard para que el jugador lo retome.
+            if (e.ledGO.transform.position.y < -3f && _sim != null)
+            {
+                e.ledGO.transform.position = _sim.transform.position + Vector3.up * 0.25f;
+                foreach (var rb in e.ledGO.GetComponentsInChildren<Rigidbody>(true))
+                    { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
+                Debug.Log("[Reto2CircuitGuard] LED rescatado del vacío → devuelto sobre la protoboard.");
+            }
+
+            IntentarEncajar(e);   // silencioso: solo encaja si está cerca
         }
     }
 
