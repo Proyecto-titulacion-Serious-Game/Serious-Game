@@ -311,6 +311,9 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     public int   TelemAdc       { get; private set; }
     /// <summary>0 = operación segura, 1 = cortocircuito, 2 = circuito abierto.</summary>
     public int   TelemStatus    { get; private set; }
+    /// <summary>Caída de voltaje real en el LED encendido (V, ~2 V típico). 0 = sin LED activo.
+    /// Didáctico: "el LED consume ~2 V; el resto lo absorbe la resistencia en serie".</summary>
+    public float TelemVLed      { get; private set; }
     /// <summary>True tras recibir al menos una muestra por red (distingue "sin datos" de 0 V real).</summary>
     public bool  TelemHasData   { get; private set; }
     /// <summary>
@@ -322,13 +325,14 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
 
     /// <summary>El Explorador publica la telemetría del sandbox; llega a todos (incl. Host/Técnico).</summary>
     [Rpc(RpcSources.All, RpcTargets.All)]
-    public void RPC_PublicarTelemetria(float voltage, float currentmA, float powerW, int adc, int status)
+    public void RPC_PublicarTelemetria(float voltage, float currentmA, float powerW, int adc, int status, float vLed)
     {
         TelemVoltage   = voltage;
         TelemCurrentmA = currentmA;
         TelemPowerW    = powerW;
         TelemAdc       = adc;
         TelemStatus    = status;
+        TelemVLed      = vLed;
         TelemHasData   = true;
         LastTelemetryRealtime = Time.unscaledTime;
     }
@@ -412,5 +416,29 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     {
         ExploradorListo = listo;
         Debug.Log($"[GameSession] Explorador {(listo ? "LISTO" : "NO listo")} (Arduino VR).");
+    }
+
+    // ─────────────────────────────────────────────
+    //  Reto 4: Serial online (Arduino del Explorador → consola del IDE del Técnico)
+    // ─────────────────────────────────────────────
+    //  El ArduinoCore corre en la Quest: sus Serial.print y errores de runtime solo disparaban
+    //  eventos locales, así que en el setup asimétrico el Técnico subía un sketch con
+    //  Serial.println y su consola quedaba muda (y nunca se enteraba de un error de ejecución).
+    //  TelemetryPublisher (Explorador) los batchea y publica por aquí (~5 Hz, ≤380 chars por RPC).
+
+    public static event System.Action<string> OnSerialRemoto;
+    public static event System.Action<string> OnErrorRemoto;
+
+    [Rpc(RpcSources.All, RpcTargets.All)]
+    public void RPC_PublicarSerial(string batch)
+    {
+        OnSerialRemoto?.Invoke(batch);
+    }
+
+    [Rpc(RpcSources.All, RpcTargets.All)]
+    public void RPC_PublicarSerialError(string error)
+    {
+        OnErrorRemoto?.Invoke(error);
+        Debug.Log($"[GameSession] Error de sketch reportado por red: {error}");
     }
 }

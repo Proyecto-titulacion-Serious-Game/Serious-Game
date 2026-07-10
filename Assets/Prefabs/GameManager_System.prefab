@@ -190,6 +190,6 @@ MonoBehaviour:
     RawGuidValue: 00000000000000000000000000000000
   rolAutomatico: 0
   modoOffline: 0
-  connectionTimeoutSeconds: 12
+  connectionTimeoutSeconds: 25
   entornoExplorador: {fileID: 0}
   gameManager: {fileID: 4217084572205065717}

@@ -20,7 +20,7 @@ public static class DashboardBootstrap
     // El TOKEN debe coincidir con el del script de Apps Script. GRUPO vacío = nombre del PC.
     const bool   ENABLE_SHEETS = true;
     const string SHEETS_URL    = "https://script.google.com/macros/s/AKfycbz09uUB8JyrnBlQjF9AVglLiqfpHvzUSVMrmjtTonaK4eNhUt86uoQWmldeFHnX3jeoLg/exec";
-    const string SHEETS_TOKEN  = "TITA-2026-clave-secreta";   // ← pon ESTE MISMO valor en 'const TOKEN' del Apps Script
+    const string SHEETS_TOKEN  = "TITA-2026-vQ8kZ3mN7rX5tD1c";   // ← ROTADO 2026-07-10 (el anterior quedó expuesto en git). Pon ESTE MISMO valor en 'const TOKEN' del Apps Script y RE-DESPLIEGA nueva versión
     const string GRUPO         = "1";                      // número de grupo (cámbialo por sesión/equipo). Vacío = nombre del PC
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]

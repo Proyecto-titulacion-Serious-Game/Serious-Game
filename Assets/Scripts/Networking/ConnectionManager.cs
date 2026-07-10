@@ -32,12 +32,32 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     [Tooltip("Si está activo, omite Fusion y activa el entorno local directamente.")]
     public bool modoOffline = false;
 
-    [Tooltip("Segundos esperando conexión antes de fallback a offline. 0 = sin límite.")]
+    [Tooltip("Segundos esperando conexión antes de fallback a offline. 0 = sin límite. " +
+             "Con internet lento (aula), 25s evita caer a offline durante el handshake con Photon.")]
     [Range(0f, 30f)]
-    public float connectionTimeoutSeconds = 12f;
+    public float connectionTimeoutSeconds = 25f;
 
     [Tooltip("GO 'Entorno del explorador' a activar en modo offline. Si queda vacío se busca por nombre.")]
     public GameObject entornoExplorador;
+
+    [Header("Reconexión automática")]
+    [Tooltip("Reintentos de conexión antes de caer a modo offline. Cubre 2 casos del aula: " +
+             "(1) corte de red a mitad de sesión (Timeout), (2) Explorador arrancado antes de que " +
+             "el Técnico cree la sala (GameNotFound).")]
+    public int maxReconnectIntentos = 3;
+    [Tooltip("Segundos de espera entre reintentos.")]
+    public float reconnectEsperaSegundos = 4f;
+    [Tooltip("Reintentos EXTRA cuando la sala AÚN NO EXISTE (GameNotFound = el Explorador arrancó " +
+             "antes de que el Técnico cree la sala). Presupuesto separado y generoso: ~40 × 4s ≈ 4 min " +
+             "de sala de espera antes de rendirse a offline.")]
+    public int maxEsperaSalaIntentos = 40;
+
+    GameMode  _lastMode;
+    bool      _modeKnown;
+    int       _reconnectsUsados;
+    int       _esperaSalaUsados;
+    Coroutine _reconnectCo;
+    bool      _quitting;
 
     [Header("Referencias del sistema de juego")]
     [Tooltip("Referencia al GameManager principal para notificar eventos de red.")]
@@ -237,17 +257,28 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     public async void StartSimulation(GameMode mode)
     {
-        _runner = gameObject.GetComponent<NetworkRunner>();
-        if (_runner == null)
-            _runner = gameObject.AddComponent<NetworkRunner>();
-
-        if (_runner.IsRunning)
+        if (_runner != null && _runner.IsRunning)
         {
             Debug.LogWarning($"[Red] StartSimulation ignorado — el runner ya está corriendo ({_runner.GameMode}).");
             return;
         }
 
+        // CRÍTICO: el NetworkRunner vive en un GO HIJO dedicado, NUNCA en este GameObject.
+        // Al apagarse (p.ej. StartGame falla con GameNotFound), Fusion DESTRUYE el GameObject
+        // del runner — y este GO ('GameManager_System') contiene GameManager, DeliverySystem,
+        // ObjectiveSystem, etc.: se moría el cerebro completo del juego y el reto no podía
+        // completarse ni reconectar. Con el hijo sacrificable, solo muere el runner.
+        var previo = transform.Find("[FusionRunner]");
+        if (previo != null) Destroy(previo.gameObject);
+        var runnerGO = new GameObject("[FusionRunner]");
+        runnerGO.transform.SetParent(transform, false);
+        _runner = runnerGO.AddComponent<NetworkRunner>();
+        _runner.AddCallbacks(this);   // en otro GO, los callbacks ya no se auto-registran
+
         _runner.ProvideInput = true;
+
+        _lastMode  = mode;
+        _modeKnown = true;
 
         if (connectionTimeoutSeconds > 0f)
             _connectionTimeout = StartCoroutine(ConnectionTimeout());
@@ -266,22 +297,29 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
         }
         catch (Exception ex)
         {
-            Debug.LogWarning($"[Red] StartGame lanzó excepción: {ex.Message}. Fallback a offline.");
+            Debug.LogWarning($"[Red] StartGame lanzó excepción: {ex.Message}.");
             StopConnectionTimeout();
-            FallbackModoOffline("Error al iniciar Fusion.");
+            TryReconnect("Error al iniciar Fusion.");
             return;
         }
 
         if (!result.Ok)
         {
-            Debug.LogWarning($"[Red] StartGame falló: {result.ShutdownReason}. Fallback a offline.");
+            Debug.LogWarning($"[Red] StartGame falló: {result.ShutdownReason}.");
             StopConnectionTimeout();
-            FallbackModoOffline($"No se pudo conectar ({result.ShutdownReason}).");
+            // GameNotFound = la sala del Técnico aún no existe (el Explorador entró primero).
+            // No es un error de red: SALA DE ESPERA con presupuesto propio y generoso.
+            if (result.ShutdownReason == ShutdownReason.GameNotFound && mode == GameMode.Client)
+                EsperarSala();
+            else
+                TryReconnect($"No se pudo conectar ({result.ShutdownReason}).");
             return;
         }
 
         StopConnectionTimeout();
         _connected = true;
+        _reconnectsUsados = 0;   // conexión lograda → resetear presupuestos de reintentos
+        _esperaSalaUsados = 0;
 
         if (mode == GameMode.Host || mode == GameMode.Server)
         {
@@ -308,11 +346,81 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
         yield return new WaitForSecondsRealtime(connectionTimeoutSeconds);
         if (!_connected)
         {
-            Debug.LogWarning($"[Red] Timeout ({connectionTimeoutSeconds}s) sin conexión. Fallback a offline.");
-            FallbackModoOffline("Tiempo de espera agotado. Iniciando modo offline.");
+            Debug.LogWarning($"[Red] Timeout ({connectionTimeoutSeconds}s) sin conexión.");
             _runner?.Shutdown();
+            TryReconnect("Tiempo de espera agotado.");
         }
     }
+
+    /// <summary>
+    /// Reintenta la conexión (mismo rol, mismo código de sala) antes de rendirse a modo offline.
+    /// Cubre el corte de red a mitad de sesión y el arranque del Explorador antes de que exista
+    /// la sala del Técnico. El presupuesto de reintentos se resetea al lograr conexión.
+    /// </summary>
+    /// <summary>
+    /// SALA DE ESPERA: la sala del código aún no existe (el Técnico no la ha creado). Reintenta
+    /// con presupuesto propio (~4 min) sin gastar los reintentos de error de red. Cubre el caso
+    /// "el Explorador arrancó primero" — se conectará solo en cuanto el Técnico cree la sala.
+    /// </summary>
+    void EsperarSala()
+    {
+        if (modoOffline || _quitting) return;
+        if (_esperaSalaUsados >= maxEsperaSalaIntentos)
+        {
+            FallbackModoOffline($"La sala '{ResolveRoomCode()}' nunca se creó. Iniciando modo offline.");
+            return;
+        }
+
+        _esperaSalaUsados++;
+        string msg = $"Esperando a que el Técnico cree la sala '{ResolveRoomCode()}'… " +
+                     $"({_esperaSalaUsados}/{maxEsperaSalaIntentos})";
+        if (_esperaSalaUsados == 1 || _esperaSalaUsados % 5 == 0)
+            Debug.Log("[Red] " + msg);
+        OnConnectionFailed?.Invoke(msg);   // los overlays muestran el estado al jugador
+
+        if (_reconnectCo != null) StopCoroutine(_reconnectCo);
+        _reconnectCo = StartCoroutine(ReconnectTrasEspera());
+    }
+
+    void TryReconnect(string razon)
+    {
+        if (modoOffline || _quitting) return;
+        if (!_modeKnown || _reconnectsUsados >= maxReconnectIntentos)
+        {
+            FallbackModoOffline(razon);
+            return;
+        }
+
+        _reconnectsUsados++;
+        Debug.LogWarning($"[Red] {razon} → reintento {_reconnectsUsados}/{maxReconnectIntentos} " +
+                         $"en {reconnectEsperaSegundos}s…");
+        OnConnectionFailed?.Invoke($"{razon} Reintentando ({_reconnectsUsados}/{maxReconnectIntentos})…");
+
+        if (_reconnectCo != null) StopCoroutine(_reconnectCo);
+        _reconnectCo = StartCoroutine(ReconnectTrasEspera());
+    }
+
+    IEnumerator ReconnectTrasEspera()
+    {
+        yield return new WaitForSecondsRealtime(reconnectEsperaSegundos);
+        _reconnectCo = null;
+        if (modoOffline || _quitting) yield break;
+
+        // Un NetworkRunner apagado no se puede reutilizar: destruir el hijo [FusionRunner]
+        // (si Fusion no lo destruyó ya) para que StartSimulation cree uno fresco.
+        var viejo = transform.Find("[FusionRunner]");
+        if (viejo != null)
+        {
+            Destroy(viejo.gameObject);
+            yield return null;   // Destroy es diferido → esperar un frame
+        }
+        _runner = null;
+
+        Debug.Log($"[Red] Reintentando conexión como {_lastMode} (sala '{ResolveRoomCode()}')…");
+        StartSimulation(_lastMode);
+    }
+
+    void OnApplicationQuit() => _quitting = true;
 
     void StopConnectionTimeout()
     {
@@ -392,6 +500,8 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     public void OnConnectedToServer(NetworkRunner runner)
     {
         _connected = true;
+        _reconnectsUsados = 0;   // conexión lograda → resetear presupuestos de reintentos
+        _esperaSalaUsados = 0;
         StopConnectionTimeout();
         Debug.Log("[Red] Conectado al servidor.");
     }
@@ -401,14 +511,14 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
         Debug.LogWarning($"[Red] Desconectado del servidor: {reason}");
         _runner    = null;
         _connected = false;
-        FallbackModoOffline($"Desconectado: {reason}");
+        TryReconnect($"Desconectado: {reason}.");
     }
 
     public void OnConnectFailed(NetworkRunner runner, NetAddress remoteAddress, NetConnectFailedReason reason)
     {
         Debug.LogWarning($"[Red] Conexión fallida a {remoteAddress}: {reason}");
         StopConnectionTimeout();
-        FallbackModoOffline($"No se pudo conectar al servidor ({reason}).");
+        TryReconnect($"No se pudo conectar al servidor ({reason}).");
     }
 
     public void OnConnectRequest(NetworkRunner runner, NetworkRunnerCallbackArgs.ConnectRequest request, byte[] token) { }

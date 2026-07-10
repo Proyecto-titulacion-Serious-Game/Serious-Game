@@ -285,10 +285,18 @@ public class SessionDataExporter : MonoBehaviour
             req.timeout       = 15;
             yield return req.SendWebRequest();
 
-            bool ok = req.result == UnityWebRequest.Result.Success;
-            if (ok) Debug.Log($"[SessionDataExporter] Subido a Google Sheets: {req.downloadHandler.text}");
-            else    Debug.LogWarning($"[SessionDataExporter] No se pudo subir a Sheets: {req.error}. " +
-                                     "El respaldo local (JSON/CSV) está intacto.");
+            // Apps Script SIEMPRE responde HTTP 200 (incluso 'unauthorized' o 'error: …'), así
+            // que el éxito real hay que leerlo del CUERPO: solo "ok" cuenta como subido.
+            string cuerpo = req.downloadHandler != null ? (req.downloadHandler.text ?? "").Trim() : "";
+            bool ok = req.result == UnityWebRequest.Result.Success && cuerpo == "ok";
+            if (ok)
+                Debug.Log("[SessionDataExporter] Subido a Google Sheets: ok");
+            else if (req.result == UnityWebRequest.Result.Success)
+                Debug.LogWarning($"[SessionDataExporter] Sheets RECHAZÓ el envío: '{cuerpo}' " +
+                                 "(¿token distinto entre Unity y el Apps Script?). Respaldo local intacto.");
+            else
+                Debug.LogWarning($"[SessionDataExporter] No se pudo subir a Sheets: {req.error}. " +
+                                 "El respaldo local (JSON/CSV) está intacto.");
         }
         SubidaEnCurso = false;
     }

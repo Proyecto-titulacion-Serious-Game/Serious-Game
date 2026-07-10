@@ -11025,7 +11025,7 @@ MonoBehaviour:
     RawGuidValue: d410e1df4653c80448871a64d20fc037
   rolAutomatico: 1
   modoOffline: 0
-  connectionTimeoutSeconds: 12
+  connectionTimeoutSeconds: 25
   entornoExplorador: {fileID: 0}
 --- !u!1001 &224350288
 PrefabInstance:

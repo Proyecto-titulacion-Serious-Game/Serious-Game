@@ -34,8 +34,9 @@ public class SoloTechnicianDebug : MonoBehaviour
 
     /// <summary>PRUEBA SOLO: si true, en la escena del Explorador fuerza modoOffline para que NO se
     /// intente la conexión Fusion, cuyo shutdown (GameNotFound) desactivaba el GameManager y dejaba
-    /// el Reto 1 sin poder evaluarse. Ponlo en false para probar en RED.</summary>
-    public static bool forzarOfflineParaPruebaSolo = true;
+    /// el Reto 1 sin poder evaluarse. DEBE estar en false para jugar en RED (multijugador);
+    /// ponlo en true solo para una prueba solo sin Técnico.</summary>
+    public static bool forzarOfflineParaPruebaSolo = false;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
