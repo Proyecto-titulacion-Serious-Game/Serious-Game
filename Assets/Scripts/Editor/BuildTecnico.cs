@@ -80,6 +80,8 @@ public static class BuildTecnico
             locationPathName = exePath,
             target           = BuildTarget.StandaloneWindows64,
             targetGroup      = BuildTargetGroup.Standalone,
+            // VERSIÓN FINAL (aula/defensa): sin teclas de debug (F1-F4, F8-F11) ni marca de agua.
+            // Para depurar, cambiar temporalmente a BuildOptions.Development.
             options          = BuildOptions.None,
         };
 

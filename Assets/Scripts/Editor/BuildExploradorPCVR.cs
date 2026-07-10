@@ -102,10 +102,9 @@ public static class BuildExploradorPCVR
                 locationPathName = exePath,
                 target           = BuildTarget.StandaloneWindows64,
                 targetGroup      = BuildTargetGroup.Standalone,
-                // Development Build: define DEVELOPMENT_BUILD → habilita las teclas de debug
-                // (DebugLevelSkipper F1-F4, etc.) en el .exe para probar los retos por Link.
-                // Añade la marca de agua "Development Build"; quitar para el build final del aula.
-                options          = BuildOptions.Development,
+                // VERSIÓN FINAL (aula/defensa): sin teclas de debug ni marca de agua.
+                // Para depurar, cambiar temporalmente a BuildOptions.Development.
+                options          = BuildOptions.None,
             };
 
             Debug.Log($"[BuildPCVR] Iniciando build → {exePath}");
