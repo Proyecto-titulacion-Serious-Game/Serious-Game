@@ -87,7 +87,14 @@ public static class BuildTecnico
 
         Debug.Log($"[BuildTecnico] Iniciando build → {exePath}\n  Escenas: {string.Join(", ", Scenes)}");
 
-        BuildReport report = BuildPipeline.BuildPlayer(opts);
+        // productName propio: sin esto, Tecnico.exe y Explorador.exe comparten la MISMA carpeta
+        // de logs/PlayerPrefs (LocalLow/DefaultCompany/<productName>) y al probar ambos en una
+        // laptop los Player.log se pisan entre sí (imposible diagnosticar).
+        string prevProduct = PlayerSettings.productName;
+        PlayerSettings.productName = "Tecnico";
+        BuildReport report;
+        try { report = BuildPipeline.BuildPlayer(opts); }
+        finally { PlayerSettings.productName = prevProduct; }
         BuildSummary summary = report.summary;
 
         if (summary.result == BuildResult.Succeeded)

@@ -108,7 +108,14 @@ public static class BuildExploradorPCVR
             };
 
             Debug.Log($"[BuildPCVR] Iniciando build → {exePath}");
-            BuildReport report = BuildPipeline.BuildPlayer(opts);
+            // productName propio → carpeta de logs/PlayerPrefs separada de Tecnico.exe
+            // (LocalLow/DefaultCompany/Explorador); sin esto los Player.log se pisan al
+            // probar ambos roles en una misma laptop.
+            string prevProduct = PlayerSettings.productName;
+            PlayerSettings.productName = "Explorador";
+            BuildReport report;
+            try { report = BuildPipeline.BuildPlayer(opts); }
+            finally { PlayerSettings.productName = prevProduct; }
             BuildSummary s = report.summary;
 
             if (s.result == BuildResult.Succeeded)
