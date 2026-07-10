@@ -188,6 +188,8 @@ public class ArduinoIDEUI : MonoBehaviour
         if (btnToggleFreeText != null) btnToggleFreeText.onClick.AddListener(ToggleFreeTextMode);
         if (btnComprobarCircuito != null) btnComprobarCircuito.onClick.AddListener(ComprobarCircuito);
 
+        HacerPreviewClickeable();   // clic sobre el código del preview = editarlo en modo libre
+
         // El editor nunca arranca vacío: recupera el último sketch o carga el template.
         if (codeEditor != null && string.IsNullOrWhiteSpace(codeEditor.text))
         {
@@ -296,10 +298,29 @@ public class ArduinoIDEUI : MonoBehaviour
         if (_freeTextMode && codeEditor != null &&
             string.IsNullOrWhiteSpace(codeEditor.text))
         {
-            codeEditor.text = ArduinoCodeParser.StarterTemplate;
+            // Arrancar desde el código PREDETERMINADO que el Técnico estaba viendo en el preview
+            // (generado por los dropdowns), no desde una plantilla genérica: así "editar el
+            // código predeterminado" funciona literalmente. Si no hay preview, plantilla.
+            string semilla = txtCodePreview != null ? txtCodePreview.text : null;
+            if (!string.IsNullOrWhiteSpace(semilla))
+            {
+                // Quitar la línea-pista "(Clic AQUI...)" — es UI, no código.
+                int pista = semilla.IndexOf("<i>");
+                if (pista >= 0) semilla = semilla.Substring(0, pista).TrimEnd();
+            }
+            codeEditor.text = !string.IsNullOrWhiteSpace(semilla) ? semilla : ArduinoCodeParser.StarterTemplate;
         }
 
         ApplyModeVisibility();
+
+        // Al entrar al modo libre, darle el foco al editor de una vez (sin esperar la primera
+        // tecla). Debe ir DESPUÉS de ApplyModeVisibility: recién ahí el editor está activo.
+        if (_freeTextMode && codeEditor != null && codeEditor.gameObject.activeInHierarchy)
+        {
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            if (es != null) es.SetSelectedGameObject(codeEditor.gameObject);
+            codeEditor.ActivateInputField();
+        }
         LogLine(_freeTextMode
             ? "<color=#AAFFFF>> Modo Texto Libre activado. Edita el sketch directamente.</color>"
             : "<color=#AAFFFF>> Modo Bloques activado.</color>");
@@ -351,7 +372,26 @@ public class ArduinoIDEUI : MonoBehaviour
             $"}}\n\n" +
             $"void loop() {{\n" +
             $"{loopCode}\n" +
-            $"}}";
+            $"}}\n\n" +
+            "<i><color=#88CCFF>(Clic AQUI para editar este codigo libremente)</color></i>";
+    }
+
+    /// <summary>
+    /// Hace CLICKEABLE el preview de código: un clic sobre él pasa a Modo Código Libre con ese
+    /// mismo código cargado y el cursor listo. Sin esto, "editar el código predeterminado" exigía
+    /// descubrir el botón de toggle — nadie lo encontraba.
+    /// </summary>
+    void HacerPreviewClickeable()
+    {
+        if (txtCodePreview == null) return;
+        txtCodePreview.raycastTarget = true;
+        var trigger = txtCodePreview.gameObject.GetComponent<UnityEngine.EventSystems.EventTrigger>();
+        if (trigger == null)
+            trigger = txtCodePreview.gameObject.AddComponent<UnityEngine.EventSystems.EventTrigger>();
+        var entry = new UnityEngine.EventSystems.EventTrigger.Entry
+        { eventID = UnityEngine.EventSystems.EventTriggerType.PointerClick };
+        entry.callback.AddListener(_ => { if (!_freeTextMode) ToggleFreeTextMode(); });
+        trigger.triggers.Add(entry);
     }
 
     // ─────────────────────────────────────────────
