@@ -28,10 +28,17 @@ public class LED : ElectricalComponent
     /// <summary>Nodo cátodo (patita corta).</summary>
     public ElectricalNode CathodeNode => polarityInverted ? nodeA : nodeB;
 
-    [Header("Umbrales de corriente (Amperes)")]
+    [Header("Umbrales de corriente (Amperes) — realistas para un LED de 20 mA")]
     public float minOperatingCurrent = 0.005f;   // Corriente mínima para encender
-    public float maxSafeCurrent      = 0.02f;    // Corriente máxima segura
-    public float overloadCurrent     = 0.1f;     // Corriente de sobrecarga
+    public float maxSafeCurrent      = 0.02f;    // Corriente máxima segura (LED típico: 20 mA)
+    public float overloadCurrent     = 0.05f;    // ≥50 mA = sobrecarga (rojo) — antes 100 mA, irreal
+
+    /// <summary>Normaliza umbrales viejos serializados en escenas/prefabs (overload 100 mA irreal)
+    /// al estándar realista. Así no hay que reeditar cada LED existente.</summary>
+    void NormalizarUmbrales()
+    {
+        if (overloadCurrent > 0.05f) overloadCurrent = 0.05f;
+    }
 
     [Header("Colores educativos")]
     public Color colorOff      = Color.black;
@@ -90,6 +97,8 @@ public class LED : ElectricalComponent
     // ─────────────────────────────────────────────
     void Awake()
     {
+        NormalizarUmbrales();
+
         // Renderer del cuerpo del LED. Preferir uno activo; si no hay (Delivered_LED trae el
         // renderer desactivado hasta colocarse), tomar el primero no-partícula igual.
         foreach (var r in GetComponentsInChildren<Renderer>(true))

@@ -179,7 +179,9 @@ public class TechnicianManualDisplay : MonoBehaviour
             lista.Add(new Pagina
             {
                 izquierda = page.componentesClave,
-                derecha   = page.codigoColores
+                // Si el ScriptableObject no trae tabla de colores, usar la estándar (con la
+                // regla de lectura) — el código de colores es habilidad núcleo del curso.
+                derecha   = !string.IsNullOrEmpty(page.codigoColores) ? page.codigoColores : BuildColorCodes()
             });
         }
         else if (manual != null)
@@ -285,9 +287,23 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "LED (anodo al lado del pin)\n   |\nGND del Arduino",
                         derecha   = "REGLAS DE ORO:\n\n" +
                                     "- El pin del CODIGO debe ser el\n  MISMO pin cableado.\n" +
-                                    "- Sin resistencia el LED explota\n  (I >= 1 A) y hay que pedir otro.\n" +
+                                    "- Sin resistencia el LED explota\n  (soporta max. 100 mA) y hay\n  que pedir otro.\n" +
                                     "- 330 Ohm es el valor recomendado\n  (I aprox. 9 mA, segura).\n" +
                                     "- El circuito debe CERRAR en GND;\n  un extremo suelto = abierto."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "ELECTRONICA DEL LED (teoria):\n\n" +
+                                    "El LED es un DIODO: solo conduce\ndel anodo (+) al catodo (-).\n\n" +
+                                    "Al conducir, 'consume' un voltaje\nfijo Vf aprox. 2 V. El RESTO del\n" +
+                                    "voltaje lo absorbe la resistencia\nen serie.\n\n" +
+                                    "Corriente segura tipica: 20 mA.",
+                        derecha   = "CALCULO DE LA RESISTENCIA:\n\n" +
+                                    "R = (Vpin - Vled) / I\n\n" +
+                                    "Con Arduino (5 V) y Vled = 2 V:\n" +
+                                    "R = (5 - 2) / 0.02 = 150 Ohm\n(minimo teorico para 20 mA)\n\n" +
+                                    "Por eso el reto exige R >= 100\ny recomienda 330 Ohm.\n\n" +
+                                    "El monitor muestra el desglose:\n'LED cae X V - R absorbe Y V'."
                     },
                     new Pagina
                     {
@@ -391,6 +407,11 @@ public class TechnicianManualDisplay : MonoBehaviour
 
     string BuildColorCodes() =>
         "CODIGO DE COLORES:\n\n" +
+        "COMO LEERLO (3 bandas + tolerancia):\n" +
+        "1a banda = primer digito\n" +
+        "2a banda = segundo digito\n" +
+        "3a banda = cantidad de CEROS\n" +
+        "Ej: Rojo-Rojo-Rojo = 2-2-00 = 2200 Ohm\n\n" +
         "Negro=0   Marron=1  Rojo=2\n" +
         "Naranja=3 Amarillo=4 Verde=5\n" +
         "Azul=6    Violeta=7  Gris=8\n" +

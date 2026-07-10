@@ -93,6 +93,11 @@ public class TechnicianTelemetryUI : MonoBehaviour
             if (txtCurrent != null) txtCurrent.text = gs.TelemCurrentmA.ToString("F1") + " mA";
             if (txtPower   != null) txtPower.text   = gs.TelemPowerW.ToString("F3") + " W";
             AplicarEstadoSistema(gs.TelemStatus);
+
+            // Realismo didáctico: desglose de la caída de tensión (LED ~2 V, el resto en la R).
+            if (txtSystemStatus != null && gs.TelemStatus == 0 && gs.TelemVLed > 0.1f)
+                txtSystemStatus.text += $"\nLED cae {gs.TelemVLed:F1} V - la resistencia absorbe " +
+                                        $"{Mathf.Max(0f, gs.TelemVoltage - gs.TelemVLed):F1} V";
             return;
         }
 

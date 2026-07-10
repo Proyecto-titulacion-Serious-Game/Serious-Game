@@ -20,8 +20,8 @@ public class LEDBlowEffect : MonoBehaviour
 {
     [Header("Condición de explosión")]
     [Tooltip("Corriente (A) a partir de la cual la LED explota SIEMPRE, sin importar la protección. " +
-             "Default 1.0 A (= 1000 mA).")]
-    public float blowCurrentThreshold = 1.0f;
+             "Default 0.1 A (100 mA): un LED real de 20 mA no sobrevive 5× su corriente nominal.")]
+    public float blowCurrentThreshold = 0.1f;
 
     [Tooltip("Si la LED está energizada y NO hay una resistencia de protección >= este valor, explota. " +
              "Default 5 Ω → con 10 Ω es seguro; sin resistencia (o ~0 Ω) explota.")]
