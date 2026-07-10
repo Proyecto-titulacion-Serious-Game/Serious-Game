@@ -77,6 +77,13 @@ public class RuntimeHandConsolidator : MonoBehaviour
             DisableHandsExcept(elegidos);
         }
 
+        // ── Yema táctil en el GO del CONTROL (independiente del modo de manos) ──
+        //    Permite PRESIONAR botones físicos (VRValidationButton) por toque: ni las manos
+        //    procedurales ni las del robot traen colliders, así que sin esto OnTriggerEnter
+        //    jamás dispara. Trigger pequeño + RB kinemático, no empuja ni interfiere el agarre.
+        AsegurarYemaTactil(left);
+        AsegurarYemaTactil(right);
+
         // ── Alinear los targets de IK del VRRig a ESTOS controladores (Near-Far/Poke) ──
         //    Así el brazo del robot apunta EXACTAMENTE a donde está el mando.
         AlinearTargetsVRRig(left, right);
@@ -148,6 +155,20 @@ public class RuntimeHandConsolidator : MonoBehaviour
         var rot = Quaternion.Euler(rotacionRayoPalma);
         if (_anchorL != null) { _anchorL.localPosition = offsetOrigenPalma; _anchorL.localRotation = rot; }
         if (_anchorR != null) { _anchorR.localPosition = offsetOrigenPalma; _anchorR.localRotation = rot; }
+    }
+
+    static void AsegurarYemaTactil(GameObject go)
+    {
+        if (go == null || go.transform.Find("Hand_TouchTip_Ctrl") != null) return;
+        var tip = new GameObject("Hand_TouchTip_Ctrl");   // "hand" en el nombre → lo reconocen los detectores de toque
+        tip.transform.SetParent(go.transform, false);
+        tip.transform.localPosition = new Vector3(0f, -0.02f, 0.06f);   // zona de la palma frente al mando
+        var sc = tip.AddComponent<SphereCollider>();
+        sc.isTrigger = true;
+        sc.radius    = 0.02f;
+        var rb = tip.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity  = false;
     }
 
     void AlinearTargetsVRRig(GameObject left, GameObject right)

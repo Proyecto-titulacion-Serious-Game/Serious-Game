@@ -116,19 +116,27 @@ public class Multimeter : MonoBehaviour
     /// <summary>Asigna el nodo a la punta roja (mano derecha).</summary>
     public void SetRedNode(ElectricalNode node)
     {
+        // Loguear solo al CAMBIAR de nodo — esto se llama cada frame de contacto y
+        // llegó a meter >50.000 líneas de "Punta roja" en una sola sesión.
+        if (node != _nodeRed)
+        {
+            Debug.Log($"[Multimeter] Punta roja → {node?.gameObject.name} ({node?.voltage:F2}V)");
+            SendHaptic();   // vibrar solo al tocar un nodo NUEVO, no 60 veces/s de contacto
+        }
         _nodeRed = node;
         SetIndicator(indicatorRed, node != null);
-        SendHaptic();
-        Debug.Log($"[Multimeter] Punta roja → {node?.gameObject.name} ({node?.voltage:F2}V)");
     }
 
     /// <summary>Asigna el nodo a la punta negra (mano izquierda).</summary>
     public void SetBlackNode(ElectricalNode node)
     {
+        if (node != _nodeBlack)
+        {
+            Debug.Log($"[Multimeter] Punta negra → {node?.gameObject.name} ({node?.voltage:F2}V)");
+            SendHaptic();
+        }
         _nodeBlack = node;
         SetIndicator(indicatorBlack, node != null);
-        SendHaptic();
-        Debug.Log($"[Multimeter] Punta negra → {node?.gameObject.name} ({node?.voltage:F2}V)");
     }
 
     // ─────────────────────────────────────────────

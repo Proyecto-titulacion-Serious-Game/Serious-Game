@@ -22,8 +22,8 @@ public class GameManager : MonoBehaviour
     public Multimeter          multimeter;
     public PerformanceTracker  performance;
     public InstructionSystem   instructionSystem;
+    public HapticFeedback      haptics;
     
-
     [Header("Zonas de Reto")]
     public GameObject reto1Zone;
     public GameObject reto2Zone;
@@ -214,6 +214,9 @@ public class GameManager : MonoBehaviour
         string categoria = ClasificarError();
         performance?.AddError(categoria);
         Debug.Log($"[GameManager] Intento incorrecto #{_wrongAttempts} [{categoria}]: {reason}");
+
+        // CHOQUE ELÉCTRICO: El jugador se equivocó al validar el circuito
+        if (haptics != null) haptics.PlayError();
     }
 
     /// <summary>
@@ -332,6 +335,9 @@ public class GameManager : MonoBehaviour
 
                 // Diagnóstico: si falla, deja claro QUÉ sub-condición no se cumple (resistor vs LED).
                 _diagOhm = $"resistorOk={resistorOk}, ledOn={ledOn}";
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                // Detalle costoso (StringBuilder a cada OnCircuitChanged ≈ 20 Hz): solo en dev,
+                // para no generar presión de GC en la Quest durante la clase.
                 if (!resistorOk || !ledOn)
                 {
                     var sbR = new System.Text.StringBuilder();
@@ -358,6 +364,7 @@ public class GameManager : MonoBehaviour
                         }
                     _diagOhm += " |R:" + sbR + " |LED:" + sbL + " |CM:" + sbC;
                 }
+#endif
 
                 return resistorOk && ledOn;
             }
@@ -375,10 +382,12 @@ public class GameManager : MonoBehaviour
                     total++;
                     bool ledOk = l.isOn && l.state == LEDState.Correct;
                     if (ledOk) ok++;
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
                     sbP.Append($" [LED '{l.name}' isOn={l.isOn} state={l.state} " +
                                $"I={l.current * 1000f:0.#}mA inv={l.polarityInverted} " +
                                $"Va={(l.nodeA != null ? l.nodeA.voltage : 0):0.#} " +
                                $"Vb={(l.nodeB != null ? l.nodeB.voltage : 0):0.#} R={l.resistance:0}]");
+#endif
                 }
                 _diagParallel = $"LEDs total={total} ok={ok} →{sbP}";
                 return total > 0 && ok == total;
@@ -652,6 +661,9 @@ public class GameManager : MonoBehaviour
 
         if (success)
         {
+            // 🎉 VIBRACIÓN DE VICTORIA: El jugador completó el reto correctamente
+            if (haptics != null) haptics.PlayStrong();
+
             // Retos 1-3: congelar ComponentSlots instalados
             if (circuit != null)
             {
@@ -674,11 +686,7 @@ public class GameManager : MonoBehaviour
         OnLevelCompleted?.Invoke(_currentLevel, success);
         OnZoneTransitionStart?.Invoke(_currentLevel, success);
 
-        // ONLINE: si quien completó es el CLIENTE (Explorador), avisar al Host para que su
-        // GameManager también complete. Sin esto la victoria queda solo en la Quest: el avance
-        // de reto es host-autoritativo (AvanzarReto es no-op en el cliente), así que el Técnico
-        // nunca registraba el reto en su PerformanceTracker ni — tras el reto 4 — disparaba
-        // ObjectiveSystem.OnSessionEnded, y la sesión jamás se subía a Google Sheets.
+        // ONLINE: si quien completó es el CLIENTE (Explorador)...
         var gs = GameSession.Instance;
         if (success && gs != null && gs.Object != null && gs.Object.IsValid && !gs.Object.HasStateAuthority)
             gs.RPC_SolicitarCompletarReto();

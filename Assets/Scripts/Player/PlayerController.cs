@@ -20,7 +20,7 @@ public class PlayerController : MonoBehaviour
     public bool useKatVR = true;
     [Tooltip("True = SOLO caminadora: nunca se usa el joystick para trasladarse. " +
              "Si la KAT no esta disponible/conectada, el jugador no se mueve (no hay fallback a mando).")]
-    public bool katOnly = true;
+    public bool katOnly = false;
 
     [Header("Velocidad (joystick VR)")]
     public float walkSpeed = 2.0f;

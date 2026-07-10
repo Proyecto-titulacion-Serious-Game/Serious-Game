@@ -142,7 +142,17 @@ public class Reto2CircuitGuard : MonoBehaviour
     //  Reemplazo del LED dañado (lo llama ExplorerComponentReceiver al entregar un LED)
     // ─────────────────────────────────────────────
 
-    /// <summary>El Técnico envió un LED. Solo relevante en Reto 2: al soltarlo, se cablea a la rama dañada.</summary>
+    [Header("Slot correcto para el LED de reemplazo")]
+    [Tooltip("El LED nuevo SOLO encaja (y se fija) al soltarlo cerca del slot con esta fila/columna. " +
+             "En cualquier otro lugar sigue agarrable.")]
+    public int   filaSlotCorrecto = 3;
+    public int   colSlotCorrecto  = 5;
+    [Tooltip("Distancia máxima (m) entre el LED soltado y el slot correcto para que encaje.")]
+    public float snapDistancia    = 0.08f;
+
+    /// <summary>El Técnico envió un LED. Solo relevante en Reto 2: queda AGARRABLE hasta que el
+    /// jugador lo suelte sobre el slot correcto (filaSlotCorrecto/colSlotCorrecto); ahí se fija
+    /// (ya no se puede quitar), se cablea a la rama dañada, y solo faltan los cables.</summary>
     public static void NotifyLedDelivered(GameObject ledGO)
     {
         Debug.Log($"[Reto2CircuitGuard] NotifyLedDelivered LED='{(ledGO != null ? ledGO.name : "null")}' " +
@@ -151,10 +161,6 @@ public class Reto2CircuitGuard : MonoBehaviour
         Instance.EngancharReemplazo(ledGO);
     }
 
-    // Tiempo (sin sostener el LED) tras el cual la red de seguridad reemplaza solo, por si el evento
-    // de soltar (selectExited) no dispara en VR. Ver EngancharReemplazo (opción A + B).
-    const float FallbackReemplazoSegundos = 12f;
-
     class ReemplazoPendiente { public GameObject ledGO; public bool cableado; }
 
     void EngancharReemplazo(GameObject ledGO)
@@ -162,42 +168,73 @@ public class Reto2CircuitGuard : MonoBehaviour
         var e = new ReemplazoPendiente { ledGO = ledGO };
         var grab = ledGO.GetComponentInChildren<XRGrabInteractable>(true);
         if (grab != null)
+            grab.selectExited.AddListener(_ => IntentarEncajar(e, avisarSiLejos: true));
+
+        // Vigilante: cubre drops que no disparan selectExited en VR. Solo encaja si el LED está
+        // CERCA del slot correcto — nunca lo cablea a distancia (el jugador debe colocarlo).
+        StartCoroutine(VigilarEncaje(e, grab));
+    }
+
+    void IntentarEncajar(ReemplazoPendiente e, bool avisarSiLejos = false)
+    {
+        if (e == null || e.cableado || e.ledGO == null) return;
+
+        var slot = BuscarSlotCorrecto();
+        if (slot == null)
         {
-            // (A) Al SOLTAR el LED se cablea de inmediato.
-            grab.selectExited.AddListener(_ => IntentarCablear(e));
-            // (B) Red de seguridad: si el drop XR no dispara en VR, se cablea igual tras un rato
-            //     (solo si NO lo está sosteniendo, para no quitárselo de la mano).
-            StartCoroutine(RedDeSeguridadReemplazo(e, grab));
+            if (avisarSiLejos)
+                Debug.LogWarning($"[Reto2CircuitGuard] No encontré ProtoboardSlot (row={filaSlotCorrecto}, " +
+                                 $"col={colSlotCorrecto}) en el board del Reto 2 — el LED queda libre.");
+            return;
         }
-        else
+
+        float d = DistanciaAlSlot(e.ledGO, slot);
+        if (d <= snapDistancia)
         {
-            IntentarCablear(e);   // sin agarre (offline / test) → cablear de una
+            e.cableado = true;
+            Debug.Log($"[Reto2CircuitGuard] ✓ LED encajado en el slot correcto (row {slot.row}, col {slot.col}, " +
+                      $"d={d:0.000}m) → fijado y cableado. Solo faltan los cables.");
+            CablearEnRamaDanada(e.ledGO);
+        }
+        else if (avisarSiLejos)
+        {
+            Debug.Log($"[Reto2CircuitGuard] LED soltado lejos del slot correcto (d={d:0.00}m). " +
+                      $"Sigue agarrable — colócalo en el slot (row {filaSlotCorrecto}, col {colSlotCorrecto}).");
         }
     }
 
-    void IntentarCablear(ReemplazoPendiente e)
+    System.Collections.IEnumerator VigilarEncaje(ReemplazoPendiente e, XRGrabInteractable grab)
     {
-        if (e == null || e.cableado) return;
-        e.cableado = true;
-        CablearEnRamaDanada(e.ledGO);
-    }
-
-    System.Collections.IEnumerator RedDeSeguridadReemplazo(ReemplazoPendiente e, XRGrabInteractable grab)
-    {
-        float t = 0f;
         var wait = new WaitForSeconds(0.5f);
-        while (t < FallbackReemplazoSegundos)
+        while (e != null && !e.cableado && e.ledGO != null)
         {
-            if (e == null || e.cableado) yield break;   // ya se cableó (soltó el LED)
             yield return wait;
-            bool sostenido = grab != null && grab.isSelected;   // dale chance de colocarlo él mismo
-            t = sostenido ? 0f : t + 0.5f;
+            bool sostenido = grab != null && grab.isSelected;
+            if (!sostenido) IntentarEncajar(e);   // silencioso: solo encaja si está cerca
         }
-        if (e != null && !e.cableado)
+    }
+
+    ProtoboardSlot BuscarSlotCorrecto()
+    {
+        if (_sim == null) LocalizarSim();
+        if (_sim == null) return null;
+        foreach (var s in _sim.GetComponentsInChildren<ProtoboardSlot>(true))
+            if (s != null && s.row == filaSlotCorrecto && s.col == colSlotCorrecto) return s;
+        return null;
+    }
+
+    float DistanciaAlSlot(GameObject ledGO, ProtoboardSlot slot)
+    {
+        // La pata más cercana si el conector tiene leads; si no, el pivote del LED.
+        Vector3 objetivo = slot.transform.position;
+        float d = Vector3.Distance(ledGO.transform.position, objetivo);
+        var conn = ledGO.GetComponentInChildren<ProtoboardConnector>(true);
+        if (conn != null)
         {
-            Debug.Log("[Reto2CircuitGuard] Red de seguridad: reemplazo automático del LED dañado (el 'soltar' no disparó).");
-            IntentarCablear(e);
+            if (conn.leadA != null) d = Mathf.Min(d, Vector3.Distance(conn.leadA.position, objetivo));
+            if (conn.leadB != null) d = Mathf.Min(d, Vector3.Distance(conn.leadB.position, objetivo));
         }
+        return d;
     }
 
     void CablearEnRamaDanada(GameObject ledGO)

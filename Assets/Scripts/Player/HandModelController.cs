@@ -146,6 +146,13 @@ public class HandModelController : MonoBehaviour
         pivot.transform.localRotation = Quaternion.Euler(rotationOffset);
         _pivot = pivot.transform;
 
+        // Yema táctil: las manos NO tienen colliders (se destruyen para no chocar con el agarre
+        // XR), así que sin esto la mano jamás dispara OnTriggerEnter — el botón físico de
+        // validar (VRValidationButton) y los detectores por toque eran imposibles de presionar.
+        // Trigger (no empuja nada) + Rigidbody kinemático (garantiza eventos contra colliders
+        // sin Rigidbody). El nombre "Hand_" la limpia RebuildInEditor y la apaga el Consolidator.
+        CrearYemaTactil(pivot.transform);
+
         // ── Modelo importado (opcional): instancia el prefab y NO construye primitivas ──
         if (handPrefab != null)
         {
@@ -204,6 +211,20 @@ public class HandModelController : MonoBehaviour
             Quaternion.Euler(90f, 0f, -40f), new Vector3(0.017f, 0.021f, 0.017f), PrimitiveType.Capsule);
         AddPart(jp, "Hand_ThumbTip", new Vector3(0.017f, 0f, 0.025f),
             Quaternion.Euler(90f, 0f, -30f), new Vector3(0.015f, 0.016f, 0.015f), PrimitiveType.Capsule);
+    }
+
+    void CrearYemaTactil(Transform pivot)
+    {
+        var tip = new GameObject("Hand_TouchTip");
+        tip.transform.SetParent(pivot, false);
+        // Frente de la palma / base del índice: donde uno "pica" un botón naturalmente.
+        tip.transform.localPosition = new Vector3(0f, 0f, 0.10f);
+        var sc = tip.AddComponent<SphereCollider>();
+        sc.isTrigger = true;
+        sc.radius    = 0.018f;
+        var rb = tip.AddComponent<Rigidbody>();
+        rb.isKinematic = true;
+        rb.useGravity  = false;
     }
 
     void AddPart(GameObject parent, string partName,

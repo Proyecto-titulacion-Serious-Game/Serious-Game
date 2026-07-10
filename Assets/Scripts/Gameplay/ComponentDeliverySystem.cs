@@ -349,7 +349,11 @@ public class ComponentDeliverySystem : MonoBehaviour
             case ComponentType.Resistor:
             {
                 var r = BuscarResistorDelReto();
-                return r != null && r.IsValueCorrect(_pendingValue);
+                // Sin resistor con falla = el reto YA está reparado. Volver a colocar una pieza
+                // no debe castigarse como "valor incorrecto" (inflaba errores del dashboard y
+                // confundía: "Intento incorrecto #2: Resistor = 850" con el valor CORRECTO).
+                if (r == null) return true;
+                return r.IsValueCorrect(_pendingValue);
             }
 
             case ComponentType.LED:

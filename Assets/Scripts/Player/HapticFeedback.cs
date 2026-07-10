@@ -1,11 +1,16 @@
 using System.Collections;
 using UnityEngine;
 using UnityEngine.XR;
+using Bhaptics.SDK2;
+
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
 
 /// <summary>
 /// Centraliza la retroalimentación háptica del Explorador:
 /// - Controladores Meta Quest (vibración de manos)
-/// - Chaleco háptico bHaptics / OWO (cuando el SDK esté instalado)
+/// - Chaleco háptico bHaptics (usando evento "asdasd")
 ///
 /// Uso desde otros scripts:
 ///   haptics.PlayLight();    → toque suave (conectar punta multímetro)
@@ -25,12 +30,16 @@ public class HapticFeedback : MonoBehaviour
     [Range(0f, 1f)] public float strongIntensity = 1.0f;
 
     [Header("Chaleco háptico")]
-    [Tooltip("True cuando el SDK del chaleco esté instalado.")]
-    public bool chalecoEnabled = false;
+    [Tooltip("True para que el chaleco vibre junto con los mandos.")]
+    public bool chalecoEnabled = true;
 
     [Header("Proporcional a corriente")]
     [Tooltip("Corriente máxima (A) que equivale a vibración máxima.")]
     public float maxCurrentForHaptic = 0.1f;
+
+    [Header("Pruebas desde Inspector")]
+    [Tooltip("Valor de corriente simulado para probar PlayCurrent desde el Inspector.")]
+    public float testCurrentValue = 0.05f;
 
     // ─────────────────────────────────────────────
     //  Dispositivos XR
@@ -58,36 +67,60 @@ public class HapticFeedback : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────
-    //  API Pública
+    //  API Pública y Pruebas
     // ─────────────────────────────────────────────
 
-    /// <summary>Toque suave — conectar punta del multímetro.</summary>
-    public void PlayLight() =>
+    public void PlayLight() 
+    {
         Vibrate(lightIntensity, 0.1f);
+        if (chalecoEnabled) SendToVest(lightIntensity);
+    }
 
-    /// <summary>Pulso medio — agarrar componente, insertar cable.</summary>
-    public void PlayMedium() =>
+    public void PlayMedium() 
+    {
         Vibrate(mediumIntensity, 0.2f);
+        if (chalecoEnabled) SendToVest(mediumIntensity);
+    }
 
-    /// <summary>Vibración fuerte — reparación completada con éxito.</summary>
-    public void PlayStrong() =>
+    public void PlayStrong() 
+    {
         Vibrate(strongIntensity, 0.4f);
+        if (chalecoEnabled) SendToVest(strongIntensity);
+    }
 
-    /// <summary>Patrón de error — acción incorrecta.</summary>
-    public void PlayError() =>
+    public void PlayError()
+    {
         StartCoroutine(ErrorPattern());
+        if (chalecoEnabled) StartCoroutine(VestErrorPattern());
+    }
 
-    /// <summary>
-    /// Vibración proporcional a la corriente del circuito.
-    /// Llamar desde CircuitManager.OnCircuitChanged.
-    /// </summary>
+    /// <summary>Doble pulso corto en el chaleco: el ERROR se siente distinto al éxito (pulso único largo).</summary>
+    IEnumerator VestErrorPattern()
+    {
+        SendToVest(strongIntensity, 0.18f);
+        yield return new WaitForSeconds(0.28f);
+        SendToVest(strongIntensity, 0.18f);
+    }
+
     public void PlayCurrent(float current)
     {
         float normalizedIntensity = Mathf.Clamp01(current / maxCurrentForHaptic);
         Vibrate(normalizedIntensity, 0.1f);
 
-        if (chalecoEnabled)
-            SendToVest(normalizedIntensity);
+        if (chalecoEnabled) SendToVest(normalizedIntensity);
+    }
+
+    /// <summary>Función específica para probar solo el chaleco desde el botón.</summary>
+    public void TestVestOnly()
+    {
+        if (!chalecoEnabled)
+        {
+            Debug.LogWarning("[HapticFeedback] Activa 'Chaleco Enabled' para probar la vibración del chaleco.");
+            return;
+        }
+        
+        float normalizedIntensity = Mathf.Clamp01(testCurrentValue / maxCurrentForHaptic);
+        SendToVest(normalizedIntensity);
     }
 
     // ─────────────────────────────────────────────
@@ -97,12 +130,11 @@ public class HapticFeedback : MonoBehaviour
     void Vibrate(float amplitude, float duration)
     {
 #if UNITY_ANDROID && !UNITY_EDITOR
-        // Ruta Meta SDK — mayor precisión en Quest, frecuencia 500 Hz
+        // Ruta Meta SDK — mayor precisión en Quest
         try
         {
             OVRInput.SetControllerVibration(amplitude, amplitude, OVRInput.Controller.LTouch);
             OVRInput.SetControllerVibration(amplitude, amplitude, OVRInput.Controller.RTouch);
-            // Detener la vibración después de 'duration' segundos
             StartCoroutine(StopOVRHaptics(duration));
         }
         catch (System.Exception e)
@@ -144,6 +176,7 @@ public class HapticFeedback : MonoBehaviour
 
     IEnumerator ErrorPattern()
     {
+        // Patrón intermitente para los mandos
         Vibrate(strongIntensity, 0.1f);
         yield return new WaitForSeconds(0.15f);
         Vibrate(strongIntensity, 0.1f);
@@ -152,23 +185,56 @@ public class HapticFeedback : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────
-    //  Internos — Chaleco háptico
+    //  Internos — Chaleco háptico (bHaptics)
     // ─────────────────────────────────────────────
 
-    void SendToVest(float intensity)
+    void SendToVest(float intensity, float duration = 1.0f)
     {
-        // ──────────────────────────────────────────────────────────────────
-        // INTEGRACIÓN CHALECO HÁPTICO (bHaptics / OWO Suit)
-        //
-        // bHaptics (Tactsuit):
-        //   BhapticsManager.PlayParam("ChestFront", intensity: intensity);
-        //
-        // OWO Suit:
-        //   OWO.Send(OWOSensation.Vest(intensity));
-        //
-        // El SDK se importa desde el Asset Store del fabricante.
-        // Desactivar chalecoEnabled hasta que el SDK esté instalado.
-        // ──────────────────────────────────────────────────────────────────
-        Debug.Log($"[HapticFeedback] Chaleco: intensidad {intensity:F2} (SDK pendiente)");
+        Debug.Log($"[HapticFeedback] Chaleco: intensidad {intensity:F2}, duración {duration:F2}s");
+
+        try
+        {
+            // Usamos tu evento "asdasd" registrado en el portal de bHaptics
+            BhapticsLibrary.PlayParam("asdasd", intensity, duration: duration);
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning($"[Haptics] Error con bHaptics: {e.Message}");
+        }
     }
 }
+
+// ─────────────────────────────────────────────
+//  Custom Editor: Dibuja los botones visuales
+// ─────────────────────────────────────────────
+#if UNITY_EDITOR
+[CustomEditor(typeof(HapticFeedback))]
+public class HapticFeedbackEditor : Editor
+{
+    public override void OnInspectorGUI()
+    {
+        DrawDefaultInspector();
+
+        HapticFeedback haptics = (HapticFeedback)target;
+
+        GUILayout.Space(15);
+        EditorGUILayout.LabelField("Controles de Prueba Rápida", EditorStyles.boldLabel);
+
+        if (GUILayout.Button("► Enviar señal al Chaleco (Usa testCurrentValue)", GUILayout.Height(30)))
+        {
+            if (Application.isPlaying) haptics.TestVestOnly();
+            else Debug.LogWarning("Entra al Play Mode (▶) para probar el chaleco.");
+        }
+
+        GUILayout.Space(5);
+
+        // Al presionar estos botones, vibrarán tanto el chaleco como los mandos
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("Suave")) { if (Application.isPlaying) haptics.PlayLight(); }
+        if (GUILayout.Button("Medio")) { if (Application.isPlaying) haptics.PlayMedium(); }
+        if (GUILayout.Button("Fuerte")) { if (Application.isPlaying) haptics.PlayStrong(); }
+        if (GUILayout.Button("Error")) { if (Application.isPlaying) haptics.PlayError(); }
+        GUILayout.EndHorizontal();
+    }
+}
+#endif

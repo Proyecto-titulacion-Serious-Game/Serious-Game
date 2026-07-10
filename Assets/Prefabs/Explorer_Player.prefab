@@ -267,7 +267,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PlayerController
   useKatVR: 1
-  katOnly: 1
+  katOnly: 0
   walkSpeed: 2
   enableSnapTurn: 0
   snapTurnAngle: 45
