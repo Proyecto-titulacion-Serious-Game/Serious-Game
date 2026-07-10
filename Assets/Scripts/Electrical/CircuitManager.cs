@@ -34,6 +34,8 @@ public class CircuitManager : MonoBehaviour
              "Solo aplica a la topología Paralelo.")]
     public float parallelBranchProtection = 470f;
 
+    public HapticFeedback haptics;
+
     // ─────────────────────────────────────────────
     //  Propiedades públicas
     // ─────────────────────────────────────────────
@@ -230,6 +232,7 @@ public class CircuitManager : MonoBehaviour
     }
 
     // ── SERIE ──────────────────────────────────
+    // ── SERIE ──────────────────────────────────
     void SimulateSeries()
     {
         VoltageSource source = GetFirstSource();
@@ -252,6 +255,10 @@ public class CircuitManager : MonoBehaviour
             _totalPower = 0f;
             isShortCircuited = true;
             Debug.LogWarning("[CircuitManager] ¡CORTOCIRCUITO! Falta resistencia en el circuito.");
+            
+            // ⚡ CHOQUE ELÉCTRICO EN TIEMPO REAL: Conectó algo sin resistencia
+            if (haptics != null) haptics.PlayError();
+            
             return;
         }
 
@@ -389,6 +396,9 @@ public class CircuitManager : MonoBehaviour
             _totalPower      = 0f;
             isShortCircuited = true;
             Debug.LogWarning("[CircuitManager] ¡CORTOCIRCUITO en circuito mixto!");
+            
+            // CHOQUE ELÉCTRICO EN TIEMPO REAL: Cortocircuito en el nivel 3
+            if (haptics != null) haptics.PlayError();
             return;
         }
 
@@ -424,6 +434,25 @@ public class CircuitManager : MonoBehaviour
 
         Debug.LogWarning("[CircuitManager] No se encontró VoltageSource en la lista de componentes.");
         return null;
+    }
+
+    public void ValidarResistencia(float valorConectado, float valorEsperado)
+    {
+        if (valorConectado == valorEsperado)
+        {
+            Debug.Log("¡Resistencia correcta!");
+            haptics.PlayStrong(); // Opcional: Vibración de éxito
+            // Lógica de pasar de nivel...
+        }
+        else
+        {
+            Debug.Log("¡Error! Resistencia incorrecta. Cortocircuito.");
+            
+            // 2. AQUÍ ES DONDE DISPARAS EL CHOQUE ELÉCTRICO
+            haptics.PlayError(); 
+            
+            // Lógica de restar vidas, reiniciar el nivel, etc.
+        }
     }
 }
 

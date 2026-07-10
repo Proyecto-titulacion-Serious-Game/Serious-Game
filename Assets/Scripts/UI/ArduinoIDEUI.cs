@@ -121,9 +121,12 @@ public class ArduinoIDEUI : MonoBehaviour
         ArduinoNetworkBridge.OnBridgeDestroyed += OnBridgeDisconnected;
 
         // Consola del IDE: salida de Serial.print y errores de ejecución del programa libre.
-        // (Llegan cuando el ArduinoCore corre en la misma escena/offline; online es fase 2.)
+        // Local (ArduinoCore en la misma escena/offline) + REMOTO por red (setup asimétrico:
+        // el Arduino corre en la Quest y TelemetryPublisher relaya por GameSession).
         ArduinoCore.OnProgramSerial += OnProgramSerial;
         ArduinoCore.OnProgramError  += OnProgramError;
+        GameSession.OnSerialRemoto  += OnSerialRemoto;
+        GameSession.OnErrorRemoto   += OnErrorRemoto;
 
         if (bridge == null)
             bridge = FindAnyObjectByType<ArduinoNetworkBridge>();
@@ -136,6 +139,8 @@ public class ArduinoIDEUI : MonoBehaviour
 
         ArduinoCore.OnProgramSerial -= OnProgramSerial;
         ArduinoCore.OnProgramError  -= OnProgramError;
+        GameSession.OnSerialRemoto  -= OnSerialRemoto;
+        GameSession.OnErrorRemoto   -= OnErrorRemoto;
 
         if (persistSketch && codeEditor != null)
             SaveSketch();
@@ -143,6 +148,22 @@ public class ArduinoIDEUI : MonoBehaviour
 
     void OnProgramSerial(string s) => LogLine($"<color=#CFE8FF>{s.TrimEnd('\n')}</color>");
     void OnProgramError(string s)  => LogLine($"<color=#FF6666>> {s}</color>");
+
+    // Serial/errores que llegan POR RED desde el Arduino del Explorador. El RPC llega a TODOS los
+    // peers: si esta máquina tiene su propio ArduinoCore (offline/escena única), el evento local
+    // ya imprimió esta salida — ignorar el eco para no duplicar líneas en la consola.
+    void OnSerialRemoto(string batch)
+    {
+        if (FindAnyObjectByType<ArduinoCore>() != null) return;
+        foreach (var line in batch.Split('\n'))
+            if (line.Length > 0) OnProgramSerial(line);
+    }
+
+    void OnErrorRemoto(string err)
+    {
+        if (FindAnyObjectByType<ArduinoCore>() != null) return;
+        OnProgramError(err);
+    }
 
     void OnBridgeConnected(ArduinoNetworkBridge b)
     {

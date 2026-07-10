@@ -45,8 +45,12 @@ public class ExplorerTelemetryHUD : MonoBehaviour
     // ─── Datos REALES ────────────────────────────────────────────────────
     void RefreshRefs()
     {
-        if (_sim  == null) _sim  = FindAnyObjectByType<ProtoboardSimulator>();
-        if (_core == null) _core = FindAnyObjectByType<ArduinoCore>();
+        // Un sim desactivado no es fake-null: con 2 ProtoboardSimulator en escena (Reto 2 y
+        // Reto 4, en zonas que se prenden/apagan por reto) hay que re-resolver al cambiar de reto.
+        if (_sim == null || !_sim.isActiveAndEnabled)
+            _sim = FindAnyObjectByType<ProtoboardSimulator>();
+        if (_core == null || !_core.isActiveAndEnabled)
+            _core = FindAnyObjectByType<ArduinoCore>();
         if (_runner == null || !_runner.IsRunning) _runner = FindAnyObjectByType<NetworkRunner>();
     }
 

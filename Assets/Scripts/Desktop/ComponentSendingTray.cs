@@ -148,9 +148,91 @@ public class ComponentSendingTray : MonoBehaviour
             if (txtToggleLabel   != null) txtToggleLabel.gameObject.SetActive(false);
             if (btnEnviar        != null) btnEnviar.gameObject.SetActive(false);
         }
+
+        ActualizarPreview();
     }
 
     void SetTexto(TMP_Text t, string s) { if (t != null) t.text = s; }
+
+    // ─────────────────────────────────────────────
+    //  Vista previa 3D sobre la bandeja (traySlot)
+    // ─────────────────────────────────────────────
+
+    /// <summary>Copia SOLO-VISUAL del componente seleccionado, mostrada sobre 'traySlot'
+    /// (hijo de Tray_Visual). Se reemplaza al cambiar la selección y se destruye al enviar
+    /// o deseleccionar. Se construye copiando únicamente los meshes/materiales del prefab
+    /// entregable — nunca se instancia el prefab entero, porque trae XRGrabInteractable
+    /// (se registraría en el Interaction Manager), Rigidbody (se caería de la bandeja),
+    /// BoxCollider (taparía los clicks del canvas) y el ElectricalComponent (entraría a la
+    /// simulación del circuito).</summary>
+    private GameObject _trayPreview;
+
+    void ActualizarPreview()
+    {
+        if (_trayPreview != null) { Destroy(_trayPreview); _trayPreview = null; }
+        if (_currentSelectedDeskComponent == null || traySlot == null) return;
+
+        // El prefab entregable ES la variante concreta (LED amarillo, resistor vertical…),
+        // así el Técnico ve exactamente lo que va a recibir el Explorador. Si la pieza no
+        // tiene prefab asignado, se copia el visual de la propia pieza de la mesa.
+        GameObject fuente = _currentSelectedDeskComponent.deliveredPrefab != null
+                          ? _currentSelectedDeskComponent.deliveredPrefab
+                          : _currentSelectedDeskComponent.gameObject;
+
+        _trayPreview = CrearCascaronVisual(fuente, traySlot);
+        AjustarAlSlot(_trayPreview);
+    }
+
+    /// <summary>Construye un GameObject nuevo bajo 'parent' que reproduce solo los
+    /// MeshFilter/MeshRenderer de 'fuente' (sirve tanto para un prefab-asset como para un
+    /// objeto de escena), preservando la pose local de cada pieza respecto al root.</summary>
+    static GameObject CrearCascaronVisual(GameObject fuente, Transform parent)
+    {
+        var root = new GameObject("TrayPreview_Visual");
+        root.transform.SetParent(parent, false);
+
+        Matrix4x4 aLocalDeFuente = fuente.transform.worldToLocalMatrix;
+        foreach (var mf in fuente.GetComponentsInChildren<MeshFilter>(true))
+        {
+            var mr = mf.GetComponent<MeshRenderer>();
+            if (mr == null || mf.sharedMesh == null) continue;
+
+            var parte = new GameObject(mf.name);
+            parte.transform.SetParent(root.transform, false);
+
+            Matrix4x4 rel = aLocalDeFuente * mf.transform.localToWorldMatrix;
+            parte.transform.localPosition = rel.GetPosition();
+            parte.transform.localRotation = rel.rotation;
+            parte.transform.localScale    = rel.lossyScale;
+
+            parte.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+            parte.AddComponent<MeshRenderer>().sharedMaterials = mr.sharedMaterials;
+        }
+        return root;
+    }
+
+    /// <summary>Escala el cascarón a un tamaño de vitrina uniforme y centra su volumen
+    /// visible sobre el punto del slot (los pivotes de los prefabs no coinciden con su
+    /// centro visual, así que sin esto la pieza queda hundida o descentrada).</summary>
+    void AjustarAlSlot(GameObject preview)
+    {
+        const float tamanoVitrina = 0.08f;   // dimensión mayor de la pieza en la bandeja, en metros
+
+        var rends = preview.GetComponentsInChildren<Renderer>();
+        if (rends.Length == 0) return;
+
+        Bounds b = rends[0].bounds;
+        foreach (var r in rends) b.Encapsulate(r.bounds);
+
+        float maxDim = Mathf.Max(b.size.x, b.size.y, b.size.z);
+        if (maxDim > 1e-5f)
+            preview.transform.localScale *= tamanoVitrina / maxDim;
+
+        // recomputar tras escalar y posar el conjunto centrado sobre el slot
+        b = rends[0].bounds;
+        foreach (var r in rends) b.Encapsulate(r.bounds);
+        preview.transform.position += traySlot.position - b.center;
+    }
 
     // ─────────────────────────────────────────────
     //  Envío al Explorador

@@ -96,7 +96,7 @@ public class ArduinoInterpreter
         _globals.Clear();
         try
         {
-            var toks = Lexer.Tokenize(code);
+            var toks = Preprocessor.ExpandDefines(code, Lexer.Tokenize(code));
             new Parser(toks, _functions, _globals).ParseProgram();
             _compiled = true;
             return true;
@@ -586,6 +586,67 @@ public class ArduinoInterpreter
     sealed class EmptyStmt   : Stmt { }
 
     sealed class FuncDef { public string Name; public List<string> Params = new(); public Block Body; }
+
+    // ═════════════════════════════════════════════
+    //  Preprocesador mínimo (#define de objeto)
+    // ═════════════════════════════════════════════
+    // El lexer descarta las líneas '#...' (como #include), pero '#define LED 13' es de lo más
+    // común en sketches de estudiantes: sin esto, el sketch "compilaba" (Verificar decía OK) y
+    // luego fallaba en ejecución con "Variable no definida: 'LED'". Se expande a nivel de
+    // TOKENS (no texto), así 'LED' no pisa identificadores que lo contengan (p. ej. 'LED_ROJO').
+    static class Preprocessor
+    {
+        public static List<Tok> ExpandDefines(string src, List<Tok> toks)
+        {
+            var macros = CollectDefines(src);
+            if (macros.Count == 0) return toks;
+
+            // Varias pasadas para #define encadenados; tope fijo por si el alumno
+            // escribe macros circulares (#define A B / #define B A).
+            for (int pass = 0; pass < 8; pass++)
+            {
+                bool changed = false;
+                var outToks = new List<Tok>(toks.Count);
+                foreach (var t in toks)
+                {
+                    if (t.Type == TokType.Id && macros.TryGetValue(t.Text, out var rep))
+                    { outToks.AddRange(rep); changed = true; }
+                    else outToks.Add(t);
+                }
+                toks = outToks;
+                if (!changed) break;
+            }
+            return toks;
+        }
+
+        static Dictionary<string, List<Tok>> CollectDefines(string src)
+        {
+            var macros = new Dictionary<string, List<Tok>>();
+            foreach (var raw in src.Split('\n'))
+            {
+                string line = raw.TrimStart();
+                if (line.Length == 0 || line[0] != '#') continue;
+                string body = line.Substring(1).TrimStart();
+                if (!body.StartsWith("define", StringComparison.Ordinal)) continue;  // #include etc.: se ignoran como antes
+                body = body.Substring(6).TrimStart();
+
+                int e = 0;
+                while (e < body.Length && (char.IsLetterOrDigit(body[e]) || body[e] == '_')) e++;
+                if (e == 0) throw new ParseException("#define sin nombre de macro.");
+                string name = body.Substring(0, e);
+                if (e < body.Length && body[e] == '(')
+                    throw new ParseException($"#define {name}(...) con parámetros no está soportado; usa una función.");
+
+                string value = body.Substring(e).Trim();
+                if (value.Length == 0) continue;   // '#define DEBUG' sin valor: no hay nada que sustituir
+
+                var valToks = Lexer.Tokenize(value);   // también le quita comentarios al final de la línea
+                valToks.RemoveAll(t => t.Type == TokType.EOF);   // el EOF del lexer NO debe inyectarse en medio del stream
+                if (valToks.Count > 0) macros[name] = valToks;
+            }
+            return macros;
+        }
+    }
 
     // ═════════════════════════════════════════════
     //  Lexer
