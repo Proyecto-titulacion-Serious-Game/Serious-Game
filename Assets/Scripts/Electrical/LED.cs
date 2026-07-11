@@ -163,18 +163,26 @@ public class LED : ElectricalComponent
             _renderer.sharedMaterial = _origSharedMaterial;
     }
 
+    /// <summary>Multiplicador GLOBAL de emisión para el flash de victoria del reto (1 = normal).
+    /// Lo anima <see cref="CircuitVictoryEffect"/> al completarse un reto: todos los LEDs
+    /// encendidos laten con luz intensa unos segundos — "¡esto funcionó!".</summary>
+    public static float BoostVictoria = 1f;
+
     // Brillo pulsante cuando el LED está CORRECTO (todo el circuito bien). Refuerzo visual de éxito.
     void Update()
     {
         if (_victoryRender) return;   // render de victoria fijo: no pulsar
-        if (state != LEDState.Correct || IsHeld) return;
+        // Durante el flash de victoria brillan TODOS los LEDs encendidos (incluye NearOverload,
+        // p.ej. el Reto 3 opera a 33 mA); fuera de la victoria, solo el estado Correct pulsa.
+        bool flashVictoria = BoostVictoria > 1.01f && isOn;
+        if ((state != LEDState.Correct && !flashVictoria) || IsHeld) return;
         if (_matInst == null) return;
 
         // Brillo base proporcional a la corriente (fade de PWM/analogWrite) + pulso de victoria
         // que solo se nota cuando el LED está cerca de su brillo pleno.
         float baseI = Mathf.Lerp(0.35f, 1.5f, _lit01);
         float pulse = victoryGlow ? Mathf.Sin(Time.time * glowSpeed) * glowAmount * 0.25f * _lit01 : 0f;
-        _matInst.SetColor(_emissionID, cristalTint * Mathf.Max(0.1f, baseI + pulse));
+        _matInst.SetColor(_emissionID, cristalTint * (Mathf.Max(0.1f, baseI + pulse) * BoostVictoria));
     }
 
     // ─────────────────────────────────────────────

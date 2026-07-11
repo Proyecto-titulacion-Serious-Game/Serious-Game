@@ -323,10 +323,17 @@ public class PlayerFeedbackUI : MonoBehaviour
             return;
         }
 
-        string msg = success
-            ? $"¡Reto {(int)level + 1} superado!"
-            : $"Reto {(int)level + 1} — intenta mejor";
-        Mostrar(msg, success ? "Excelente trabajo en equipo." : "Revisa el procedimiento.", Color.clear, colorCompletado);
+        if (success)
+        {
+            Mostrar("¡FELICIDADES!",
+                    $"Completaste el Reto {(int)level + 1}.\n¡Listo para el nuevo reto!",
+                    Color.clear, colorCompletado);
+        }
+        else
+        {
+            Mostrar($"Reto {(int)level + 1} — intenta mejor",
+                    "Revisa el procedimiento.", Color.clear, colorCompletado);
+        }
     }
 
     /// <summary>

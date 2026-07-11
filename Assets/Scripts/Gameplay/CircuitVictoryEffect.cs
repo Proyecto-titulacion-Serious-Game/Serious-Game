@@ -20,11 +20,21 @@ public class CircuitVictoryEffect : MonoBehaviour
     }
 
     void OnEnable()  => GameManager.OnLevelCompleted += OnLevelCompleted;
-    void OnDisable() => GameManager.OnLevelCompleted -= OnLevelCompleted;
+
+    void OnDisable()
+    {
+        GameManager.OnLevelCompleted -= OnLevelCompleted;
+        LED.BoostVictoria = 1f;   // nunca dejar el boost atascado
+    }
 
     void OnLevelCompleted(LevelType level, bool success)
     {
         if (!success) return;
+
+        // Flash de LUZ: todos los LEDs encendidos LATEN con emisión intensa ~3 s — se ve
+        // claramente que el circuito funcionó (complementa el estallido de partículas).
+        StopAllCoroutines();
+        StartCoroutine(FlashDeVictoria(3f));
 
         bool alguno = false;
         foreach (var led in FindObjectsByType<LED>(FindObjectsInactive.Exclude))
@@ -41,6 +51,21 @@ public class CircuitVictoryEffect : MonoBehaviour
         }
 
         Debug.Log("[CircuitVictoryEffect] ¡Estallido de victoria!");
+    }
+
+    /// <summary>Late la emisión de todos los LEDs encendidos: ~4 pulsos fuertes que decaen a normal.</summary>
+    System.Collections.IEnumerator FlashDeVictoria(float duracion)
+    {
+        float t = 0f;
+        while (t < duracion)
+        {
+            t += Time.deltaTime;
+            float decae  = 1f - (t / duracion);                        // el efecto se apaga gradualmente
+            float latido = Mathf.Abs(Mathf.Sin(t * Mathf.PI * 2.6f));  // ~4 latidos en 3 s
+            LED.BoostVictoria = 1f + 3.5f * latido * decae;            // pico ~4.5x el brillo normal
+            yield return null;
+        }
+        LED.BoostVictoria = 1f;
     }
 
     void SpawnBurst(Vector3 pos)
