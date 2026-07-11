@@ -28,6 +28,10 @@ public class PlayerController : MonoBehaviour
     [Header("Snap Turn (joystick derecho)")]
     [Tooltip("False = el joystick derecho NO rota la c mara.")]
     public bool enableSnapTurn = false;
+    [Tooltip("GIRO con el joystick IZQUIERDO (snap). Pensado para la caminadora KAT: al caminar " +
+             "físicamente, el stick izquierdo queda libre y sirve de 'giroscopio'. En modo " +
+             "joystick (sin KAT) se ignora automáticamente para no chocar con el desplazamiento.")]
+    public bool giroJoystickIzquierdo = true;
     [Tooltip("Angulo de giro por snap (grados). Solo aplica si enableSnapTurn = true.")]
     [Range(0f, 90f)] public float snapTurnAngle = 45f;
     [Tooltip("Umbral del thumbstick derecho para activar snap turn.")]
@@ -572,9 +576,20 @@ public class PlayerController : MonoBehaviour
 
     void HandleSnapTurn()
     {
-        if (!enableSnapTurn || snapTurnAngle <= 0f || _snapTurnAct == null || xrRig == null) return;
+        if (snapTurnAngle <= 0f || xrRig == null) return;
 
-        Vector2 val = _snapTurnAct.ReadValue<Vector2>();
+        // Fuente del giro:
+        //  1) Stick IZQUIERDO cuando la KAT está activa (el movimiento viene de caminar, así que
+        //     el stick queda libre) — el "giroscopio" del mando izquierdo.
+        //  2) Si no, la acción clásica del stick derecho (solo si enableSnapTurn).
+        Vector2 val;
+        var moveAct = MoveAction;
+        if (giroJoystickIzquierdo && _katActive && moveAct != null)
+            val = moveAct.ReadValue<Vector2>();
+        else if (enableSnapTurn && _snapTurnAct != null)
+            val = _snapTurnAct.ReadValue<Vector2>();
+        else
+            return;
         if (Mathf.Abs(val.x) > snapTurnThreshold)
         {
             if (!_snapTurnHeld)
