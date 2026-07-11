@@ -34,6 +34,9 @@ public class RoomCodeEntryUI : MonoBehaviour
 
     string  _code;
     bool     _codeInit;
+    const string PREFS_GRUPO_KEY = "TITA.Grupo";
+    string  _grupo = "";
+    bool    _grupoInit;
     GUIStyle _box, _title, _hint;
     Texture2D _bg;
 
@@ -74,16 +77,24 @@ public class RoomCodeEntryUI : MonoBehaviour
         if (!DebeMostrarse()) return;
 
         var cm = ConnectionManager.Instance;
-        if (!_codeInit) { _code = cm.ResolveRoomCode(); _codeInit = true; }
+        if (!_codeInit)  { _code  = cm.ResolveRoomCode(); _codeInit = true; }
+        if (!_grupoInit) { _grupo = PlayerPrefs.GetString(PREFS_GRUPO_KEY, ""); _grupoInit = true; }
 
         EnsureStyles();
 
-        const float w = 380f, h = 196f;
+        const float w = 380f, h = 290f;
         var rect = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.45f, w, h);
         GUI.Box(rect, GUIContent.none, _box);
 
         GUILayout.BeginArea(new Rect(rect.x + 18, rect.y + 16, w - 36, h - 32));
 
+        GUILayout.Label("NOMBRE DEL GRUPO", _title);
+        GUILayout.Label("Estudiantes de esta estación (aparece en las métricas).\n" +
+                        "Ej: Grupo 3 - Ana y Luis", _hint);
+        GUILayout.Space(4);
+        _grupo = GUILayout.TextField(_grupo, 40, GUILayout.Height(28));
+
+        GUILayout.Space(10);
         GUILayout.Label("CÓDIGO DE SALA", _title);
         GUILayout.Label("Cada estación usa su propio código. El Explorador debe tener\n" +
                         "el MISMO código (Inspector del visor). Ej: UDLA-A4", _hint);
@@ -122,12 +133,26 @@ public class RoomCodeEntryUI : MonoBehaviour
             Debug.LogWarning("[RoomCodeEntryUI] Código vacío o inválido — escribe algo como 'UDLA-A4'.");
             return;
         }
+
+        // Nombre del grupo (estudiantes): viaja a las métricas (Sheets columna 'Equipo',
+        // dashboard localhost, CSV). Se recuerda entre sesiones en este PC.
+        string grupo = (_grupo ?? "").Trim();
+        if (!string.IsNullOrEmpty(grupo))
+        {
+            var exp = FindAnyObjectByType<SessionDataExporter>();
+            if (exp != null) exp.grupo = grupo;
+            PlayerPrefs.SetString(PREFS_GRUPO_KEY, grupo);
+            PlayerPrefs.Save();
+            Debug.Log($"[RoomCodeEntryUI] Grupo registrado para las métricas: '{grupo}'.");
+        }
+
         Debug.Log($"[RoomCodeEntryUI] Creando sala '{norm}' como Técnico.");
         cm.CrearSalaComoTecnico(norm);
 
-        // StartSimulation añade el NetworkRunner de forma síncrona (antes del primer await),
-        // así que ya existe: cachearlo aquí oculta el panel en este mismo frame.
-        _runner = cm.GetComponent<Fusion.NetworkRunner>();
+        // StartSimulation añade el NetworkRunner de forma síncrona (antes del primer await).
+        // OJO: ahora vive en el HIJO [FusionRunner] (aislado para que Fusion no destruya el
+        // GameManager al fallar) — buscarlo en children, no en el propio GO.
+        _runner = cm.GetComponentInChildren<Fusion.NetworkRunner>();
     }
 
     void EnsureStyles()

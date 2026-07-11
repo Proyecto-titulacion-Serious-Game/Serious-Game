@@ -128,15 +128,41 @@ public class PerformanceTracker : MonoBehaviour
         if (_recordedThisLevel) return;   // ya registrado este nivel → ignorar disparos duplicados
         _recordedThisLevel = true;
 
+        float limite = 600f;
+        var gm = FindAnyObjectByType<GameManager>();
+        if (gm != null && gm.currentTimeLimit > 0f) limite = gm.currentTimeLimit;
+
+        float t = GetTime();
         _records.Add(new LevelRecord
         {
             level      = level,
-            timeSeconds = GetTime(),
+            timeSeconds = t,
             errors     = _currentErrors,
             success    = success,
             evaluation = GetEvaluation(),
-            errorTypes = GetErrorBreakdown()
+            errorTypes = GetErrorBreakdown(),
+            nota       = CalcularNota10(t, _currentErrors, success, limite)
         });
+    }
+
+    /// <summary>
+    /// NOTA 0–10 del reto (compartida por ambos roles — el desempeño es de la pareja):
+    ///   · 5 puntos por TIEMPO: nota completa hasta el 30 % del límite del reto;
+    ///     desde ahí decae linealmente hasta 0 al agotar el límite.
+    ///   · 5 puntos por ERRORES: cada intento erróneo resta 1 punto (0 errores = 5).
+    ///   · Reto NO completado: la nota se topa en 4.0 (esfuerzo parcial, nunca aprobatoria).
+    /// Redondeada a 1 decimal. Ej. (límite 600 s): 150 s y 1 error → 5.0 + 4.0 = 9.0.
+    /// </summary>
+    public static float CalcularNota10(float tiempoSeg, int errores, bool exito, float limiteSeg)
+    {
+        if (limiteSeg <= 0f) limiteSeg = 600f;
+        float tOptimo = limiteSeg * 0.3f;
+        float fTiempo = tiempoSeg <= tOptimo
+            ? 1f
+            : Mathf.Clamp01(1f - (tiempoSeg - tOptimo) / (limiteSeg - tOptimo));
+        float nota = 5f * fTiempo + Mathf.Max(0f, 5f - errores);
+        if (!exito) nota = Mathf.Min(nota, 4f);
+        return Mathf.Round(nota * 10f) / 10f;
     }
 }
 
@@ -149,6 +175,8 @@ public struct LevelRecord
     public bool            success;
     public string          evaluation;
     public ErrorTagCount[] errorTypes;
+    /// <summary>Nota 0–10 del reto (5 pts tiempo + 5 pts errores). Ver PerformanceTracker.CalcularNota10.</summary>
+    public float           nota;
 }
 
 [System.Serializable]

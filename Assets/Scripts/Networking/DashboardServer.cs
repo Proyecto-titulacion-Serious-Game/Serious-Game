@@ -136,9 +136,11 @@ public class DashboardServer : MonoBehaviour
             else if (path == "/api/status")
             {
                 var data = dataExporter?.GetSnapshot() ?? new SessionExportData();
+                string grupo = dataExporter != null ? dataExporter.grupo : "";
                 string json = "{" +
                     "\"currentReto\":\"" + Escape(data.currentReto) + "\"," +
                     "\"state\":\"" + Escape(data.state) + "\"," +
+                    "\"grupo\":\"" + Escape(grupo) + "\"," +
                     "\"accessCode\":\"" + Escape(data.accessCode) + "\"}";
                 Respond(ctx, 200, "application/json", json);
             }
@@ -216,7 +218,7 @@ public class DashboardServer : MonoBehaviour
     static string BuildRecordsCsv(SessionHistory h)
     {
         var sb = new StringBuilder();
-        sb.Append("Sesion,Fecha,Codigo,Reto,Tiempo_s,Errores,Exito,Evaluacion,Tipos_error\r\n");
+        sb.Append("Sesion,Fecha,Codigo,Reto,Nota_10,Tiempo_s,Errores,Exito,Evaluacion,Tipos_error\r\n");
         if (h?.sessions != null)
         {
             for (int i = 0; i < h.sessions.Length; i++)
@@ -229,6 +231,7 @@ public class DashboardServer : MonoBehaviour
                       .Append(Csv(s.timestamp)).Append(',')
                       .Append(Csv(s.accessCode)).Append(',')
                       .Append(Csv(r.levelName)).Append(',')
+                      .Append(r.nota.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append(',')
                       .Append(Mathf.RoundToInt(r.timeSeconds)).Append(',')
                       .Append(r.errors).Append(',')
                       .Append(r.success ? 1 : 0).Append(',')
@@ -317,6 +320,7 @@ public class DashboardServer : MonoBehaviour
         "<p class='sub'>Serious Game — Circuitos Eléctricos VR &nbsp;|&nbsp; <span id='clock'></span></p>" +
         "<div class='card'>" +
         "  <h2>Estado de Sesión</h2>" +
+        "  <div class='stat'><span>Grupo</span><span class='stat-val' id='s-grupo'>—</span></div>" +
         "  <div class='stat'><span>Reto activo</span><span class='stat-val' id='s-reto'>—</span></div>" +
         "  <div class='stat'><span>Estado</span><span id='s-state'><span class='badge badge-wait'>En espera</span></span></div>" +
         "  <p class='note'>Actualización automática cada 10 s</p>" +
@@ -353,6 +357,7 @@ public class DashboardServer : MonoBehaviour
         "async function fetchStatus(){" +
         "  try{" +
         "    var d=(await(await fetch('/api/status')).json());" +
+        "    document.getElementById('s-grupo').textContent=d.grupo||'—';" +
         "    document.getElementById('s-reto').textContent=d.currentReto||'—';" +
         "    var cls=d.state==='En progreso'?'badge-ok':d.state==='Sesion finalizada'?'badge-ok':'badge-wait';" +
         "    document.getElementById('s-state').innerHTML='<span class=\\'badge '+cls+'\\'>'+d.state+'</span>';" +
@@ -367,11 +372,11 @@ public class DashboardServer : MonoBehaviour
         "    var s=d.summary;" +
         "    var pct=Math.round((s.scorePercent||0)*100);" +
         "    var t=fmt(s.totalTimeSeconds);" +
-        "    var h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Tiempo</th><th>Errores</th><th>Tipos de error</th><th>Evaluación</th></tr></thead><tbody>';" +
+        "    var h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Nota /10</th><th>Tiempo</th><th>Errores</th><th>Tipos de error</th><th>Evaluación</th></tr></thead><tbody>';" +
         "    if(d.records&&d.records.length){" +
         "      for(var i=0;i<d.records.length;i++){" +
         "        var r=d.records[i];var c=r.success?'ok':'fail';var ic=r.success?'OK':'X';" +
-        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td><td>'+r.evaluation+'</td></tr>';" +
+        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td><b>'+(r.nota!=null?r.nota.toFixed(1):'-')+'</b></td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td><td>'+r.evaluation+'</td></tr>';" +
         "      }" +
         "    }" +
         "    h+='</tbody></table>';" +
@@ -427,10 +432,10 @@ public class DashboardServer : MonoBehaviour
         "    document.getElementById('l-types').innerHTML=chips(d.currentErrorTypes);" +
         "    var h='';" +
         "    if(d.completedRecords&&d.completedRecords.length){" +
-        "      h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Tiempo</th><th>Errores</th><th>Tipos</th></tr></thead><tbody>';" +
+        "      h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Nota /10</th><th>Tiempo</th><th>Errores</th><th>Tipos</th></tr></thead><tbody>';" +
         "      for(var i=0;i<d.completedRecords.length;i++){" +
         "        var r=d.completedRecords[i];var c=r.success?'ok':'fail';var ic=r.success?'OK':'X';" +
-        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td></tr>';" +
+        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td><b>'+(r.nota!=null?r.nota.toFixed(1):'-')+'</b></td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td></tr>';" +
         "      }" +
         "      h+='</tbody></table>';" +
         "    }" +

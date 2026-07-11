@@ -212,9 +212,11 @@ public class SessionDataExporter : MonoBehaviour
     //  Subida a Google Sheets (webhook de Apps Script)
     // ─────────────────────────────────────────────
     [Serializable] class SheetsSesion { public string fecha, grupo, codigo, evaluacion;
-                                        public int score, scoreMax, porcentaje, tiempo, errores; }
+                                        public int score, scoreMax, porcentaje, tiempo, errores;
+                                        public float notaFinal; }   // promedio 0-10 de las notas por reto
     [Serializable] class SheetsReto   { public string reto, evaluacion, tipos;
-                                        public int tiempo, errores, exito; }
+                                        public int tiempo, errores, exito;
+                                        public float nota; }        // nota 0-10 del reto (tiempo + errores)
     [Serializable] class SheetsPayload{ public string token; public SheetsSesion session; public SheetsReto[] records; }
 
     IEnumerator SubirASheets(SessionResult r, LevelRecordDto[] recs, string stamp)
@@ -222,6 +224,14 @@ public class SessionDataExporter : MonoBehaviour
         string codigo;
         lock (_lock) { codigo = _data.accessCode; }
         string grp = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo;
+
+        // Nota final de la sesión = promedio de las notas 0-10 por reto.
+        float notaFinal = 0f;
+        if (recs != null && recs.Length > 0)
+        {
+            foreach (var x in recs) notaFinal += x.nota;
+            notaFinal = Mathf.Round(notaFinal / recs.Length * 10f) / 10f;
+        }
 
         var payload = new SheetsPayload
         {
@@ -231,13 +241,14 @@ public class SessionDataExporter : MonoBehaviour
                 fecha = stamp, grupo = grp, codigo = codigo, evaluacion = r.evaluation,
                 score = r.totalScore, scoreMax = r.maxScore,
                 porcentaje = Mathf.RoundToInt(r.scorePercent * 100f),
-                tiempo = Mathf.RoundToInt(r.totalTimeSeconds), errores = r.totalErrors
+                tiempo = Mathf.RoundToInt(r.totalTimeSeconds), errores = r.totalErrors,
+                notaFinal = notaFinal
             },
             records = Array.ConvertAll(recs ?? Array.Empty<LevelRecordDto>(), x => new SheetsReto
             {
                 reto = x.levelName, tiempo = Mathf.RoundToInt(x.timeSeconds),
                 errores = x.errors, exito = x.success ? 1 : 0, evaluacion = x.evaluation,
-                tipos = TiposInline(x.errorTypes)
+                tipos = TiposInline(x.errorTypes), nota = x.nota
             })
         };
 
@@ -256,12 +267,13 @@ public class SessionDataExporter : MonoBehaviour
                 fecha = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                 grupo = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo,
                 codigo = "TEST", evaluacion = "[PRUEBA]",
-                score = 100, scoreMax = 100, porcentaje = 100, tiempo = 0, errores = 0
+                score = 100, scoreMax = 100, porcentaje = 100, tiempo = 0, errores = 0,
+                notaFinal = 9.0f
             },
             records = new[]
             {
                 new SheetsReto { reto = "Reto 1 — PRUEBA", tiempo = 42, errores = 1, exito = 1,
-                                 evaluacion = "[PRUEBA]", tipos = "Cortocircuito:1" }
+                                 evaluacion = "[PRUEBA]", tipos = "Cortocircuito:1", nota = 9.0f }
             }
         };
         Debug.Log("[SessionDataExporter] F8: enviando fila de PRUEBA a Google Sheets...");
@@ -421,6 +433,8 @@ public class LevelRecordDto
     public bool           success;
     public string         evaluation = "";
     public ErrorTagCount[] errorTypes = Array.Empty<ErrorTagCount>();
+    /// <summary>Nota 0–10 del reto (5 pts tiempo + 5 pts errores).</summary>
+    public float          nota;
 
     public LevelRecordDto() { }
     public LevelRecordDto(LevelRecord r)
@@ -431,6 +445,7 @@ public class LevelRecordDto
         success     = r.success;
         evaluation  = r.evaluation;
         errorTypes  = r.errorTypes ?? Array.Empty<ErrorTagCount>();
+        nota        = r.nota;
     }
 }
 
