@@ -117,6 +117,23 @@ public class ArduinoIDEUI : MonoBehaviour
 
     void OnEnable()
     {
+        // FIX "no se puede editar tras abrir manual/diagnóstico/enviar componente":
+        // esas acciones desactivan este panel; si ocurría a MITAD de CompileRoutine (que tiene
+        // WaitForSeconds), la corrutina moría y _isCompiling quedaba en true PARA SIEMPRE →
+        // la recuperación de foco del editor se apagaba y "Subir" quedaba bloqueado.
+        // Un disable siempre mata la corrutina, así que aquí el estado limpio es no-compilando.
+        if (_isCompiling)
+        {
+            _isCompiling = false;
+            RefreshBoardReady();
+            LogLine("<color=#FFAA44>> Compilación interrumpida (se cambió de panel). Vuelve a Subir.</color>");
+        }
+
+        // Y devolverle el foco al editor si está en modo libre (al volver del manual/diagnóstico,
+        // la selección del EventSystem quedó en el botón de esa otra UI).
+        if (_freeTextMode && codeEditor != null && codeEditor.gameObject.activeInHierarchy)
+            codeEditor.ActivateInputField();
+
         ArduinoNetworkBridge.OnBridgeReady     += OnBridgeConnected;
         ArduinoNetworkBridge.OnBridgeDestroyed += OnBridgeDisconnected;
 
@@ -226,6 +243,14 @@ public class ArduinoIDEUI : MonoBehaviour
     void Update()
     {
         PollDiagnosticoReto4();
+
+        // Watchdog: una compilación real dura ~1-2 s. Si _isCompiling lleva >10 s es que la
+        // corrutina murió (panel desactivado a mitad, etc.) → liberar para poder editar/subir.
+        if (_isCompiling && Time.unscaledTime - _compileStart > 10f)
+        {
+            LogLine("<color=#FFAA44>> Compilación colgada liberada — vuelve a Subir.</color>");
+            FinishCompile();
+        }
 
         // Re-evaluar (con throttle) si la placa está lista → habilita/deshabilita "Subir".
         _readyCheckCd -= Time.unscaledDeltaTime;
@@ -458,9 +483,12 @@ public class ArduinoIDEUI : MonoBehaviour
         }
     }
 
+    float _compileStart;   // watchdog: si la corrutina muere, Update libera el estado a los 10 s
+
     IEnumerator CompileRoutine()
     {
-        _isCompiling = true;
+        _isCompiling  = true;
+        _compileStart = Time.unscaledTime;
         if (btnUploadCode != null) btnUploadCode.interactable = false;
 
         // ── Validación temprana de modo libre ───────────────────────────────
