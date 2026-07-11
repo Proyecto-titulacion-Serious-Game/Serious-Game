@@ -1,4 +1,0 @@
-Reto 1: Completado | Ley de Ohm y Circuitos Simples en VR.
-Reto 2: Completado | Configuraciones Serie/Paralelo con multímetro.
-Reto 3: En Pruebas | Carga y descarga de capacitores con feedback háptico.
-Reto 4: Pendiente | Integración de lógica de control con Arduino virtual.
