@@ -5444,7 +5444,6 @@ GameObject:
   - component: {fileID: 701331910907043105}
   - component: {fileID: 3333091831548581040}
   - component: {fileID: 1716279687242921239}
-  - component: {fileID: 197932963108544342}
   - component: {fileID: 7400100100100101}
   m_Layer: 0
   m_Name: TechnicianMonitorHUD
@@ -5610,28 +5609,6 @@ MonoBehaviour:
   circuit: {fileID: 0}
   arduinoBridge: {fileID: 0}
   panelAlerta: {fileID: 1274118357871648810}
---- !u!114 &197932963108544342
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 4419838255577874088}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 2562fb15059650d4dbdfc6fd6f743e42, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ArduinoCodeEditor
-  inputCode: {fileID: 4749698791497885001}
-  txtConsole: {fileID: 2747493637400646965}
-  txtPreview: {fileID: 8802412703854966760}
-  txtStatus: {fileID: 8501454734405361189}
-  btnVerify: {fileID: 7814425448862793744}
-  btnUpload: {fileID: 1429604305293423688}
-  sketchInicial: "// Reto 4: Sistema de alerta con sensor\n// TAREA: Encuentra y
-    corrige el error en este sketch\n\nvoid setup() {\n  pinMode(4, OUTPUT);   //
-    <- revisa este numero de pin\n}\n\nvoid loop() {\n  digitalWrite(4, HIGH);\n 
-    delay(500);\n  digitalWrite(4, LOW);\n  delay(500);\n}"
 --- !u!114 &7400100100100101
 MonoBehaviour:
   m_ObjectHideFlags: 0

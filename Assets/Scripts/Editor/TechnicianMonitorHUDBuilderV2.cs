@@ -8,6 +8,19 @@ using UnityEngine.UI;
 /// <summary>
 /// Reconstruye Assets/Prefabs/TechnicianMonitorHUD.prefab — versión 2.
 ///
+/// ⚠ DEPRECATED / NO EJECUTAR sin editar antes: este builder añade <see cref="ArduinoCodeEditor"/>
+/// (IDE legacy de un mini-juego "encuentra el error" de un solo sketch fijo) al MISMO GameObject
+/// donde vive <see cref="ArduinoIDEUI"/> (el IDE real y activo del Reto 4: código libre +
+/// intérprete completo). El v1 builder ya deja ArduinoIDEUI en ese root; este v2 solo AÑADE
+/// ArduinoCodeEditor encima, sin quitar el otro — quedan 2 scripts compartiendo el MISMO
+/// TMP_InputField/consola (mismos fileID), pisándose el uno al otro (listeners de
+/// onValueChanged duplicados, Start() de ArduinoCodeEditor sobrescribe el texto, eventos de
+/// Ardity reescriben la consola). Esto causaba que el editor de código dejara de aceptar
+/// texto tras interactuar con otros paneles (manual/diagnóstico/envío de componente) — se
+/// quitó ArduinoCodeEditor del prefab en runtime el 2026-07-11. Si necesitas re-generar el
+/// HUD, usa el builder v1 (sin ArduinoCodeEditor) o borra la línea `AddComponent&lt;ArduinoCodeEditor&gt;()`
+/// de este archivo primero.
+///
 /// Diferencias respecto al builder original (v1):
 ///   - Panel izquierdo: TMP_InputField editable con código real + ArduinoCodeEditor
 ///                      (reemplaza los dropdowns de ArduinoIDEUI)

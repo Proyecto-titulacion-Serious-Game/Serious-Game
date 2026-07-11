@@ -256,13 +256,11 @@ public class ArduinoIDEUI : MonoBehaviour
         _readyCheckCd -= Time.unscaledDeltaTime;
         if (_readyCheckCd <= 0f) { _readyCheckCd = 0.25f; RefreshBoardReady(); }
 
-        var kb = Keyboard.current;
-        if (kb == null) return;
-
-        // FIX: si el técnico teclea con el editor visible pero SIN foco (p.ej. tras enviar un
-        // componente, que roba la selección del EventSystem) y la tecla NO va a otro campo de texto,
-        // le devolvemos el foco al editor → la pulsación no se pierde y puede seguir editando.
-        if (kb.anyKey.wasPressedThisFrame && !_isCompiling && codeEditor != null &&
+        // FIX: si el editor está visible pero SIN foco (p.ej. tras abrir el manual, el
+        // diagnóstico, o enviar un componente — cualquier interacción externa que le robe la
+        // selección al EventSystem) recuperamos el foco YA, cada frame — no esperamos a la
+        // primera tecla (esa pulsación se perdía) y no dependemos de qué causó la pérdida.
+        if (!_isCompiling && codeEditor != null &&
             codeEditor.gameObject.activeInHierarchy && !codeEditor.isFocused)
         {
             var es  = UnityEngine.EventSystems.EventSystem.current;
@@ -275,6 +273,9 @@ public class ArduinoIDEUI : MonoBehaviour
             bool otroCampo = otroField != null && sel.activeInHierarchy && otroField.isFocused;
             if (!otroCampo) codeEditor.ActivateInputField();
         }
+
+        var kb = Keyboard.current;
+        if (kb == null) return;
 
         // F5 = comprobar el circuito (sin Ctrl).
         if (kb.f5Key.wasPressedThisFrame) { ComprobarCircuito(); return; }
