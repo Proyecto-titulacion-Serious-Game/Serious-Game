@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using NaughtyAttributes;
 
@@ -16,21 +17,42 @@ namespace HPhysic
         [field: SerializeField, OnValueChanged(nameof(UpdateConnectorColor))] public CableColor ConnectionColor { get; private set; } = CableColor.White;
 
         [SerializeField] private bool makeConnectionKinematic = false;
-        private bool _wasConnectionKinematic;
 
         [SerializeField] private bool hideInteractableWhenIsConnected = false;
         [SerializeField] private bool allowConnectDifrentCollor = false;
 
-        [field: SerializeField] public Connector ConnectedTo { get; private set; }
+        [Tooltip("Solo aplica a conectores HEMBRA (slots): si está activo, más de un macho (cable) " +
+                 "puede conectarse a la vez en el mismo punto — no se mueve el slot, solo deja de " +
+                 "rechazar la segunda conexión (p.ej. 2 cables en el mismo slot del Reto 2). Los " +
+                 "conectores macho (puntas de cable) siempre son 1:1, esto no los afecta. " +
+                 "Apagado por defecto para no cambiar el comportamiento de otros retos.")]
+        [SerializeField] private bool allowMultipleConnections = false;
 
+        [Tooltip("Conexión pre-cableada desde el Inspector (opcional, para cables fijos de fábrica). " +
+                 "Se establece de verdad al arrancar (crea el joint); no se usa en runtime.")]
+        [SerializeField] private Connector preWiredConnection;
+
+        [Tooltip("Separación visual (m) entre puntas de cable cuando hay más de una conectada al " +
+                 "mismo slot (hembra con Allow Multiple Connections). Solo evita que se vean " +
+                 "exactamente encimadas — no mueve el slot ni afecta la conexión eléctrica.")]
+        [SerializeField] private float multiConnectionOffset = 0.05f;
+
+        // Conexiones activas. Un MACHO nunca tiene más de un elemento (una punta de cable solo va a
+        // un sitio). Una HEMBRA puede tener varias si allowMultipleConnections está activo.
+        private readonly List<Connector> _connections = new List<Connector>();
+        // Joints que ESTE conector creó (solo el lado que llamó Connect() posee el FixedJoint físico).
+        private readonly Dictionary<Connector, FixedJoint> _joints = new Dictionary<Connector, FixedJoint>();
+        private readonly Dictionary<Connector, bool> _wasKinematicBeforeConnect = new Dictionary<Connector, bool>();
+
+        /// <summary>Primera conexión activa — compat con código que solo mira una punta.</summary>
+        public Connector ConnectedTo => _connections.Count > 0 ? _connections[0] : null;
+        public IReadOnlyList<Connector> AllConnections => _connections;
 
         [Header("Object to set")]
         [SerializeField, Required] private Transform connectionPoint;
         [SerializeField] private MeshRenderer collorRenderer;
         [SerializeField] private ParticleSystem sparksParticle;
 
-
-        private FixedJoint _fixedJoint;
         public Rigidbody Rigidbody { get; private set; }
 
         public Vector3 ConnectionPosition => connectionPoint ? connectionPoint.position : transform.position;
@@ -38,10 +60,12 @@ namespace HPhysic
         public Quaternion RotationOffset => connectionPoint ? connectionPoint.localRotation : Quaternion.Euler(Vector3.zero);
         public Vector3 ConnectedOutOffset => connectionPoint ? connectionPoint.right : transform.right;
 
-        public bool IsConnected => ConnectedTo != null;
+        public bool IsConnected => _connections.Count > 0;
         public bool IsConnectedRight => IsConnected && ConnectionColor == ConnectedTo.ConnectionColor;
 
-
+        /// <summary>¿Puede aceptar una conexión más ahora mismo? Las hembras con
+        /// <see cref="allowMultipleConnections"/> siempre tienen sitio; el resto, solo si están libres.</summary>
+        bool AcceptsMore => !IsConnected || (ConnectionType == ConType.Female && allowMultipleConnections);
 
         private void Awake()
         {
@@ -52,22 +76,16 @@ namespace HPhysic
         {
             UpdateConnectorColor();
 
-            if (ConnectedTo != null)
+            if (preWiredConnection != null)
             {
-                Connector t = ConnectedTo;
-                ConnectedTo = null;
+                var t = preWiredConnection;
+                preWiredConnection = null;
                 Connect(t);
             }
         }
 
         private void OnDisable() => Disconnect();
 
-        public void SetAsConnectedTo(Connector secondConnector)
-        {
-            ConnectedTo = secondConnector;
-            _wasConnectionKinematic = secondConnector.Rigidbody.isKinematic;
-            UpdateInteractableWhenIsConnected();
-        }
         public void Connect(Connector secondConnector)
         {
             if (secondConnector == null)
@@ -76,20 +94,28 @@ namespace HPhysic
                 return;
             }
 
-            if (IsConnected)
-                Disconnect(secondConnector);
+            // Si NO hay sitio (macho ya ocupado, o hembra sin multi-conexión), libera la conexión
+            // previa antes de tomar la nueva — mismo comportamiento que antes para 1:1.
+            if (!AcceptsMore) Disconnect(ConnectedTo);
+            if (!secondConnector.AcceptsMore) secondConnector.Disconnect(secondConnector.ConnectedTo);
 
             secondConnector.transform.rotation = ConnectionRotation * secondConnector.RotationOffset;
-            secondConnector.transform.position = ConnectionPosition - (secondConnector.ConnectionPosition - secondConnector.transform.position);
+            Vector3 basePos = ConnectionPosition - (secondConnector.ConnectionPosition - secondConnector.transform.position);
+            // _connections.Count aquí todavía es el conteo ANTES de sumar esta conexión: 0 para el
+            // primer cable (sin offset, exacto sobre el slot), 1+ para los siguientes — evita que
+            // varias puntas queden exactamente encimadas cuando la hembra admite multi-conexión.
+            secondConnector.transform.position = basePos + VisualOffsetFor(_connections.Count);
 
-            _fixedJoint = gameObject.AddComponent<FixedJoint>();
-            _fixedJoint.connectedBody = secondConnector.Rigidbody;
+            var joint = gameObject.AddComponent<FixedJoint>();
+            joint.connectedBody = secondConnector.Rigidbody;
+            _joints[secondConnector] = joint;
+            _connections.Add(secondConnector);
 
-            secondConnector.SetAsConnectedTo(this);
-            _wasConnectionKinematic = secondConnector.Rigidbody.isKinematic;
+            secondConnector.RegisterPassive(this);
+
+            _wasKinematicBeforeConnect[secondConnector] = secondConnector.Rigidbody.isKinematic;
             if (makeConnectionKinematic)
                 secondConnector.Rigidbody.isKinematic = true;
-            ConnectedTo = secondConnector;
 
             // sparks on inncretc connection
             if (incorrectSparksC == null && sparksParticle && IsConnected && !IsConnectedRight)
@@ -101,19 +127,46 @@ namespace HPhysic
             // disable outline on select
             UpdateInteractableWhenIsConnected();
         }
+
+        /// <summary>Desplazamiento lateral para la conexión número <paramref name="index"/> (0 = primer
+        /// cable, sin desplazar). Alterna a cada lado del punto de conexión: 1=+offset, 2=-offset,
+        /// 3=+2·offset, 4=-2·offset… así varias puntas se reparten alrededor del slot en vez de
+        /// apilarse en el mismo punto exacto.</summary>
+        Vector3 VisualOffsetFor(int index)
+        {
+            if (index <= 0) return Vector3.zero;
+            float lado = (index % 2 == 1) ? 1f : -1f;
+            int   par  = (index + 1) / 2;
+            return ConnectionRotation * Vector3.right * (lado * par * multiConnectionOffset);
+        }
+
+        /// <summary>Lado que RECIBE la conexión (no crea el joint físico — ya vive en el otro objeto).</summary>
+        void RegisterPassive(Connector other)
+        {
+            if (!_connections.Contains(other)) _connections.Add(other);
+            UpdateInteractableWhenIsConnected();
+        }
+
+        /// <summary>Sin argumento: desconecta TODAS las conexiones activas. Con argumento: solo esa.</summary>
         public void Disconnect(Connector onlyThis = null)
         {
-            if (ConnectedTo == null || onlyThis != null && onlyThis != ConnectedTo)
+            if (_connections.Count == 0) return;
+
+            if (onlyThis == null)
+            {
+                foreach (var c in new List<Connector>(_connections)) DisconnectFrom(c);
                 return;
+            }
+            DisconnectFrom(onlyThis);
+        }
 
-            Destroy(_fixedJoint);
+        void DisconnectFrom(Connector other)
+        {
+            if (other == null || !_connections.Contains(other)) return;
 
-            // important to dont make recusrion
-            Connector toDisconect = ConnectedTo;
-            ConnectedTo = null;
-            if (makeConnectionKinematic)
-                toDisconect.Rigidbody.isKinematic = _wasConnectionKinematic;
-            toDisconect.Disconnect(this);
+            CleanupJointIfOwned(other);
+            _connections.Remove(other);
+            other.RemovePassive(this);
 
             // sparks on inncretc connection
             if (sparksParticle)
@@ -122,8 +175,31 @@ namespace HPhysic
                 sparksParticle.Clear();
             }
 
-            // enable outline on select
             UpdateInteractableWhenIsConnected();
+        }
+
+        /// <summary>Lado pasivo de una desconexión iniciada por <paramref name="other"/> — sin volver
+        /// a llamar a other.Disconnect() (evita recursión infinita). El joint físico puede vivir de
+        /// CUALQUIER lado (Connect() lo crea en quien lo llamó, y Connect() se invoca desde ambos
+        /// lados según el flujo — hembra.Connect(macho) o macho.Connect(hembra)); si vive aquí, hay
+        /// que destruirlo también aquí, o quedaba un FixedJoint fantasma sujetando ambos objetos.</summary>
+        void RemovePassive(Connector other)
+        {
+            if (!_connections.Contains(other)) return;
+            CleanupJointIfOwned(other);
+            _connections.Remove(other);
+            UpdateInteractableWhenIsConnected();
+        }
+
+        /// <summary>Destruye el FixedJoint y restaura el kinematic SOLO si este lado fue quien los creó.</summary>
+        void CleanupJointIfOwned(Connector other)
+        {
+            if (!_joints.TryGetValue(other, out var joint)) return;
+            if (joint != null) Destroy(joint);
+            _joints.Remove(other);
+            if (makeConnectionKinematic && _wasKinematicBeforeConnect.TryGetValue(other, out bool wasKinematic))
+                other.Rigidbody.isKinematic = wasKinematic;
+            _wasKinematicBeforeConnect.Remove(other);
         }
 
         private void UpdateInteractableWhenIsConnected()
@@ -175,7 +251,7 @@ namespace HPhysic
 
         public bool CanConnect(Connector secondConnector) =>
             this != secondConnector
-            && !this.IsConnected && !secondConnector.IsConnected
+            && this.AcceptsMore && secondConnector.AcceptsMore
             && this.ConnectionType != secondConnector.ConnectionType
             && (this.allowConnectDifrentCollor || secondConnector.allowConnectDifrentCollor || this.ConnectionColor == secondConnector.ConnectionColor);
     }

@@ -225,12 +225,16 @@ public class SessionDataExporter : MonoBehaviour
         lock (_lock) { codigo = _data.accessCode; }
         string grp = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo;
 
-        // Nota final de la sesión = promedio de las notas 0-10 por reto.
+        // Nota final de la sesión = suma de notas 0-10 por reto, dividida SIEMPRE entre los 4 retos
+        // totales (no entre los alcanzados). Así una sesión cortada a la mitad (p. ej. se acaba la
+        // clase en el Reto 2) pesa menos que completar los 4 — dividir solo por recs.Length premiaba
+        // igual a un grupo que llegó a 2 retos excelentes que a uno que completó los 4.
+        const int TOTAL_RETOS = 4;
         float notaFinal = 0f;
         if (recs != null && recs.Length > 0)
         {
             foreach (var x in recs) notaFinal += x.nota;
-            notaFinal = Mathf.Round(notaFinal / recs.Length * 10f) / 10f;
+            notaFinal = Mathf.Round(notaFinal / TOTAL_RETOS * 10f) / 10f;
         }
 
         var payload = new SheetsPayload
@@ -239,8 +243,13 @@ public class SessionDataExporter : MonoBehaviour
             session = new SheetsSesion
             {
                 fecha = stamp, grupo = grp, codigo = codigo, evaluacion = r.evaluation,
-                score = r.totalScore, scoreMax = r.maxScore,
-                porcentaje = Mathf.RoundToInt(r.scorePercent * 100f),
+                // score/scoreMax/porcentaje EN ESCALA 0-10 (antes venían de ObjectiveSystem: puntos
+                // por objetivo que ni sumaban toda la sesión —se reinician por reto— ni estaban en la
+                // misma escala que notaFinal, por eso el dashboard local mostraba cosas como "0/600").
+                // Ahora son un espejo entero de notaFinal para que la columna "Score" de la Sheet
+                // quede consistente con la nota 0-10; notaFinal sigue siendo el valor exacto con decimal.
+                score = Mathf.RoundToInt(notaFinal), scoreMax = 10,
+                porcentaje = Mathf.RoundToInt(notaFinal / 10f * 100f),
                 tiempo = Mathf.RoundToInt(r.totalTimeSeconds), errores = r.totalErrors,
                 notaFinal = notaFinal
             },
@@ -267,7 +276,7 @@ public class SessionDataExporter : MonoBehaviour
                 fecha = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                 grupo = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo,
                 codigo = "TEST", evaluacion = "[PRUEBA]",
-                score = 100, scoreMax = 100, porcentaje = 100, tiempo = 0, errores = 0,
+                score = 9, scoreMax = 10, porcentaje = 90, tiempo = 0, errores = 0,
                 notaFinal = 9.0f
             },
             records = new[]

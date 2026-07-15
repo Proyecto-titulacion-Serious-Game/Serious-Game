@@ -17,6 +17,12 @@ public class ManualBookOpener : MonoBehaviour
     [Header("Estado de apertura")]
     public bool isOpen = false;
 
+    /// <summary>True si el manual está abierto. Lo consultan PauseMenu (para que Escape no
+    /// abra la pausa encima) y ArduinoMonitorInteract (para que ese mismo Escape no cierre
+    /// también el Hub del Arduino) — así el manual, al ser overlay de pantalla completa, es
+    /// lo único que un Escape cierra; el Hub conserva su prioridad detrás.</summary>
+    public static bool AnyOpen { get; private set; }
+
     [Header("Efecto hover")]
     public Renderer bookRenderer;
     public Color colorNormal = new Color(0.2f, 0.3f, 0.6f);
@@ -62,6 +68,14 @@ public class ManualBookOpener : MonoBehaviour
         }
     }
 
+    void OnDisable()
+    {
+        // Si el GO se desactiva/destruye con el manual abierto (cambio de escena, etc.), no dejar
+        // el flag atascado en true — PauseMenu/ArduinoMonitorInteract quedarían bloqueados creyendo
+        // que el manual sigue abierto para siempre.
+        if (isOpen) { isOpen = false; AnyOpen = false; }
+    }
+
     void Update()
     {
         if (!isOpen) return;
@@ -99,6 +113,7 @@ public class ManualBookOpener : MonoBehaviour
     public void ToggleManual()
     {
         isOpen = !isOpen;
+        AnyOpen = isOpen;
         if (manualOverlay != null)
             manualOverlay.SetActive(isOpen);
 
@@ -109,6 +124,7 @@ public class ManualBookOpener : MonoBehaviour
     public void CloseManual()
     {
         isOpen = false;
+        AnyOpen = false;
         if (manualOverlay != null)
             manualOverlay.SetActive(false);
 

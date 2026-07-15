@@ -68,7 +68,7 @@ public static class Reto4Feedback
         {
             string p = motivo switch
             {
-                Reto4Diagnostico.SinBlink       => "el circuito podria estar bien, pero revisa TU codigo: ¿el pin parpadea (HIGH -> delay -> LOW -> delay)?",
+                Reto4Diagnostico.SinBlink       => "el circuito podria estar bien, pero revisa TU codigo: ¿algun pin OUTPUT tiene una salida activa ahora (HIGH fijo, PWM, o parpadeo)?",
                 Reto4Diagnostico.SinCamino      => "la corriente no completa el circuito. ¿El pin que programaste es el mismo donde el Explorador conecto el LED?",
                 Reto4Diagnostico.LEDInvertido   => "algo bloquea el paso de corriente. ¿El LED podria estar al reves?",
                 Reto4Diagnostico.SinLED         => "hay conexion hasta el pin, pero no se detecta el LED. ¿Esta bien insertado en la protoboard?",
@@ -82,7 +82,7 @@ public static class Reto4Feedback
         // ── Nivel 3: diagnóstico explícito (pin + arreglo exacto) ──
         string d = motivo switch
         {
-            Reto4Diagnostico.SinBlink       => $"tu codigo activa el pin D{pin} pero NO lo hace parpadear. En loop() agrega: digitalWrite({pin},HIGH); delay(500); digitalWrite({pin},LOW); delay(500);",
+            Reto4Diagnostico.SinBlink       => $"ningun pin OUTPUT esta activo ahora mismo. Revisa que loop() escriba HIGH o PWM en el pin D{pin} (parpadeo, PWM, o HIGH fijo son validos).",
             Reto4Diagnostico.SinCamino      => $"tu codigo activa el pin D{pin}, pero no hay circuito completo desde D{pin} hasta GND. Confirma con el Explorador que el LED + resistencia esten en el pin D{pin}.",
             Reto4Diagnostico.LEDInvertido   => $"el LED del pin D{pin} esta con la polaridad invertida. La pata larga (anodo) va del lado del pin.",
             Reto4Diagnostico.SinLED         => $"el pin D{pin} si llega a GND, pero sin LED en el camino. Pide al Explorador insertar el LED entre el pin y GND.",

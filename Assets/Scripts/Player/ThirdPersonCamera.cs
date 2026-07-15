@@ -28,6 +28,12 @@ public class ThirdPersonCamera : MonoBehaviour
     public float minPitch    = -80f;
     public float maxPitch    =  80f;
 
+    [Header("Foco forzado (cutscene, ej. bienvenida del Robot-Guía)")]
+    [Tooltip("Si está asignado, la cámara gira sola para mirar este punto y el mouse-look queda " +
+             "bloqueado. Ponlo en null para devolver el control al jugador — la vista donde quedó " +
+             "mirando se vuelve el nuevo punto de partida, sin salto brusco.")]
+    public Transform focoForzado;
+
     private float _pitch       = 0f;
     private float _yaw         = 0f;    // yaw acumulado (gira el CUERPO); el mouse-look vive aquí
     private bool  _yawInit     = false;
@@ -134,6 +140,21 @@ public class ThirdPersonCamera : MonoBehaviour
             LockCursor(!_cursorFree);
         }
 
+        if (focoForzado != null && cameraRoot != null)
+        {
+            Vector3 dir = focoForzado.position - cameraRoot.position;
+            if (dir.sqrMagnitude > 0.0001f)
+            {
+                Vector3 euler = Quaternion.LookRotation(dir).eulerAngles;
+                _pitch = Mathf.Clamp(NormalizeAngle(euler.x), minPitch, maxPitch);
+                _yaw   = euler.y;
+                if (target != null) target.rotation = Quaternion.Euler(0f, _yaw, 0f);
+            }
+            transform.rotation = Quaternion.Euler(_pitch, _yaw, 0f);
+            transform.position = cameraRoot.position;
+            return;   // bloquea el mouse-look y el resto del posicionamiento mientras dura el foco
+        }
+
         if (!_cursorFree && !PauseMenu.IsPaused)
         {
             var mouse = Mouse.current;
@@ -190,6 +211,8 @@ public class ThirdPersonCamera : MonoBehaviour
         foreach (var r in _bodyRenderers)
             if (r != null) r.shadowCastingMode = mode;
     }
+
+    static float NormalizeAngle(float a) => a > 180f ? a - 360f : a;
 
     static Transform FindChildByName(Transform root, string name)
     {

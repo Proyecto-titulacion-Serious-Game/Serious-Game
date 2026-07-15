@@ -110,6 +110,18 @@ public class ArduinoSyntaxHighlighter : MonoBehaviour
         if (_field != null) _field.onValueChanged.RemoveListener(OnTextChanged);
     }
 
+    // FIX: sin esto, tras el primer cierre/apertura del Hub (arduinoHUD.SetActive(false) al salir
+    // con Esc desactiva este componente → OnDisable quita el listener) el overlay queda CONGELADO
+    // para siempre — el TMP_InputField real sigue recibiendo texto (el cursor avanza), pero como el
+    // texto real es invisible (alpha 0) y el overlay ya no se refresca, se ve como si "no se pudiera
+    // editar": lo escrito nunca aparece, y queda mostrando el último contenido antes del disable.
+    void OnEnable()
+    {
+        if (!_ok || _field == null) return;
+        _field.onValueChanged.AddListener(OnTextChanged);
+        Refresh(_field.text);   // el texto pudo cambiar mientras el overlay estaba desconectado
+    }
+
     void OnTextChanged(string s) => Refresh(s);
 
     void LateUpdate()

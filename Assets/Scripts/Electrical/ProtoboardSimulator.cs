@@ -418,55 +418,48 @@ public class ProtoboardSimulator : MonoBehaviour
 
         _lastSandboxResult = result;
         Debug.Log(result.success
-            ? "[Reto4] Validación: ✓ CIRCUITO COMPLETO (Pin → R≥100Ω → LED → GND, blink seguro)."
+            ? "[Reto4] Validación: ✓ CIRCUITO COMPLETO (todos los pines activos cierran seguro a GND)."
             : $"[Reto4] Validación: ✗ {result.message}", this);
         OnSandboxValidated?.Invoke(result);
     }
 
     /// <summary>
-    /// Evalúa si el circuito cumple el objetivo sandbox:
-    /// "Haz parpadear un LED de forma segura desde cualquier pin digital."
+    /// Evalúa el circuito LIBRE del Reto 4: "que el código del Técnico y el cableado del
+    /// Explorador encajen de forma segura", sin exigir un patrón concreto (un LED parpadeando,
+    /// un semáforo de varios pines, corriente continua sin LED, etc.).
     ///
-    /// Algoritmo (grafo dirigido + backtracking):
-    ///   1. Verificar que el sketch tiene BLINK + OUTPUT activos en ArduinoCore.
-    ///   2. Resolver el nodo del pin activado vía <see cref="ArduinoCore.PinToNode"/>.
-    ///   3. FindPath desde ese nodo hasta nodoGND respetando la dirección del diodo:
-    ///        el LED solo es recorrible ánodo → cátodo, así que un LED invertido
-    ///        bloquea el camino por topología (no por un flag). Si no hay camino
-    ///        dirigido pero sí uno ignorando el diodo → falla = "LED invertido".
-    ///   4. Sobre el camino encontrado: exigir LED + resistencia >= 100 Ω (protección).
-    ///   5. Verificar que la corriente estimada está en rango seguro (≤ maxSafeCurrent).
+    /// Algoritmo (grafo dirigido + backtracking, por cada pin activo):
+    ///   1. Tomar todos los pines que estuvieron activos recientemente
+    ///      (<see cref="ArduinoCore.PinsRecentlyDriven"/> — no un único pin global).
+    ///   2. Por cada uno, FindPath desde su nodo hasta GND respetando la dirección del diodo:
+    ///        el LED solo es recorrible ánodo → cátodo, así que un LED invertido bloquea el
+    ///        camino por topología. Si no hay camino dirigido pero sí uno ignorando el diodo
+    ///        → falla = "LED invertido".
+    ///   3. Si el camino tiene LED: válido si su estado YA resuelto por el MNA de este tick
+    ///      (<see cref="LED.state"/>) es <see cref="LEDState.Correct"/> — sin recalcular ni
+    ///      exigir una resistencia mínima fija, el MNA ya refleja si la protección alcanza.
+    ///   4. Si el camino NO tiene LED (corriente continua): válido si ningún resistor del
+    ///      camino está sobrecargado (<see cref="Resistor.isOverloaded"/>) y el circuito no
+    ///      está en cortocircuito.
+    ///   5. Éxito solo si TODOS los pines activos tienen un camino válido.
     /// </summary>
     SandboxValidationResult EvaluateSandbox(ArduinoCore arduino)
     {
-        var r = new SandboxValidationResult { activatedPin = arduino.activePinNumber };
+        var r = new SandboxValidationResult();
 
-        // ── Condición 1: sketch con BLINK y OUTPUT ───────────────────────
-        if (arduino.activePinMode != PinMode.OUTPUT)
-            return Fail(r, "El pin del Arduino no está en modo OUTPUT. " +
-                            "Agrega 'pinMode(X, OUTPUT)' en setup().");
+        var candidatePins = arduino.PinsRecentlyDriven().OrderBy(p => p).ToList();
+        if (candidatePins.Count == 0)
+            return Fail(r, "Ningún pin del Arduino está activo ahora mismo. Verifica que el " +
+                            "sketch esté corriendo (setup+loop) y escriba HIGH o PWM en algún " +
+                            "pin OUTPUT.");
 
-        r.blinkEnabled = arduino.blinkEnabled;
-        if (!arduino.blinkEnabled)
-            return Fail(r, $"Pin D{arduino.activePinNumber} en OUTPUT pero sin BLINK. " +
-                            "El objetivo es hacer parpadear el LED.");
+        r.activatedPin  = candidatePins[0];
+        r.blinkEnabled  = true;   // al menos un pin OUTPUT está activo ahora (ya no exige parpadeo)
 
-        // ── Condición 2: nodo del pin activo existe ───────────────────────
-        ElectricalNode startNode = arduino.PinToNode(arduino.activePinNumber);
-        ElectricalNode gndNode   = arduino.nodoGND;
-
-        if (startNode == null)
-            return Fail(r, $"Pin D{arduino.activePinNumber} no tiene nodo eléctrico asignado " +
-                            "en el modelo 3D del Arduino. Usa el Inspector de ArduinoCore " +
-                            "para añadir el mapeo en 'Pin Node Map'.");
-
+        ElectricalNode gndNode = arduino.nodoGND;
         if (gndNode == null)
             return Fail(r, "Nodo GND del Arduino no asignado en el Inspector de ArduinoCore.");
 
-        // ── Condición 3: recorrido por el GRAFO DIRIGIDO de la protoboard ─
-        // El LED se modela como arista dirigida (ánodo → cátodo): el diodo NO
-        // conduce al revés, así que un LED mal orientado bloquea físicamente el
-        // camino — la polaridad se valida por topología, no por un flag.
         var allComps = AllSandboxComponents()
             .Where(c => c.nodeA != null && c.nodeB != null && !(c is VoltageSource))
             .ToList();
@@ -475,76 +468,97 @@ public class ProtoboardSimulator : MonoBehaviour
             return Fail(r, "No hay componentes colocados en la protoboard.");
 
         var adj = BuildAdjacency(allComps);
-        if (!adj.ContainsKey(startNode))
-            return Fail(r, $"Ningún componente conectado al pin D{arduino.activePinNumber} " +
-                            "en la protoboard. Conecta un cable desde ese pin.");
+        bool anySuccess = false;
+        string firstFailure = null;
 
-        // Búsqueda 1: camino respetando la dirección del diodo (la verdad eléctrica)
-        var pathFound = new List<ElectricalComponent>();
-        bool reached = FindPath(startNode, gndNode, adj, respectDiode: true,
-                                new HashSet<ElectricalNode>(),
-                                new List<ElectricalComponent>(),
-                                pathFound);
-
-        if (!reached)
+        foreach (int pin in candidatePins)
         {
-            // Búsqueda 2 (diagnóstico): ¿existe el camino si ignoramos la dirección
-            // del diodo? Si sí y hay un LED, la falla es exactamente la polaridad.
-            var anyPath = new List<ElectricalComponent>();
-            bool physicallyClosed = FindPath(startNode, gndNode, adj, respectDiode: false,
-                                             new HashSet<ElectricalNode>(),
-                                             new List<ElectricalComponent>(),
-                                             anyPath);
+            ElectricalNode startNode = arduino.PinToNode(pin);
+            if (startNode == null)
+            {
+                firstFailure ??= $"Pin D{pin} no tiene nodo eléctrico asignado en el modelo 3D " +
+                                  "del Arduino. Usa el Inspector de ArduinoCore para añadir el " +
+                                  "mapeo en 'Pin Node Map'.";
+                continue;
+            }
 
-            if (physicallyClosed && anyPath.OfType<LED>().Any())
-                return Fail(r, "El LED está con la polaridad invertida. " +
-                                "Gíralo 180° — el ánodo (patita larga) debe apuntar al pin.");
+            if (!adj.ContainsKey(startNode))
+            {
+                firstFailure ??= $"Ningún componente conectado al pin D{pin} en la protoboard. " +
+                                  "Conecta un cable desde ese pin.";
+                continue;
+            }
 
-            return Fail(r, $"El circuito desde D{arduino.activePinNumber} no llega a GND. " +
-                            "Asegúrate de cerrar el circuito: Pin → Resistencia → LED → GND.");
+            // Búsqueda 1: camino respetando la dirección del diodo (la verdad eléctrica)
+            var pathFound = new List<ElectricalComponent>();
+            bool reached = FindPath(startNode, gndNode, adj, respectDiode: true,
+                                    new HashSet<ElectricalNode>(),
+                                    new List<ElectricalComponent>(),
+                                    pathFound);
+
+            if (!reached)
+            {
+                // Búsqueda 2 (diagnóstico): ¿existe el camino si ignoramos la dirección
+                // del diodo? Si sí y hay un LED, la falla es exactamente la polaridad.
+                var anyPath = new List<ElectricalComponent>();
+                bool physicallyClosed = FindPath(startNode, gndNode, adj, respectDiode: false,
+                                                 new HashSet<ElectricalNode>(),
+                                                 new List<ElectricalComponent>(),
+                                                 anyPath);
+
+                firstFailure ??= (physicallyClosed && anyPath.OfType<LED>().Any())
+                    ? $"El LED del pin D{pin} está con la polaridad invertida. Gíralo 180° — " +
+                      "el ánodo (patita larga) debe apuntar al pin."
+                    : $"El circuito desde el pin D{pin} no llega a GND (conexión abierta). Cierra el camino hasta GND.";
+                continue;
+            }
+
+            r.pathFound = true;
+            var leds = pathFound.OfType<LED>().ToList();
+
+            if (leds.Count > 0)
+            {
+                // Camino CON LED: confiar en el estado ya resuelto por el MNA de este tick
+                // (evita recalcular con una fórmula cerrada que podría desincronizarse).
+                var badLed = leds.FirstOrDefault(l => l.state != LEDState.Correct);
+                if (badLed != null)
+                {
+                    firstFailure ??= badLed.state == LEDState.Off
+                        ? $"El LED del pin D{pin} no enciende (corriente insuficiente)."
+                        : $"El LED del pin D{pin} recibe demasiada corriente ({badLed.state}). " +
+                          "Aumenta la resistencia (330 Ω recomendado).";
+                    continue;
+                }
+                r.hasLED           = true;
+                r.ledForwardBiased = true;
+                r.hasProtection    = true;
+                r.currentMa        = Mathf.Abs(leds[0].current) * 1000f;
+            }
+            else
+            {
+                // Camino SIN LED: corriente continua válida si nada está sobrecargado.
+                var overloaded = pathFound.OfType<Resistor>().FirstOrDefault(res => res.isOverloaded);
+                if (overloaded != null || isShortCircuited)
+                {
+                    firstFailure ??= $"La rama del pin D{pin} está en sobrecarga o cortocircuito. " +
+                                      "Aumenta la resistencia entre el pin y GND.";
+                    continue;
+                }
+                r.hasProtection = true;
+                r.currentMa     = Mathf.Abs(pathFound.FirstOrDefault()?.current ?? 0f) * 1000f;
+            }
+
+            anySuccess = true;
         }
 
-        r.pathFound = true;
-
-        // ── Condición 4: LED en el camino (ya garantizado forward por el grafo) ─
-        var leds = pathFound.OfType<LED>().ToList();
-        if (leds.Count == 0)
-            return Fail(r, "No se detectó ningún LED en el camino Pin → GND. " +
-                            "Coloca un LED entre el pin y GND.");
-
-        var forwardLED = leds[0]; // el grafo dirigido garantiza que se cruzó ánodo→cátodo
-
-        r.hasLED           = true;
-        r.ledForwardBiased = true;
-
-        // ── Condición 5: resistencia de protección ────────────────────────
-        var protectionR = pathFound.OfType<Resistor>()
-                                   .FirstOrDefault(res => res.GetResistance() >= 100f);
-        if (protectionR == null)
-            return Fail(r, "Falta una resistencia de al menos 100 Ω entre el pin y GND. " +
-                            "Sin ella el LED puede quemarse por exceso de corriente.");
-
-        r.hasProtection = true;
-
-        // ── Condición 6: corriente estimada en rango seguro ───────────────
-        // I = (Vfuente − ΣVf_diodos) / Rtotal — consistente con el modelo de diodo
-        // del MNA (CircuitGraphAnalyzer): la caída directa del LED no impulsa corriente.
-        float totalR  = pathFound.Sum(c => c.GetResistance());
-        if (totalR < 0.1f) totalR = 0.1f;
-        float vDiodes = pathFound.OfType<LED>().Sum(l => l.forwardVoltage);
-        float currentA = Mathf.Max(0f, arduino.outputVoltageTTL - vDiodes) / totalR;
-        r.currentMa    = currentA * 1000f;
-
-        if (r.currentMa > forwardLED.maxSafeCurrent * 1000f)
-            return Fail(r, $"Corriente estimada {r.currentMa:F1} mA supera el límite seguro " +
-                            $"del LED ({forwardLED.maxSafeCurrent * 1000f:F0} mA). " +
-                            "Aumenta la resistencia (330 Ω recomendado).");
+        if (!anySuccess || firstFailure != null)
+            return Fail(r, firstFailure ?? "El circuito no cumple el objetivo todavía.");
 
         // ── ¡Todo OK! ─────────────────────────────────────────────────────
         r.success = true;
-        r.message = $"¡Circuito validado! Pin D{arduino.activePinNumber} · " +
-                    $"BLINK {arduino.blinkIntervalOnMs}ms · " +
-                    $"I ≈ {r.currentMa:F1} mA · LED encendido de forma segura.";
+        r.message = candidatePins.Count == 1
+            ? $"¡Circuito validado! Pin D{candidatePins[0]} · I ≈ {r.currentMa:F1} mA · conexión segura."
+            : $"¡Circuito validado! {candidatePins.Count} pines activos (D{string.Join(", D", candidatePins)}), todos con conexión segura a GND.";
         return r;
     }
 

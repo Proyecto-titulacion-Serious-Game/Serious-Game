@@ -18,7 +18,7 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
 
     [Tooltip("Solo escena del Técnico: si está activo NO se crea la sala automáticamente; espera a " +
              "que se escriba el código en la UI (RoomCodeEntryUI) y se pulse 'Crear sala'.")]
-    public bool esperarEntradaDeCodigo = false;
+    public bool esperarEntradaDeCodigo = true;
 
     public enum AutoConnectRole { Ninguno, Explorador, Tecnico }
 
@@ -157,7 +157,10 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     //  Código de sala (room code)
     // ─────────────────────────────────────────────
 
-    private const string DEFAULT_ROOM   = "LaboratorioUbicua";
+    // Ya normalizada (MAYÚSCULAS): el panel del Técnico normaliza lo tecleado antes de crear la
+    // sala; si esta constante no estuviera normalizada, el default del PC ('LABORATORIOUBICUA')
+    // jamás coincidiría con el default del visor ('LaboratorioUbicua') y el Explorador no entraría.
+    private const string DEFAULT_ROOM   = "LABORATORIOUBICUA";
     private const string PREFS_ROOM_KEY  = "TITA.RoomCode";
 
     /// <summary>Código fijado en runtime por la UI antes de conectar. Tiene prioridad.</summary>

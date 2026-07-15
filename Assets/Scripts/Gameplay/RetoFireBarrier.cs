@@ -10,6 +10,10 @@ using UnityEngine;
 ///
 ///   Reto 2 (Parallel)  → se apaga al completar Reto 1 (OhmLaw).
 ///   Reto 3 (Mixed)     → se apaga al completar Reto 2 (Parallel).
+///
+/// Se apaga tanto si el reto previo se GANA como si se le ACABA EL TIEMPO (derrota): en
+/// ambos casos GameManager dispara <see cref="GameManager.OnLevelCompleted"/> con el reto
+/// terminado — la barrera no debe dejar al grupo atascado solo porque no llegaron a tiempo.
 /// </summary>
 public class RetoFireBarrier : MonoBehaviour
 {
@@ -47,7 +51,8 @@ public class RetoFireBarrier : MonoBehaviour
 
     void OnLevelCompleted(LevelType reto, bool success)
     {
-        if (success && reto == retoPrevioACompletar)
+        // Se apaga tanto en éxito como en timeout — ver comentario de clase.
+        if (reto == retoPrevioACompletar)
             Apagar();
     }
 

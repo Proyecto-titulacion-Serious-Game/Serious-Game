@@ -32,10 +32,10 @@ public class TechnicianManual : MonoBehaviour
                     "La misma corriente I fluye por todos los componentes.\n" +
                     "El voltaje total se divide en caídas proporcionales a cada R.",
 
-        formula   = "Ley de Ohm:     V = I × R\n" +
+        formula   = "Ley de Ohm:     V = I x R\n" +
                     "Corriente:       I = V / R_total\n" +
                     "R total serie:   R_t = R1 + R2 + ...\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "-------------------------\n" +
                     "Ejemplo con tus datos:\n" +
                     "R_necesaria = (V_fuente - V_LED) / I_LED\n" +
                     "I_LED correcto: 0.005A a 0.020A",
@@ -44,19 +44,19 @@ public class TechnicianManual : MonoBehaviour
                     "resistencia tiene el valor incorrecto.\n\n" +
                     "1. Pide al Explorador que mida V en nodo_A y nodo_B\n" +
                     "2. Calcula: R = (9V - V_LED) / I_objetivo\n" +
-                    "3. El valor correcto es 850 Ω\n" +
+                    "3. El valor correcto es 850 Ohm\n" +
                     "4. Escribe 850 en el campo y pulsa ENVIAR",
 
         tablaValores =
-                    "CÓDIGO DE COLORES — Resistencia 850Ω 5%\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "CÓDIGO DE COLORES — Resistencia 850 Ohm 5%\n" +
+                    "-------------------------\n" +
                     "Banda 1: Gris    (8)\n" +
                     "Banda 2: Verde   (5)\n" +
-                    "Banda 3: Marrón  (×10)\n" +
+                    "Banda 3: Marrón  (x10)\n" +
                     "Banda 4: Oro     (±5%)\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "Resistencia INCORRECTA en nave: 10Ω\n" +
-                    "→ Bandas: Marrón-Negro-Negro-Oro"
+                    "-------------------------\n" +
+                    "Resistencia INCORRECTA en nave: 10 Ohm\n" +
+                    "-> Bandas: Marrón-Negro-Negro-Oro"
     };
 
     // ─────────────────────────────────────────────
@@ -68,19 +68,19 @@ public class TechnicianManual : MonoBehaviour
 
         concepto  = "En paralelo, cada rama recibe el MISMO voltaje.\n" +
                     "El sensor (LED) es un DIODO: solo conduce en un sentido.\n" +
-                    "Si su polaridad está INVERTIDA no pasa corriente → apagado.",
+                    "Si su polaridad está INVERTIDA no pasa corriente -> apagado.",
 
         formula   = "POLARIDAD DEL LED (diodo):\n" +
-                    "  Ánodo (+, pata larga) → al voltaje positivo\n" +
-                    "  Cátodo (−, pata corta / banda plana) → a tierra\n\n" +
+                    "  Ánodo (+, pata larga) -> al voltaje positivo\n" +
+                    "  Cátodo (-, pata corta / banda plana) -> a tierra\n\n" +
                     "Cada rama lleva una resistencia de protección en serie,\n" +
                     "así el LED enciende SEGURO (verde) sin quemarse:\n" +
-                    "  I_rama = (V_fuente − V_LED) / (R_protección + R_LED)",
+                    "  I_rama = (V_fuente - V_LED) / (R_protección + R_LED)",
 
         objetivo  = "El sensor (LED) de una rama NO enciende porque está\n" +
                     "colocado con la POLARIDAD INVERTIDA (dañado).\n\n" +
                     "1. El Explorador conecta los cables de cada rama\n" +
-                    "   (VCC → resistencia → LED → GND) → enciende el LED\n" +
+                    "   (VCC -> resistencia -> LED -> GND) -> enciende el LED\n" +
                     "   bueno.\n" +
                     "2. Pide al Explorador medir el LED dañado (0V / sin\n" +
                     "   corriente = está al revés).\n" +
@@ -88,14 +88,14 @@ public class TechnicianManual : MonoBehaviour
                     "4. El Explorador REEMPLAZA el LED dañado colocando el\n" +
                     "   LED nuevo donde estaba: al soltarlo se conecta y\n" +
                     "   enciende solo (polaridad correcta).\n" +
-                    "5. Los 2 LED en VERDE → reto superado.",
+                    "5. Los 2 LED en VERDE -> reto superado.",
 
         tablaValores =
                     "ESTADO DEL SENSOR SEGÚN POLARIDAD\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "INVERTIDA:  I ≈ 0 A · LED apagado (negro)\n" +
-                    "CORRECTA:   I ≈ 10–15 mA · LED VERDE seguro\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "-------------------------\n" +
+                    "INVERTIDA:  I ~ 0 A · LED apagado (negro)\n" +
+                    "CORRECTA:   I ~ 10–15 mA · LED VERDE seguro\n" +
+                    "-------------------------\n" +
                     "Condición de victoria: LED verde (polaridad correcta\n" +
                     "y corriente en rango seguro, sin sobrecarga).\n\n" +
                     "PRECAUCIÓN: si crees que está todo conectado y no\n" +
@@ -111,37 +111,37 @@ public class TechnicianManual : MonoBehaviour
         titulo    = "RETO 3 — Circuito Mixto & Polaridad de Componentes",
 
         concepto  = "3 fallas simultáneas en el módulo de control:\n" +
-                    "• LED con polaridad invertida → no enciende\n" +
-                    "• Capacitor electrolítico invertido → cortocircuito\n" +
+                    "• LED con polaridad invertida -> no enciende\n" +
+                    "• Capacitor electrolítico invertido -> cortocircuito\n" +
                     "• Resistencia con código de colores erróneo",
 
         formula   = "POLARIDAD LED:\n" +
-                    "  Ánodo (+) → al voltaje positivo\n" +
-                    "  Cátodo (−) → a tierra (banda plana o pata corta)\n\n" +
+                    "  Ánodo (+) -> al voltaje positivo\n" +
+                    "  Cátodo (-) -> a tierra (banda plana o pata corta)\n\n" +
                     "POLARIDAD CAPACITOR electrolítico:\n" +
-                    "  (+) banda blanca / pata larga → positivo\n" +
-                    "  (−) banda negra / pata corta → tierra\n\n" +
-                    "CÓDIGO COLORES — R=220Ω:\n" +
+                    "  (+) banda blanca / pata larga -> positivo\n" +
+                    "  (-) banda negra / pata corta -> tierra\n\n" +
+                    "CÓDIGO COLORES — R=220 Ohm:\n" +
                     "  Rojo-Rojo-Marrón-Oro",
 
         objetivo  = "Corregir las 3 fallas EN ORDEN DE PRIORIDAD:\n\n" +
-                    "PRIORIDAD 1 → Capacitor (humo = riesgo crítico)\n" +
-                    "  Indica al Explorador: girar el capacitor 180°\n\n" +
-                    "PRIORIDAD 2 → LED invertido\n" +
+                    "PRIORIDAD 1 -> Capacitor (humo = riesgo crítico)\n" +
+                    "  Indica al Explorador: girar el capacitor 180 grados\n\n" +
+                    "PRIORIDAD 2 -> LED invertido\n" +
                     "  Indica: girar el LED para invertir polaridad\n\n" +
-                    "PRIORIDAD 3 → Resistencia incorrecta (470Ω)\n" +
-                    "  Valor correcto: 220Ω → Enviar componente",
+                    "PRIORIDAD 3 -> Resistencia incorrecta (470 Ohm)\n" +
+                    "  Valor correcto: 220 Ohm -> Enviar componente",
 
         tablaValores =
                     "RESISTENCIA INCORRECTA vs CORRECTA\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "INCORRECTA (nave): 470Ω\n" +
+                    "-------------------------\n" +
+                    "INCORRECTA (nave): 470 Ohm\n" +
                     "  Amarillo-Violeta-Marrón-Oro\n\n" +
-                    "CORRECTA:         220Ω\n" +
+                    "CORRECTA:         220 Ohm\n" +
                     "  Rojo-Rojo-Marrón-Oro\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "-------------------------\n" +
                     "Indicador de humo en capacitor:\n" +
-                    "  → corregir ANTES que el LED"
+                    "  -> corregir ANTES que el LED"
     };
 
     // ─────────────────────────────────────────────
@@ -160,13 +160,13 @@ public class TechnicianManual : MonoBehaviour
             "  El LED debe parpadear (BLINK) sin quemarse.\n\n" +
             "EXPLORADOR (guialo):\n" +
             "  Toma LED + resistencia de la bandeja VR.\n" +
-            "  Conecta: Pin elegido → LED → Resistencia → GND.\n\n" +
+            "  Conecta: Pin elegido -> LED -> Resistencia -> GND.\n\n" +
             "El validador detecta automaticamente cuando el\n" +
             "circuito es correcto, sin importar que pin usaron.",
 
         formula =
             "QUE HACE CADA COMANDO:\n" +
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "-------------------------\n" +
             "pinMode(pin, OUTPUT)\n" +
             "   Configura el pin como SALIDA (manda\n" +
             "   corriente). Va en setup(). Para un LED\n" +
@@ -180,7 +180,7 @@ public class TechnicianManual : MonoBehaviour
             "   parpadeo.\n" +
             "setup() corre 1 vez | loop() se repite siempre\n\n" +
             "COMO ELEGIR / VER EL PIN:\n" +
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "-------------------------\n" +
             "Los pines van rotulados D2..D13 en la placa\n" +
             "(el Explorador los ve en VR). El NUMERO que\n" +
             "escribas = el pin que se activa. Escribe 7 ->\n" +
@@ -223,15 +223,15 @@ public class TechnicianManual : MonoBehaviour
 
         tablaValores =
             "PINES DIGITALES DISPONIBLES:\n" +
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "-------------------------\n" +
             "D2  D3  D4  D5  D6  D7\n" +
             "D8  D9  D10 D11 D12 D13\n" +
-            "  → Cualquiera sirve · Evita D0 y D1 (RX/TX)\n\n" +
+            "  -> Cualquiera sirve · Evita D0 y D1 (RX/TX)\n\n" +
             "RESISTENCIA RECOMENDADA:\n" +
             "  330 Ohm = Naranja-Naranja-Marron-Oro\n" +
             "  R = (5V - 2V) / 0.01A = 300 -> usa 330 Ohm\n\n" +
             "HUD / TELEMETRIA — QUE SIGNIFICA CADA DATO:\n" +
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "-------------------------\n" +
             "  V   : voltaje en el pin activo (~5V en HIGH)\n" +
             "  I   : corriente en mA (pequena y estable)\n" +
             "  P   : potencia en W (consumo, debe ser bajo)\n" +
@@ -261,9 +261,9 @@ public class TechnicianManual : MonoBehaviour
             "  delay(500);\n" +
             "}\n\n" +
             "ERRORES QUE DETECTA EL COMPILADOR:\n" +
-            "  X  Sin OUTPUT → dice modo INPUT\n" +
-            "  X  Sin delay  → no hay BLINK\n" +
-            "  X  Pin 0 o 1  → fuera de rango\n\n" +
+            "  X  Sin OUTPUT -> dice modo INPUT\n" +
+            "  X  Sin delay  -> no hay BLINK\n" +
+            "  X  Pin 0 o 1  -> fuera de rango\n\n" +
             "CHECKLIST ANTES DE VALIDAR:\n" +
             "  [ ] Sketch subido (consola dice OK)\n" +
             "  [ ] LED en protoboard con polaridad OK\n" +

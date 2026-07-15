@@ -37,19 +37,45 @@ public class TechnicianManualDisplay : MonoBehaviour
     public Button btnPaginaSiguiente;
     public TMP_Text txtNumeroPagina;      // "Página 1 de 3"
 
-    [Header("Imagen del diagrama (opcional)")]
-    public Image   imgDiagrama;
-    public Sprite[] diagramas;            // sprites por reto
+    [Header("Imagen del diagrama (opcional) — se muestra/oculta por página, ver Pagina.imagen")]
+    public Image    imgDiagrama;
+    public RectTransform imgDiagramaRect;      // para reposicionarla por página (Pagina.imagenOffsetY/imagenTamano)
+    public TMP_Text txtImagenTitulo;           // etiqueta arriba de la imagen — se recoloca sola pegada al borde superior de la imagen
+    public RectTransform txtImagenTituloRect;
+    public Vector2 imgDiagramaPosBase     = new Vector2(330, 0);
+    public Vector2 imgDiagramaTamanoBase  = new Vector2(520, 600);   // tamaño si la página no especifica imagenTamano
+    public float   tituloSeparacion       = 26f;                    // espacio entre el borde superior de la imagen y su título
+    [Header("Reto 1 — imágenes específicas")]
+    public Sprite codigoColoresReto1;     // tabla de bandas de color de la resistencia
+    [Header("Reto 2 — imágenes específicas")]
+    public Sprite diagramaRamasReto2;     // esquema Rama 1 / Rama 2 (VCC-R-LED-GND)
+    public Sprite fotoProtoboardReto2;    // captura real de la protoboard armada
+    [Header("Reto 3 — imágenes específicas")]
+    public Sprite codigoColoresReto3;     // tabla de bandas de color de la resistencia
+    public Sprite capacitorPolaridadReto3; // simbolo + foto del capacitor (franja = negativo)
+    [Header("Reto 4 — imágenes específicas")]
+    public Sprite arduinoPinoutReto4;     // mapa de pines del Arduino UNO (D0-D13, A0-A5)
+    public Sprite fotoProtoboardReto4;    // captura real de la protoboard armada
 
     // ─────────────────────────────────────────────
     //  Páginas del manual
     // ─────────────────────────────────────────────
 
-    /// <summary>Cada página tiene contenido izquierdo y derecho.</summary>
+    /// <summary>Cada página tiene contenido izquierdo y derecho, y opcionalmente una imagen (se
+    /// muestra a la derecha, en imgDiagrama, solo mientras esta página esté visible) con su propio
+    /// título arriba (txtImagenTitulo). imagenOffsetY mueve la imagen verticalmente (el título se
+    /// recoloca solo, pegado a su borde superior). imagenTamano fija el tamaño de la caja de la
+    /// imagen (con PreserveAspect) — cada foto tiene su propia proporción (ancha, cuadrada, etc.),
+    /// así se aprovecha el espacio de la página en vez de dejarla diminuta dentro de una caja fija.
+    /// Si queda en (0,0) se usa imgDiagramaTamanoBase.</summary>
     private struct Pagina
     {
         public string izquierda;
         public string derecha;
+        public Sprite imagen;
+        public string imagenTitulo;
+        public float  imagenOffsetY;
+        public Vector2 imagenTamano;
     }
 
     private Pagina[] _paginas;
@@ -232,22 +258,79 @@ public class TechnicianManualDisplay : MonoBehaviour
                 {
                     new Pagina
                     {
+                        izquierda = "RAMA 1 y RAMA 2:\n\n" +
+                                    "El circuito tiene DOS ramas EN\nPARALELO — comparten el mismo\n" +
+                                    "riel VCC y el mismo riel GND.\n\n" +
+                                    "Cada rama, por separado, va:\n" +
+                                    "  VCC -> resistencia -> LED -> GND\n\n" +
+                                    "Si una rama no enciende, la OTRA\nno se afecta — revisa esa rama\n" +
+                                    "sola (su cable, su LED).\n\n" +
+                                    "Diagrama de referencia -->",
+                        derecha   = "",
+                        imagen    = diagramaRamasReto2,
+                        imagenTitulo = "Diagrama: como se ve en la protoboard real",
+                        imagenTamano = new Vector2(580, 360)
+                    },
+                    new Pagina
+                    {
+                        izquierda = "PROTOBOARD REAL:\n\n" +
+                                    "Asi se ve la protoboard armada\n" +
+                                    "del Reto 2 desde arriba.\n\n" +
+                                    "Rieles rojos (+) en los bordes,\n" +
+                                    "rieles azules (-) al centro.\n\n" +
+                                    "Usa esta imagen de referencia\npara guiar al Explorador: 'el\n" +
+                                    "slot verde de la izquierda',\n'el segundo desde el borde', etc.",
+                        derecha   = "",
+                        imagen    = fotoProtoboardReto2,
+                        imagenTitulo = "Foto real de la protoboard armada",
+                        imagenTamano = new Vector2(580, 308)
+                    },
+                    new Pagina
+                    {
                         izquierda = "DIAGNOSTICO — RETO 2:\n\n" +
-                                    "Sintoma: una rama del paralelo\nno enciende.\n\n" +
-                                    "1. Pide al Explorador medir el\n   voltaje de CADA rama.\n" +
-                                    "2. Rama con 9V pero LED apagado\n   = LED danado o invertido.\n" +
-                                    "3. Rama con 0V = conexion abierta.",
+                                    "El panel de diagnostico (pantalla)\n" +
+                                    "te dice esto EN VIVO, en su propio\nvocabulario:\n\n" +
+                                    "- 'Cables: X/Y conectados' = cuantos\n  jumpers YA cierran una rama.\n" +
+                                    "- 'Rama N: [OK]/[!]' = si ESA rama\n  ya prende de forma segura.\n" +
+                                    "- 'Ramas correctas: X/2' = cuantas\n  ramas ya estan listas.",
                         derecha   = "GUIA AL EXPLORADOR:\n\n" +
+                                    "- Si falta un cable: usa la foto\n  de la protoboard (pagina anterior)\n" +
+                                    "  para indicarle CUAL slot.\n" +
                                     "- El LED nuevo va con el ANODO\n  (pata larga) hacia el positivo.\n" +
                                     "- Verde continuo = polaridad OK.\n" +
                                     "- La rama tiene proteccion de\n  470 Ohm: no se quema al probar.\n\n" +
-                                    "Victoria: LED colocado con la\npolaridad correcta."
+                                    "Victoria: 'Ramas correctas: 2/2'."
                     }
                 };
 
             case LevelType.Mixed:
                 return new[]
                 {
+                    new Pagina
+                    {
+                        izquierda = "CODIGO DE COLORES (repaso):\n\n" +
+                                    "Este reto trae una resistencia\ncon el VALOR incorrecto — hay\n" +
+                                    "que leer sus bandas para saber\ncual es.\n\n" +
+                                    "1a y 2a banda = digitos\n3a banda = cantidad de ceros\n" +
+                                    "4a banda = tolerancia\n\n" +
+                                    "Compara contra la tabla de la\npagina anterior (850/220/330/\n470 Ohm).",
+                        derecha   = "",
+                        imagen    = codigoColoresReto3,
+                        imagenTitulo = "Como leer las bandas de color",
+                        imagenTamano = new Vector2(580, 330)
+                    },
+                    new Pagina
+                    {
+                        izquierda = "POLARIDAD DEL CAPACITOR:\n\n" +
+                                    "El capacitor electrolitico TIENE\npolaridad, igual que el LED.\n\n" +
+                                    "La pata LARGA (o el lado SIN\nfranja) es el POSITIVO (+).\n" +
+                                    "La franja pintada en el cuerpo\nmarca el NEGATIVO (-).\n\n" +
+                                    "Invertido no enciende nada y\npuede danar el componente.",
+                        derecha   = "",
+                        imagen    = capacitorPolaridadReto3,
+                        imagenTitulo = "Simbolo y capacitor real: franja = negativo",
+                        imagenTamano = new Vector2(480, 480)
+                    },
                     new Pagina
                     {
                         izquierda = "DIAGNOSTICO — RETO 3:\n\n" +
@@ -272,24 +355,90 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "void setup() {\n  pinMode(13, OUTPUT);\n}\n\n" +
                                     "void loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n" +
                                     "  digitalWrite(13, LOW);\n  delay(500);\n}\n\n" +
-                                    "El objetivo es PARPADEAR:\nHIGH fijo no completa el reto.",
+                                    "Este es solo UN ejemplo posible.",
                         derecha   = "FUNCIONES DISPONIBLES:\n\n" +
                                     "pinMode(pin, OUTPUT)\ndigitalWrite(pin, HIGH/LOW)\n" +
                                     "analogWrite(pin, 0-255)  (brillo)\nanalogRead(A0)\ndelay(ms)\nmillis()\n\n" +
-                                    "Soporta variables, if, for, while\ny funciones propias. El codigo es\n" +
-                                    "LIBRE: cada partida puede usar un\nsketch distinto."
+                                    "El codigo es LIBRE: no hay un\nunico patron correcto.\n\n" +
+                                    "Ver pag. siguiente: estructuras\nde control y mas ejemplos."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "MAPA DE PINES:\n\n" +
+                                    "Cada pin digital tiene un NUMERO\n" +
+                                    "(el que usas en pinMode/\n" +
+                                    "digitalWrite). Los marcados con\n" +
+                                    "'~' tambien sirven para PWM\n" +
+                                    "(analogWrite).\n\n" +
+                                    "A0-A5 son ENTRADAS analogicas\n" +
+                                    "(analogRead), no de salida.\n\n" +
+                                    "GND aparece en varios lugares:\ncualquiera sirve.",
+                        derecha   = "",
+                        imagen    = arduinoPinoutReto4,
+                        imagenTitulo = "Arduino UNO — pines etiquetados",
+                        imagenTamano = new Vector2(580, 387)
                     },
                     new Pagina
                     {
                         izquierda = "CABLEADO DEL PROTOBOARD:\n\n" +
-                                    "Camino obligatorio:\n\n" +
-                                    "Pin digital (D2-D13)\n   |\n   cable\n   |\nResistencia (>= 100 Ohm)\n   |\n" +
-                                    "LED (anodo al lado del pin)\n   |\nGND del Arduino",
+                                    "Camino obligatorio (por cada pin\nque tu codigo use):\n\n" +
+                                    "Pin digital (D2-D13)\n   |\n   cable\n   |\nResistencia\n   |\n" +
+                                    "LED (anodo al lado del pin)\n   |\nGND del Arduino\n\n" +
+                                    "El LED es OPCIONAL: una rama\ncon solo resistencia a GND\ntambien es valida.",
                         derecha   = "REGLAS DE ORO:\n\n" +
                                     "- El pin del CODIGO debe ser el\n  MISMO pin cableado.\n" +
-                                    "- Sin resistencia el LED explota\n  (soporta max. 100 mA) y hay\n  que pedir otro.\n" +
+                                    "- Sin resistencia el LED explota\n  y hay que pedir otro.\n" +
                                     "- 330 Ohm es el valor recomendado\n  (I aprox. 9 mA, segura).\n" +
-                                    "- El circuito debe CERRAR en GND;\n  un extremo suelto = abierto."
+                                    "- El circuito debe CERRAR en GND;\n  un extremo suelto = abierto.\n" +
+                                    "- Puedes usar VARIOS pines a la\n  vez, cada uno con su rama."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "PROTOBOARD REAL:\n\n" +
+                                    "Asi se ve la protoboard del\n" +
+                                    "Reto 4 desde arriba.\n\n" +
+                                    "Rieles rojos (+) en los bordes,\n" +
+                                    "rieles azules (-) al centro —\n" +
+                                    "igual que en el Reto 2.\n\n" +
+                                    "Usa esta imagen para guiar al\nExplorador: 'el slot verde de\n" +
+                                    "la izquierda', etc.",
+                        derecha   = "",
+                        imagen    = fotoProtoboardReto4,
+                        imagenTitulo = "Foto real de la protoboard armada",
+                        imagenTamano = new Vector2(580, 308)
+                    },
+                    new Pagina
+                    {
+                        izquierda = "ESTRUCTURAS DE CONTROL:\n\n" +
+                                    "if / else:\nif (x > 10) {\n  digitalWrite(9, HIGH);\n} else {\n" +
+                                    "  digitalWrite(9, LOW);\n}\n\n" +
+                                    "for:\nfor (int i=0; i<3; i++) {\n  digitalWrite(pines[i], HIGH);\n" +
+                                    "  delay(300);\n}\n\n" +
+                                    "while:\nwhile (analogRead(A0) < 500) {\n  delay(50);\n}",
+                        derecha   = "FUNCIONES PROPIAS:\n\n" +
+                                    "Puedes crear tus propias\nfunciones para no repetir\ncodigo:\n\n" +
+                                    "void parpadear(int pin, int ms) {\n  digitalWrite(pin, HIGH);\n" +
+                                    "  delay(ms);\n  digitalWrite(pin, LOW);\n  delay(ms);\n}\n\n" +
+                                    "void loop() {\n  parpadear(9, 300);\n  parpadear(10, 300);\n}\n\n" +
+                                    "Variables: int, long, float,\nbool. Arreglos: int pines[3]\n= {9, 10, 11};"
+                    },
+                    new Pagina
+                    {
+                        izquierda = "EJEMPLO: SEMAFORO (3 LEDs):\n\n" +
+                                    "int pines[3] = {9, 10, 11};\n\n" +
+                                    "void setup() {\n  for (int i=0; i<3; i++)\n" +
+                                    "    pinMode(pines[i], OUTPUT);\n}\n\n" +
+                                    "void loop() {\n  for (int i=0; i<3; i++) {\n" +
+                                    "    digitalWrite(pines[i], HIGH);\n    delay(700);\n" +
+                                    "    digitalWrite(pines[i], LOW);\n  }\n}\n\n" +
+                                    "Cada pin necesita su propio\nLED + resistencia hasta GND.",
+                        derecha   = "PWM (BRILLO GRADUAL):\n\n" +
+                                    "void loop() {\n  analogWrite(9, 128);  // 50%\n  delay(1000);\n" +
+                                    "  analogWrite(9, 255); // 100%\n  delay(1000);\n}\n\n" +
+                                    "SIN LED (corriente continua):\n\n" +
+                                    "void setup() {\n  pinMode(9, OUTPUT);\n}\n" +
+                                    "void loop() {\n  digitalWrite(9, HIGH);\n}\n\n" +
+                                    "Valido si solo hay resistencia\nde pin a GND, sin sobrecarga."
                     },
                     new Pagina
                     {
@@ -302,26 +451,47 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "R = (Vpin - Vled) / I\n\n" +
                                     "Con Arduino (5 V) y Vled = 2 V:\n" +
                                     "R = (5 - 2) / 0.02 = 150 Ohm\n(minimo teorico para 20 mA)\n\n" +
-                                    "Por eso el reto exige R >= 100\ny recomienda 330 Ohm.\n\n" +
+                                    "Por eso se recomienda 330 Ohm.\n\n" +
                                     "El monitor muestra el desglose:\n'LED cae X V - R absorbe Y V'."
                     },
                     new Pagina
                     {
                         izquierda = "DIAGNOSTICO — RETO 4:\n\n" +
-                                    "El boton Comprobar reporta la\nfalla en esta consola:\n\n" +
-                                    "- 'Pin sin OUTPUT' = falta\n  pinMode en setup().\n" +
-                                    "- 'Sin BLINK' = el loop no alterna\n  HIGH/LOW con delay.\n" +
-                                    "- 'No llega a GND' = circuito\n  abierto: revisar cables.",
+                                    "El boton Comprobar reporta la\nfalla real de la simulacion:\n\n" +
+                                    "- 'Ningun pin activo' = el codigo\n  no escribe HIGH/PWM en loop().\n" +
+                                    "- 'No llega a GND' = falta cerrar\n  el circuito con un cable.\n" +
+                                    "- 'LED invertido' = el LED esta\n  al reves en su rama.",
                         derecha   = "MAS FALLAS TIPICAS:\n\n" +
-                                    "- 'LED con polaridad invertida'\n  = girarlo 180 grados.\n" +
-                                    "- 'Falta resistencia >= 100 Ohm'\n  = enviar/colocar una R.\n" +
-                                    "- 'Corriente supera el limite'\n  = subir el valor de la R.\n\n" +
-                                    "La telemetria (V/I/P/ADC) del\nmonitor confirma cada arreglo."
+                                    "- 'LED no enciende' = corriente\n  insuficiente en esa rama.\n" +
+                                    "- 'Demasiada corriente' = sube\n  la resistencia (330 Ohm rec.).\n" +
+                                    "- 'Sobrecarga o cortocircuito'\n  (rama sin LED) = sube la R.\n\n" +
+                                    "Ya NO hace falta que el LED\nparpadee: HIGH fijo, PWM, o\n" +
+                                    "corriente continua sin LED\ntambien son validos si la\nconexion es segura."
+                    }
+                };
+
+            case LevelType.OhmLaw:
+                return new[]
+                {
+                    new Pagina
+                    {
+                        izquierda = "COMO LEER LA RESISTENCIA:\n\n" +
+                                    "Cada banda de color es un digito\n" +
+                                    "(o un multiplicador). Leelas de\n" +
+                                    "izquierda a derecha, empezando\n" +
+                                    "por el lado mas alejado de la\n" +
+                                    "banda dorada/plateada (tolerancia).\n\n" +
+                                    "Compara el resultado con la tabla\n" +
+                                    "de la pagina anterior (850 Ohm).",
+                        derecha   = "",
+                        imagen    = codigoColoresReto1,
+                        imagenTitulo = "Bandas de color de la resistencia",
+                        imagenTamano = new Vector2(580, 330)
                     }
                 };
 
             default:
-                return System.Array.Empty<Pagina>();   // Reto 1: solo las 3 paginas base
+                return System.Array.Empty<Pagina>();
         }
     }
 
@@ -348,17 +518,74 @@ public class TechnicianManualDisplay : MonoBehaviour
         Set(txtPaginaDerecha,   p.derecha);
         Set(txtNumeroPagina,    $"Pag {index + 1} / {_paginas.Length}");
 
-        // Diagrama en página 2
-        if (imgDiagrama != null && diagramas != null)
-        {
-            int idx = (int)(gameManager?.currentLevel ?? 0);
-            if (index == 1 && idx < diagramas.Length && diagramas[idx] != null)
-                imgDiagrama.sprite = diagramas[idx];
-        }
+        // Imagen + título: SOLO visibles en la página que los trae asignados — antes la imagen
+        // quedaba pegada en pantalla al cambiar de página porque nada la ocultaba. La posición
+        // (imagenOffsetY) se aplica junto con la visibilidad, para que páginas con más o menos
+        // texto puedan correr la imagen/título sin pisar el texto.
+        AplicarImagenDePagina(p);
 
         // Botones de navegación
         if (btnPaginaAnterior  != null) btnPaginaAnterior.interactable  = index > 0;
         if (btnPaginaSiguiente != null) btnPaginaSiguiente.interactable = index < _paginas.Length - 1;
+    }
+
+    void AplicarImagenDePagina(Pagina p)
+    {
+        Vector2 posImagen = imgDiagramaPosBase + new Vector2(0, p.imagenOffsetY);
+
+        if (imgDiagrama != null)
+        {
+            if (p.imagen != null)
+            {
+                Vector2 tamano = p.imagenTamano != Vector2.zero ? p.imagenTamano : imgDiagramaTamanoBase;
+                imgDiagrama.sprite = p.imagen;
+                imgDiagrama.gameObject.SetActive(true);
+                if (imgDiagramaRect != null)
+                {
+                    imgDiagramaRect.sizeDelta = tamano;
+                    imgDiagramaRect.anchoredPosition = posImagen;
+                }
+            }
+            else
+            {
+                imgDiagrama.gameObject.SetActive(false);
+            }
+        }
+
+        if (txtImagenTitulo != null)
+        {
+            bool hayTitulo = p.imagen != null && !string.IsNullOrEmpty(p.imagenTitulo);
+            txtImagenTitulo.gameObject.SetActive(hayTitulo);
+            if (hayTitulo)
+            {
+                txtImagenTitulo.text = p.imagenTitulo;
+                if (txtImagenTituloRect != null)
+                {
+                    // Pegado al borde superior REAL de la imagen (según su tamaño de esta
+                    // página), no a una posición fija — así nunca queda flotando lejos de
+                    // una imagen chica ni encimado sobre una imagen grande.
+                    Vector2 tamano = p.imagenTamano != Vector2.zero ? p.imagenTamano : imgDiagramaTamanoBase;
+                    float bordeSuperior = posImagen.y + tamano.y / 2f;
+                    txtImagenTituloRect.anchoredPosition = new Vector2(posImagen.x, bordeSuperior + tituloSeparacion);
+                }
+            }
+        }
+    }
+
+    /// <summary>Fuerza ocultar/restaurar la imagen (y su título) de la página SIN cambiar de
+    /// página — lo usa <see cref="ManualGlossaryToggle"/> para taparlos mientras el glosario está
+    /// abierto encima. Al restaurar (visible=true), respeta si la página actual trae imagen o no.</summary>
+    public void SetImagenVisible(bool visible)
+    {
+        if (!visible)
+        {
+            if (imgDiagrama       != null) imgDiagrama.gameObject.SetActive(false);
+            if (txtImagenTitulo   != null) txtImagenTitulo.gameObject.SetActive(false);
+            return;
+        }
+
+        if (_paginas != null && _paginaActual >= 0 && _paginaActual < _paginas.Length)
+            AplicarImagenDePagina(_paginas[_paginaActual]);
     }
 
     // ─────────────────────────────────────────────
@@ -398,7 +625,7 @@ public class TechnicianManualDisplay : MonoBehaviour
         return gameManager.currentLevel switch
         {
             LevelType.OhmLaw   => "VALORES DEL RETO 1:\n\nFuente: 9V\nR correcta: 850 Ohm\nLED R interna: 50 Ohm\nI objetivo: 10 mA",
-            LevelType.Parallel => "VALORES DEL RETO 2:\n\nFuente: 9V\nR normal por rama: 50 Ohm\nRama rota: 9999 Ohm\nI por rama: 180 mA",
+            LevelType.Parallel => "VALORES DEL RETO 2:\n\nFuente: 9V\nProteccion de rama: 470 Ohm\nRama rota: circuito abierto\nI segura por rama: ~13 mA",
             LevelType.Mixed    => "VALORES DEL RETO 3:\n\nR serie incorrecta: 470 Ohm\nR correcta: 220 Ohm\nLED: polaridad invertida\nCap: polaridad invertida",
             LevelType.Arduino  => "SANDBOX RETO 4:\n\nFuente: 5V (TTL)\nPines libres: D2-D13\nR minima: 100 Ohm\nR recomendada: 330 Ohm\nI max LED: 20 mA",
             _ => "—"

@@ -138,11 +138,10 @@ public class LED : ElectricalComponent
         GameManager.OnLevelLoaded    -= OnLevelLoadedHandler;
     }
 
-    // Al completar el reto con éxito, si este LED está encendido, cambia su render al verde de victoria.
-    void OnLevelCompletedHandler(LevelType _, bool success)
-    {
-        if (success && isOn && victoryMaterial != null) ApplyVictoryRender();
-    }
+    // Al completar el reto con éxito NO cambiamos a un material fijo: eso bloqueaba el latido
+    // intenso de CircuitVictoriaEffect (Update() corta temprano si _victoryRender está activo).
+    // El pulso de BoostVictoria (mucho más vistoso) es ahora el único efecto de victoria del LED.
+    void OnLevelCompletedHandler(LevelType _, bool success) { }
 
     // Al cargar un nuevo reto, restaura el material original.
     void OnLevelLoadedHandler(LevelType _) => RestoreRender();

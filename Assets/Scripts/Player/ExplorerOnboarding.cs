@@ -159,15 +159,15 @@ public class ExplorerOnboarding : MonoBehaviour
         bool isLast = index == Slides.Length - 1;
         if (_hintTMP != null)
             _hintTMP.text = isLast
-                ? "▶  Presiona <b>Trigger</b> para comenzar"
-                : "Presiona <b>Trigger</b> para continuar  →";
+                ? ">>  Presiona <b>Trigger</b> para comenzar"
+                : "Presiona <b>Trigger</b> para continuar  ->";
 
         // Progress bar as dots
         if (_progressBarTMP != null)
         {
             var sb = new System.Text.StringBuilder();
             for (int i = 0; i < Slides.Length; i++)
-                sb.Append(i == index ? "●  " : "○  ");
+                sb.Append(i == index ? "*  " : "o  ");
             _progressBarTMP.text = sb.ToString().TrimEnd();
         }
     }

@@ -28,6 +28,10 @@ public class Reto2CircuitGuard : MonoBehaviour
     ProtoboardSimulator _sim;
     bool _activo;
 
+    // LED de reemplazo ya fijado en su rama (si existe) — se destruye al completar el Reto 2
+    // con éxito, para no dejarlo "de sobra" en la escena una vez resuelto el reto.
+    GameObject _ledReemplazoActual;
+
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
     {
@@ -36,8 +40,30 @@ public class Reto2CircuitGuard : MonoBehaviour
         Instance = go.AddComponent<Reto2CircuitGuard>();
     }
 
-    void OnEnable()  => GameManager.OnLevelLoaded += OnLevel;
-    void OnDisable() => GameManager.OnLevelLoaded -= OnLevel;
+    void OnEnable()
+    {
+        GameManager.OnLevelLoaded    += OnLevel;
+        GameManager.OnLevelCompleted += OnLevelCompletedHandler;
+    }
+
+    void OnDisable()
+    {
+        GameManager.OnLevelLoaded    -= OnLevel;
+        GameManager.OnLevelCompleted -= OnLevelCompletedHandler;
+    }
+
+    /// <summary>Al completar el Reto 2 con éxito, el LED de reemplazo ya cumplió su función
+    /// (queda encendido de forma segura) — lo hacemos desaparecer junto con el resto de la
+    /// celebración, en vez de dejarlo "soldado" a la vista una vez resuelto el reto.</summary>
+    void OnLevelCompletedHandler(LevelType reto, bool success)
+    {
+        if (reto != LevelType.Parallel || !success) return;
+        if (_ledReemplazoActual != null)
+        {
+            Destroy(_ledReemplazoActual);
+            _ledReemplazoActual = null;
+        }
+    }
 
     void Start()
     {
@@ -87,16 +113,33 @@ public class Reto2CircuitGuard : MonoBehaviour
             if (led.isOn) on++;
             if (EsNombreDanado(led.name) && led.polarityInverted) danadoPresente = true;
         }
-        // Resumen SIMPLE para el Técnico: estado + una acción.
+
+        // Cables físicos: cuántos están enchufados en AMBAS puntas (cierran de verdad una rama).
+        // Sin esto el resumen decía genéricamente "falta completar el cableado" aunque el Explorador
+        // ya hubiera conectado algo — no le decía CUÁNTOS cables faltan.
+        int cablesOk = 0, cablesTotal = 0;
+        foreach (var cable in FindObjectsByType<CableElectricalBridge>(FindObjectsInactive.Exclude))
+        {
+            cablesTotal++;
+            bool puntaA = cable.start != null && cable.start.IsConnected;
+            bool puntaB = cable.end   != null && cable.end.IsConnected;
+            if (puntaA && puntaB) cablesOk++;
+        }
+
+        // Resumen SIMPLE para el Técnico: estado + una acción. "Ramas" (no "LEDs") para que el
+        // vocabulario coincida con el panel de diagnóstico y con el manual (pág. "RAMA 1 y RAMA 2").
         string r;
         if (total > 0 && on == total)
-            r = $"LEDs: {on}/{total} ✅\nCircuito completo.";
+            r = $"Ramas: {on}/{total} ✅\nCircuito completo.";
         else if (danadoPresente)
-            r = $"LEDs: {on}/{total}\nFalta: reemplazar el LED dañado.";
+            r = $"Ramas: {on}/{total}\nFalta: reemplazar el LED dañado.";
+        else if (cablesTotal > 0 && cablesOk < cablesTotal)
+            r = $"Ramas: {on}/{total}\nCables: {cablesOk}/{cablesTotal} conectados. " +
+                $"Falta enchufar {cablesTotal - cablesOk}. Ver foto de la\nprotoboard en el manual.";
         else if (on == 0)
-            r = $"LEDs: {on}/{total}\nFalta: completar el cableado.";
+            r = $"Ramas: {on}/{total}\nFalta: completar el cableado.";
         else
-            r = $"LEDs: {on}/{total}\nCasi — revisa la rama apagada.";
+            r = $"Ramas: {on}/{total}\nCasi — revisa la rama apagada.";
 
         if (r == _ultimoResumen) return;   // no reenviar si no cambió
         _ultimoResumen = r;
@@ -141,6 +184,16 @@ public class Reto2CircuitGuard : MonoBehaviour
     // ─────────────────────────────────────────────
     //  Reemplazo del LED dañado (lo llama ExplorerComponentReceiver al entregar un LED)
     // ─────────────────────────────────────────────
+
+    [Header("Protección eléctrica de la rama")]
+    [Tooltip("Resistencia de protección (Ω) que se SUMA a la resistencia propia del LED nuevo al " +
+             "cablearlo. Sin esto, el branch queda en Battery(9V)→LED(50Ω) puro ≈180 mA — muy por " +
+             "encima del umbral 'Correcto' del LED (20 mA) y del de sobrecarga (50 mA): el LED " +
+             "SIEMPRE se clasificaría en rojo/Overload y el Reto 2 nunca podría ganarse, aunque " +
+             "LEDBlowEffect ya evita que explote en este reto (ver su exclusión de LevelType.Parallel). " +
+             "470 Ω (el mismo valor documentado en el manual del Técnico) deja la rama en ≈13 mA, " +
+             "dentro del rango verde/Correcto.")]
+    public float protectionOhms = 470f;
 
     [Header("Slot correcto para el LED de reemplazo")]
     [Tooltip("El LED nuevo SOLO encaja (y se fija) al soltarlo cerca del slot con esta fila/columna. " +
@@ -259,6 +312,13 @@ public class Reto2CircuitGuard : MonoBehaviour
         var led = ledGO.GetComponent<LED>() ?? ledGO.GetComponentInChildren<LED>(true);
         if (led == null) { Debug.LogWarning("[Reto2CircuitGuard] El componente entregado no es un LED."); return; }
 
+        // Rotación "horizontal" estándar del Reto 2: tanto Circuit_LED1 (rama OK) como Circuit_LED2
+        // (dañado) están a 90° en Y respecto al protoboard — es la orientación de diseño de CUALQUIER
+        // LED en este board, no una inclinación del dañado. La aplicamos siempre, sin depender de
+        // encontrar el LED dañado (que solo hace falta para la posición y el cableado eléctrico).
+        Quaternion rotacionHorizontal = (_sim != null ? _sim.transform.rotation : Quaternion.identity)
+                                         * Quaternion.Euler(0f, 90f, 0f);
+
         // Localizar el LED DAÑADO y leer SUS rieles reales (respeta tu diseño; no hardcodeamos columnas).
         var danado = BuscarLedDanado(led);
         string railA = null, railB = null;
@@ -270,12 +330,22 @@ public class Reto2CircuitGuard : MonoBehaviour
             // (El LED conduce ánodo→cátodo; si lo dejamos al revés, no prende aunque haya energía.)
             if (EsGnd(railA) && !EsGnd(railB)) { (railA, railB) = (railB, railA); }
 
-            // El nuevo hereda la posición/rotación/escala del dañado (queda "donde estaba"). Solo
-            // movemos el LED NUEVO (no es parte del diseño calibrado); el dañado no se toca, se oculta.
+            // El nuevo hereda la posición del dañado (queda "donde estaba") y la rotación horizontal
+            // estándar del board. Solo movemos el LED NUEVO; el dañado no se toca, se oculta.
             var t = danado.transform;
-            ledGO.transform.SetPositionAndRotation(t.position, t.rotation);
+            ledGO.transform.SetPositionAndRotation(t.position, rotacionHorizontal);
             ledGO.transform.localScale = t.lossyScale;
             danado.gameObject.SetActive(false);
+        }
+        else
+        {
+            // Sin LED dañado identificable (p.ej. si vuelve a cambiar de nombre en el futuro):
+            // al menos dejarlo bien orientado en el slot correcto en vez de "torcido" donde cayó.
+            var slotFallback = BuscarSlotCorrecto();
+            if (slotFallback != null)
+                ledGO.transform.SetPositionAndRotation(slotFallback.transform.position, rotacionHorizontal);
+            else
+                ledGO.transform.rotation = rotacionHorizontal;
         }
 
         foreach (var rb in ledGO.GetComponentsInChildren<Rigidbody>(true))
@@ -290,8 +360,11 @@ public class Reto2CircuitGuard : MonoBehaviour
             if (col != null && !col.isTrigger) col.enabled = false;   // que no lo "empuje" la mano
 
         led.polarityInverted = false;   // el LED nuevo va con polaridad correcta
+        led.resistance += protectionOhms;   // rama protegida → corriente segura (ver tooltip de protectionOhms)
         var conn = ProtoboardConnector.EnsureOn(led.gameObject) ?? led.GetComponent<ProtoboardConnector>();
         if (conn == null) conn = led.gameObject.AddComponent<ProtoboardConnector>();
+
+        _ledReemplazoActual = ledGO;   // recordarlo para poder quitarlo al completar el reto
 
         if (!string.IsNullOrEmpty(railA) && !string.IsNullOrEmpty(railB) && railA != railB)
         {
@@ -354,7 +427,8 @@ public class Reto2CircuitGuard : MonoBehaviour
     {
         if (string.IsNullOrEmpty(n)) return false;
         n = n.ToLowerInvariant();
-        return n.Contains("damaged") || n.Contains("dañad") || n.Contains("danad") || n.Contains("faulty");
+        return n.Contains("damaged") || n.Contains("dañad") || n.Contains("danad") || n.Contains("faulty")
+            || n.Contains("circuit_led2");   // nombre real del LED dañado del Reto 2 en la escena actual
     }
 
     static bool EsGnd(string railId) =>

@@ -147,22 +147,26 @@ public class GameManager : MonoBehaviour
         Debug.Log("[GameManager] OnNetworkCableFixed recibido (sandbox: no-op, solo marca dirty).");
     }
 
-    /// <summary>El Explorador solicitó validación desde el botón físico en red.</summary>
+    /// <summary>Se solicitó validación en red (botón físico del Explorador en Reto 4, o F8 de
+    /// precaución del Técnico en cualquier reto — ver TecnicoValidarPrecaucion).</summary>
     void OnNetworkValidacionSolicitada()
     {
-        // El RPC llega a TODOS los clientes, pero solo debe evaluar la máquina que tiene los
-        // motores del reto (el Explorador). El Técnico también tiene GameManager (dashboard),
-        // y sin motor local su evaluación daría SIEMPRE "incorrecto": inflaría sus métricas de
-        // errores (las que suben a Sheets) y publicaría un diagnóstico falso que compite con el
-        // real del Explorador.
+        // El RPC llega a TODOS los clientes, pero solo debe evaluar el Explorador (dueño real de
+        // los motores del reto). El Técnico también tiene GameManager (dashboard) y, para Retos
+        // 1-3, su copia de NoonA trae sus propios CircuitManager/LED/Resistor — así que "¿existe
+        // un motor local?" ya NO distingue Técnico de Explorador (antes se comprobaba contra
+        // CircuitSimulator, motor que quedó sin ninguna instancia en la escena tras migrar a piezas
+        // fijas — ver retos123_componentes_fijos.md — dejando este guard permanentemente cerrado y
+        // el botón F8 mudo en Retos 1-3). Usamos el mismo chequeo de autoridad de red que ya usa
+        // CompleteLevel(): HasStateAuthority=true → soy el Host (Técnico) → no evalúo.
+        var gs = GameSession.Instance;
+        bool soyTecnicoEnRed = gs != null && gs.Object != null && gs.Object.IsValid && gs.Object.HasStateAuthority;
+        if (soyTecnicoEnRed) return;
+
         if (_currentLevel == LevelType.Arduino)
         {
             if (protoSim == null) protoSim = FindProtoSim();
-            if (protoSim == null) return;   // Técnico: sin sandbox local → no evalúa
-        }
-        else if (circuit == null && FindAnyObjectByType<CircuitSimulator>() == null)
-        {
-            return;                          // Técnico: sin circuito local → no evalúa
+            if (protoSim == null) return;   // el Explorador aún no cargó su sandbox del Reto 4
         }
 
         bool paso = EvaluacionManualBotonFisico();

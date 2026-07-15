@@ -61,10 +61,11 @@ public class PauseMenu : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null || !kb.escapeKey.wasPressedThisFrame) return;
 
-        // Si hay un panel de Arduino abierto, Escape lo cierra (lo maneja
-        // ArduinoMonitorInteract) y NO abrimos la pausa: evita que ambos reaccionen al
-        // mismo Escape. Solo cuando no hay panel abierto, Escape togglea la pausa.
-        if (!IsPaused && ArduinoMonitorInteract.AnyOpen) return;
+        // Si hay un panel de Arduino o el manual abiertos, este Escape lo cierra a ÉL (lo
+        // manejan ArduinoMonitorInteract / ManualBookOpener) y NO abrimos la pausa encima:
+        // evita que un Escape para cerrar el manual/Hub también congele el juego con la
+        // pausa. Solo cuando no hay ningún panel abierto, Escape togglea la pausa.
+        if (!IsPaused && (ArduinoMonitorInteract.AnyOpen || ManualBookOpener.AnyOpen)) return;
 
         // Estando en Ajustes, Escape vuelve al menú principal de pausa (no sale del todo).
         if (IsPaused && _settingsPanel != null && _settingsPanel.activeSelf) { CloseSettings(); return; }

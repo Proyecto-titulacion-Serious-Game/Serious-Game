@@ -189,23 +189,23 @@ public class ExplorerTaskClipboard : MonoBehaviour
     {
         SetStatus("EVALUANDO CIRCUITO...", "El sistema verifica tu montaje.", _amber, _bgAlerta);
         SetFondo(_bgAlerta);
-        ShowNetEvento("⏳  Validación enviada al servidor...", _amber);
+        ShowNetEvento("...  Validacion enviada al servidor...", _amber);
     }
 
     void OnResultadoValidacion(bool paso, int codigoMotivo)
     {
         if (paso)
         {
-            SetStatus("✓  CIRCUITO APROBADO", "¡El montaje es correcto!", _green, _bgPass);
+            SetStatus("[OK]  CIRCUITO APROBADO", "¡El montaje es correcto!", _green, _bgPass);
             SetFondo(_bgPass);
-            ShowNetEvento("✓  APROBADO por el sistema", _green);
+            ShowNetEvento("[OK]  APROBADO por el sistema", _green);
         }
         else
         {
             string motivo = ValidationMotivo.Texto(codigoMotivo);
-            SetStatus($"✕  {motivo}", "Revisa el circuito e inténtalo de nuevo.", _red, _bgFail);
+            SetStatus($"[X]  {motivo}", "Revisa el circuito e inténtalo de nuevo.", _red, _bgFail);
             SetFondo(_bgFail);
-            ShowNetEvento($"✕  {motivo}", _red);
+            ShowNetEvento($"[X]  {motivo}", _red);
         }
     }
 

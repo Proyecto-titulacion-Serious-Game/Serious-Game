@@ -24,12 +24,13 @@ Material:
   m_Shader: {fileID: 4800000, guid: 933532a4fcc9baf4fa0491de14d08ed7, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords: []
+  m_ValidKeywords:
+  - _SMOOTHNESS_TEXTURE_ALBEDO_CHANNEL_A
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
   m_DoubleSidedGI: 0
-  m_CustomRenderQueue: -1
+  m_CustomRenderQueue: 2000
   stringTagMap:
     MotionVector: User
     RenderType: Opaque
@@ -154,7 +155,7 @@ Material:
     - _GlossyReflections: 0
     - _MaterialID: 1
     - _MaterialTypeMask: 2
-    - _Metallic: 0
+    - _Metallic: 0.981
     - _MetallicScale: 1
     - _NormalScale: 1
     - _OcclusionStrength: 1
@@ -170,11 +171,11 @@ Material:
     - _RenderQueueType: 1
     - _RequireSplitLighting: 0
     - _SampleGI: 0
-    - _Smoothness: 0.5
+    - _Smoothness: 0.453
     - _SmoothnessRemapMax: 1
     - _SmoothnessRemapMin: 0
     - _SmoothnessScale: 1
-    - _SmoothnessTextureChannel: 0
+    - _SmoothnessTextureChannel: 1
     - _SpecularHighlights: 1
     - _SrcBlend: 1
     - _SrcBlendAlpha: 1
@@ -207,9 +208,9 @@ Material:
     - _ZTestTransparent: 0
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.239, g: 0.239, b: 0.239, a: 1}
+    - _BaseColor: {r: 1, g: 0, b: 0, a: 1}
     - _BaseUV: {r: 1, g: 1, b: 0, a: 0}
-    - _Color: {r: 0.23899996, g: 0.23899996, b: 0.23899996, a: 1}
+    - _Color: {r: 1, g: 0, b: 0, a: 1}
     - _DetailUV: {r: 1, g: 1, b: 0, a: 0}
     - _DoubleSidedConstants: {r: 1, g: 1, b: -1, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}

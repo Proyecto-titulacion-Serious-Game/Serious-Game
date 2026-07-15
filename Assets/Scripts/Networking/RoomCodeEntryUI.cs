@@ -5,16 +5,6 @@ using UnityEngine.XR;
 /// UI mínima para que el Técnico (PC) escriba el CÓDIGO DE SALA antes de crear la partida.
 /// Resuelve el problema de aula: con <see cref="ConnectionManager"/> usando un SessionName fijo,
 /// 15 grupos en el mismo Wi-Fi caían todos en la misma sala. Ahora cada estación usa su código.
-///
-/// 100% aditivo y sin cablear nada:
-///   • Se auto-crea al cargar la escena (RuntimeInitializeOnLoadMethod), igual que NetworkDemoOverlay.
-///   • Solo se dibuja en PC (no XR) cuando hay un ConnectionManager con rol Técnico y
-///     <see cref="ConnectionManager.esperarEntradaDeCodigo"/> = true, y aún no hay sesión activa.
-///   • Al pulsar "Crear sala" llama a <see cref="ConnectionManager.CrearSalaComoTecnico"/>.
-///
-/// El Explorador (VR) toma el mismo código de forma forzada (Inspector o PlayerPrefs del visor),
-/// así no necesita teclado virtual. Para emparejar una estación: pon el mismo código en el PC
-/// (aquí) y en el campo Room Code del ConnectionManager del visor.
 /// </summary>
 public class RoomCodeEntryUI : MonoBehaviour
 {
@@ -33,21 +23,23 @@ public class RoomCodeEntryUI : MonoBehaviour
     }
 
     string  _code;
-    bool     _codeInit;
+    bool    _codeInit;
     const string PREFS_GRUPO_KEY = "TITA.Grupo";
     string  _grupo = "";
     bool    _grupoInit;
-    GUIStyle _box, _title, _hint;
+    
+    // Añadimos nuevos estilos para Inputs y Botones
+    GUIStyle _box, _title, _hint, _inputStyle, _buttonStyle;
     Texture2D _bg;
 
-    // Runner cacheado para no hacer FindAnyObjectByType en cada OnGUI (corre 2+ veces/frame).
     Fusion.NetworkRunner _runner;
     float                _searchCd;
 
+    TechnicianMover _mover;              
+    bool            _movimientoBloqueado;
+
     void Update()
     {
-        // Refrescar el cache del runner de forma barata (~2 Hz). Unity sobrecarga ==,
-        // así que un runner destruido vuelve a leerse como null y el panel reaparece.
         if (_runner == null)
         {
             _searchCd -= Time.unscaledDeltaTime;
@@ -57,6 +49,25 @@ public class RoomCodeEntryUI : MonoBehaviour
                 _searchCd = 0.5f;
             }
         }
+
+        bool mostrar = DebeMostrarse();
+
+        if (mostrar && !_movimientoBloqueado)
+        {
+            if (_mover == null) _mover = FindAnyObjectByType<TechnicianMover>();
+            if (_mover != null) { _mover.LockPosition(true); _movimientoBloqueado = true; }
+        }
+        else if (!mostrar && _movimientoBloqueado)
+        {
+            if (_mover != null) _mover.LockPosition(false);
+            _movimientoBloqueado = false;
+        }
+
+        if (mostrar)
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible   = true;
+        }
     }
 
     bool DebeMostrarse()
@@ -65,10 +76,8 @@ public class RoomCodeEntryUI : MonoBehaviour
         if (cm == null) return false;
         if (cm.rolAutomatico != ConnectionManager.AutoConnectRole.Tecnico) return false;
         if (!cm.esperarEntradaDeCodigo) return false;
+        if (!TutorialNPC.PuedePedirNombreGrupo) return false;
 
-        // En cuanto EXISTE un runner (aunque StartGame aún esté en curso) ocultamos el panel.
-        // Esto evita que un segundo clic en 'Crear sala' dispare StartSimulation otra vez
-        // durante el arranque asíncrono.
         return _runner == null;
     }
 
@@ -82,40 +91,46 @@ public class RoomCodeEntryUI : MonoBehaviour
 
         EnsureStyles();
 
-        const float w = 380f, h = 290f;
+        // 1. Aumentamos el tamaño general del panel
+        const float w = 420f, h = 350f; 
         var rect = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.45f, w, h);
         GUI.Box(rect, GUIContent.none, _box);
 
-        GUILayout.BeginArea(new Rect(rect.x + 18, rect.y + 16, w - 36, h - 32));
+        GUILayout.BeginArea(new Rect(rect.x + 20, rect.y + 20, w - 40, h - 40));
 
         GUILayout.Label("NOMBRE DEL GRUPO", _title);
-        GUILayout.Label("Estudiantes de esta estación (aparece en las métricas).\n" +
-                        "Ej: Grupo 3 - Ana y Luis", _hint);
-        GUILayout.Space(4);
-        _grupo = GUILayout.TextField(_grupo, 40, GUILayout.Height(28));
+        GUILayout.Label("Estudiantes de esta estación.", _hint);
+        GUILayout.Space(5);
+        // 2. Aplicamos el nuevo estilo de input
+        _grupo = GUILayout.TextField(_grupo, 40, _inputStyle, GUILayout.Height(32));
 
-        GUILayout.Space(10);
+        GUILayout.Space(15);
+        
         GUILayout.Label("CÓDIGO DE SALA", _title);
-        GUILayout.Label("Cada estación usa su propio código. El Explorador debe tener\n" +
-                        "el MISMO código (Inspector del visor). Ej: UDLA-A4", _hint);
-        GUILayout.Space(8);
+        GUILayout.Label("Cada estación usa su propio código. El Explorador debe tener este mismo código.", _hint);
+        GUILayout.Space(5);
 
         GUI.SetNextControlName("RoomCodeField");
-        _code = GUILayout.TextField(_code, 24, GUILayout.Height(30));
+        // Aplicamos el nuevo estilo de input
+        _code = GUILayout.TextField(_code, 24, _inputStyle, GUILayout.Height(32));
 
-        GUILayout.Space(8);
+        // 3. FlexibleSpace empuja los botones hacia el fondo del área
+        GUILayout.FlexibleSpace(); 
+        
         GUILayout.BeginHorizontal();
 
-        if (GUILayout.Button("Crear sala", GUILayout.Height(34)))
+        // 4. Aplicamos el nuevo estilo de botón y aumentamos la altura
+        if (GUILayout.Button("Crear sala", _buttonStyle, GUILayout.Height(40)))
             CrearSala(cm);
 
-        if (GUILayout.Button("Aleatorio", GUILayout.Width(90), GUILayout.Height(34)))
+        GUILayout.Space(10); // Separación entre botones
+
+        if (GUILayout.Button("Aleatorio", _buttonStyle, GUILayout.Width(100), GUILayout.Height(40)))
             _code = $"UDLA-{Random.Range(1000, 9999)}";
 
         GUILayout.EndHorizontal();
         GUILayout.EndArea();
 
-        // Enter en el campo también crea la sala.
         var e = Event.current;
         if (e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
             && GUI.GetNameOfFocusedControl() == "RoomCodeField")
@@ -134,8 +149,6 @@ public class RoomCodeEntryUI : MonoBehaviour
             return;
         }
 
-        // Nombre del grupo (estudiantes): viaja a las métricas (Sheets columna 'Equipo',
-        // dashboard localhost, CSV). Se recuerda entre sesiones en este PC.
         string grupo = (_grupo ?? "").Trim();
         if (!string.IsNullOrEmpty(grupo))
         {
@@ -149,10 +162,8 @@ public class RoomCodeEntryUI : MonoBehaviour
         Debug.Log($"[RoomCodeEntryUI] Creando sala '{norm}' como Técnico.");
         cm.CrearSalaComoTecnico(norm);
 
-        // StartSimulation añade el NetworkRunner de forma síncrona (antes del primer await).
-        // OJO: ahora vive en el HIJO [FusionRunner] (aislado para que Fusion no destruya el
-        // GameManager al fallar) — buscarlo en children, no en el propio GO.
         _runner = cm.GetComponentInChildren<Fusion.NetworkRunner>();
+        TutorialNPC.NotificarNombreGrupoListo();
     }
 
     void EnsureStyles()
@@ -160,16 +171,44 @@ public class RoomCodeEntryUI : MonoBehaviour
         if (_bg == null)
         {
             _bg = new Texture2D(1, 1);
-            _bg.SetPixel(0, 0, new Color(0.02f, 0.05f, 0.04f, 0.92f));
+            // Fondo ligeramente más oscuro y opaco para dar contraste
+            _bg.SetPixel(0, 0, new Color(0.05f, 0.08f, 0.06f, 0.98f)); 
             _bg.Apply();
         }
         if (_box == null)
             _box = new GUIStyle(GUI.skin.box) { normal = { background = _bg } };
+        
         if (_title == null)
             _title = new GUIStyle(GUI.skin.label)
             { fontSize = 18, fontStyle = FontStyle.Bold, normal = { textColor = new Color(0f, 1f, 0.7f) } };
+        
         if (_hint == null)
             _hint = new GUIStyle(GUI.skin.label)
-            { fontSize = 12, wordWrap = true, normal = { textColor = new Color(0.8f, 0.85f, 0.8f) } };
+            { fontSize = 13, wordWrap = true, normal = { textColor = new Color(0.8f, 0.85f, 0.8f) } };
+
+        // ESTILO PARA CAMPOS DE TEXTO
+        if (_inputStyle == null)
+        {
+            _inputStyle = new GUIStyle(GUI.skin.textField)
+            {
+                fontSize = 15,
+                alignment = TextAnchor.MiddleLeft,
+                padding = new RectOffset(8, 8, 0, 0)
+            };
+        }
+
+        // ESTILO PARA BOTONES
+        if (_buttonStyle == null)
+        {
+            _buttonStyle = new GUIStyle(GUI.skin.button)
+            {
+                fontSize = 15,
+                fontStyle = FontStyle.Bold,
+                alignment = TextAnchor.MiddleCenter
+            };
+            // Forzamos el color del texto a blanco para que resalte
+            _buttonStyle.normal.textColor = Color.white; 
+            _buttonStyle.hover.textColor = new Color(0f, 1f, 0.7f); // Texto verde al pasar el ratón
+        }
     }
 }

@@ -62,7 +62,7 @@ public class CircuitVictoryEffect : MonoBehaviour
             t += Time.deltaTime;
             float decae  = 1f - (t / duracion);                        // el efecto se apaga gradualmente
             float latido = Mathf.Abs(Mathf.Sin(t * Mathf.PI * 2.6f));  // ~4 latidos en 3 s
-            LED.BoostVictoria = 1f + 3.5f * latido * decae;            // pico ~4.5x el brillo normal
+            LED.BoostVictoria = 1f + 6f * latido * decae;              // pico ~7x el brillo normal
             yield return null;
         }
         LED.BoostVictoria = 1f;

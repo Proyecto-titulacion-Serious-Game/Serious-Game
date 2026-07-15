@@ -69,7 +69,8 @@ MonoBehaviour:
   makeConnectionKinematic: 0
   hideInteractableWhenIsConnected: 1
   allowConnectDifrentCollor: 1
-  <ConnectedTo>k__BackingField: {fileID: 0}
+  allowMultipleConnections: 1
+  preWiredConnection: {fileID: 0}
   connectionPoint: {fileID: 3704292238373490080}
   collorRenderer: {fileID: 2984435156750506378}
   sparksParticle: {fileID: 3348753985280812002}

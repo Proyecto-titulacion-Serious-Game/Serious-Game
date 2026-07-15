@@ -129,8 +129,49 @@ public class TutorialNPC : MonoBehaviour
     int   _pasoIntro = -1;     // -1 = intro no activa
     int   _retoActual;
     float _tPaso;
+    ThirdPersonCamera _camaraTecnico;
+    bool  _pausadoPorNombreGrupo;   // true = ya se mostró el Saludo; esperando que RoomCodeEntryUI confirme
+    bool  _nombreGrupoYaPedido;     // evita pedir el nombre dos veces si AvanzarIntro se llama de nuevo
+
+    static TutorialNPC _instanciaActiva;   // el NPC con la intro en curso (para que RoomCodeEntryUI la reanude)
 
     bool EnIntro => _pasoIntro >= 0;
+
+    /// <summary>
+    /// True en cuanto no hay una bienvenida bloqueando la pantalla (o si este NPC no tiene
+    /// pasos de intro configurados). Default true: si el NPC no existe en la escena, nada
+    /// debe esperar por él.
+    /// </summary>
+    public static bool IntroCompletada { get; private set; } = true;
+
+    /// <summary>
+    /// True en cuanto se puede mostrar el panel de nombre de grupo / código de sala
+    /// (justo después del paso "Saludo", no al terminar toda la bienvenida). Lo consulta
+    /// RoomCodeEntryUI para no tapar el Saludo del Robot-Guía, pero sí dejar que el resto de
+    /// la historia/roles se cuente DESPUÉS de que el Técnico escriba el nombre del grupo.
+    /// Default true: si el NPC no existe en la escena, nada debe esperar por él.
+    /// </summary>
+    public static bool PuedePedirNombreGrupo { get; private set; } = true;
+
+    /// <summary>Se dispara una vez, cuando el jugador termina (o salta) la bienvenida secuenciada.</summary>
+    public static event System.Action OnIntroComplete;
+
+    /// <summary>
+    /// Llamada por RoomCodeEntryUI cuando el Técnico confirma el nombre del grupo y crea la
+    /// sala, para reanudar la bienvenida en el paso siguiente al Saludo (Historia → Roles → …).
+    /// </summary>
+    public static void NotificarNombreGrupoListo()
+    {
+        if (_instanciaActiva != null) _instanciaActiva.ContinuarTrasNombreGrupo();
+    }
+
+    /// <summary>
+    /// Punto al que debe mirar la cámara durante la bienvenida: la CABEZA (hueso Head resuelto
+    /// por el Humanoid Avatar) si el rig es humanoide; si no, el globo de texto; si tampoco existe,
+    /// la raíz del NPC. Se prioriza Head porque es un ancla fiable sin importar dónde quede el
+    /// pivote de la raíz del prefab (RobotKyle no garantiza que su raíz esté al piso).
+    /// </summary>
+    Transform FocoBienvenida() => _headBone != null ? _headBone : (_globo != null ? _globo : transform);
 
     static readonly int SpeedHash = Animator.StringToHash("Speed");
 
@@ -146,7 +187,21 @@ public class TutorialNPC : MonoBehaviour
         {
             _historiaMostrada = true;   // la historia vive en la intro; no repetirla como página
             _pasoIntro = 0;
+            IntroCompletada = false;
+            PuedePedirNombreGrupo = pasosIntro.Count <= 1;   // con 1 solo paso no hay pausa que hacer
+            _instanciaActiva = this;
             AplicarPasoIntro();
+
+            // Cámara del Técnico enfocada en la CABEZA del NPC mientras dura la bienvenida.
+            // Se usa el hueso Head del Animator (resuelto por Unity vía Humanoid Avatar) en vez
+            // de la raíz del prefab o el globo: la raíz de RobotKyle NO está garantizado que
+            // quede al piso (el setup tool solo lo estima), así que un offset fijo sobre ella
+            // podía terminar apuntando a la altura del Hips en vez de la cara.
+            // OJO: NoonA (donde vive ThirdPersonCamera) carga ADITIVA y ASÍNCRONA
+            // (TecnicoBootstrapper.LoadSceneAsync) — puede no existir todavía en este Start().
+            // Si no aparece aquí, Update() reintenta cada frame hasta encontrarla.
+            _camaraTecnico = FindAnyObjectByType<ThirdPersonCamera>();
+            if (_camaraTecnico != null) _camaraTecnico.focoForzado = FocoBienvenida();
         }
         else
         {
@@ -188,6 +243,16 @@ public class TutorialNPC : MonoBehaviour
 
         if (EnIntro)
         {
+            // NoonA puede tardar en cargar (aditiva/async): reintentar hasta enganchar la cámara.
+            if (_camaraTecnico == null)
+            {
+                _camaraTecnico = FindAnyObjectByType<ThirdPersonCamera>();
+                if (_camaraTecnico != null)
+                    _camaraTecnico.focoForzado = FocoBienvenida();
+            }
+
+            if (_pausadoPorNombreGrupo) return;   // esperando el panel de nombre de grupo; no leer teclas/timers
+
             var paso = pasosIntro[_pasoIntro];
             bool porTecla  = kb != null && kb.nKey.wasPressedThisFrame;
             bool porTiempo = paso.autoAvanzarSegundos > 0f && Time.time - _tPaso >= paso.autoAvanzarSegundos;
@@ -235,15 +300,47 @@ public class TutorialNPC : MonoBehaviour
     void AvanzarIntro()
     {
         _pasoIntro++;
+
+        // Justo tras el Saludo (paso 0 → 1): pausar para que el Técnico escriba el nombre del
+        // grupo en RoomCodeEntryUI antes de seguir con Historia/Roles/A trabajar.
+        if (_pasoIntro == 1 && pasosIntro.Count > 1 && !_nombreGrupoYaPedido)
+        {
+            _nombreGrupoYaPedido   = true;
+            _pausadoPorNombreGrupo = true;
+            PuedePedirNombreGrupo  = true;
+            return;   // RoomCodeEntryUI llama a NotificarNombreGrupoListo() al confirmar.
+        }
+
         if (_pasoIntro >= pasosIntro.Count)
         {
             _pasoIntro = -1;
+            IntroCompletada = true;
+            PuedePedirNombreGrupo = true;
+
+            // Devolver el control de la cámara al jugador (queda mirando donde estaba, sin salto).
+            if (_camaraTecnico != null) { _camaraTecnico.focoForzado = null; _camaraTecnico = null; }
+            OnIntroComplete?.Invoke();
+
             ArmarPaginas(_retoActual);      // guía del reto vigente…
             MostrarPagina();
             ReproducirClipReto(_retoActual); // …con su animación (o idle si no tiene)
             return;
         }
         AplicarPasoIntro();
+    }
+
+    /// <summary>Reanuda la bienvenida (Historia en adelante) tras confirmar el nombre del grupo.</summary>
+    void ContinuarTrasNombreGrupo()
+    {
+        if (!_pausadoPorNombreGrupo) return;
+        _pausadoPorNombreGrupo = false;
+
+        // Ya se escribió el nombre del grupo: devolver la cámara YA al jugador (no esperar a que
+        // termine el resto de la bienvenida). Historia/Roles/A trabajar siguen solo por el globo
+        // de texto, sin bloquear cámara ni movimiento — el Técnico ya puede caminar mientras lee.
+        if (_camaraTecnico != null) { _camaraTecnico.focoForzado = null; _camaraTecnico = null; }
+
+        AplicarPasoIntro();   // muestra el paso 1 (Historia), que había quedado pendiente
     }
 
     /// <summary>

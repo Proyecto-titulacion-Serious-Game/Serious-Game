@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text;
 using UnityEngine;
 using TMPro;
@@ -88,7 +89,11 @@ public class TechnicianWorkstation : MonoBehaviour
         // Bridges almacenados como campos para poder desuscribirlos en OnDestroy
         _bridgeCircuit = () => GameEvents.RaiseCircuitUpdated();
         _bridgeLevel   = l  => GameEvents.RaiseLevelChanged(l);
-        CircuitManager.OnCircuitChanged += _bridgeCircuit;
+        CircuitManager.OnCircuitChanged    += _bridgeCircuit;
+        // Reto 2 apaga el CircuitManager viejo y corre todo por ProtoboardSimulator (MNA) — sin
+        // esto el panel de diagnóstico se pintaba una sola vez al cargar el reto y quedaba
+        // congelado, sin enterarse de cables/LEDs conectados después.
+        ProtoboardSimulator.OnCircuitChanged += _bridgeCircuit;
         GameManager.OnLevelLoaded       += _bridgeLevel;
     }
 
@@ -96,7 +101,8 @@ public class TechnicianWorkstation : MonoBehaviour
     {
         GameEvents.OnCircuitUpdated     -= RefreshDiagnosticPanel;
         GameEvents.OnLevelChanged       -= OnLevelLoaded;
-        CircuitManager.OnCircuitChanged -= _bridgeCircuit;
+        CircuitManager.OnCircuitChanged    -= _bridgeCircuit;
+        ProtoboardSimulator.OnCircuitChanged -= _bridgeCircuit;
         GameManager.OnLevelLoaded       -= _bridgeLevel;
     }
 
@@ -112,23 +118,41 @@ public class TechnicianWorkstation : MonoBehaviour
     //  Panel de diagnóstico (event-driven)
     // ─────────────────────────────────────────────
 
+    // Diagnóstico COHERENTE por reto: cada uno mira los datos que realmente explican su falla
+    // (Reto 1 = valor de resistencia vs. objetivo; Reto 2 = voltaje por rama del paralelo;
+    // Reto 3 = polaridad por componente; Reto 4 = cableado de la protoboard). Todos leen los
+    // componentes scene-wide (igual que GameManager.CumpleVictoriaRetos123), no circuit.components
+    // — ese CircuitManager queda inactivo en el Reto 2 (Reto2CircuitGuard lo apaga) y daría datos
+    // obsoletos.
     void RefreshDiagnosticPanel()
     {
         if (gameManager != null) circuit = gameManager.circuit != null ? gameManager.circuit.GetCompanionCircuitManager() : null;
+        if (gameManager == null) return;
 
-        // Reto 4 usa ArduinoCore + ProtoboardSimulator en lugar de CircuitSimulator
-        if (gameManager != null && gameManager.currentLevel == LevelType.Arduino)
+        switch (gameManager.currentLevel)
         {
-            var arduino  = UnityEngine.Object.FindAnyObjectByType<ArduinoCore>();
-            var protoSim = gameManager.protoSim;
-            Set(txtDiagnostico,     _diagnostic.GetDiagnosisArduino(arduino, protoSim));
-            Set(txtAccionSiguiente, _diagnostic.GetNextActionArduino(arduino, protoSim));
-            return;
-        }
+            case LevelType.Arduino:
+                var arduino  = UnityEngine.Object.FindAnyObjectByType<ArduinoCore>();
+                var protoSim = gameManager.protoSim;
+                Set(txtDiagnostico,     _diagnostic.GetDiagnosisArduino(arduino, protoSim));
+                Set(txtAccionSiguiente, _diagnostic.GetNextActionArduino(arduino, protoSim));
+                break;
 
-        if (circuit == null) return;
-        Set(txtDiagnostico,     _diagnostic.GetDiagnosis(circuit.components, circuit.totalCurrent));
-        Set(txtAccionSiguiente, _diagnostic.GetNextAction(circuit.components, circuit.totalCurrent));
+            case LevelType.OhmLaw:
+                Set(txtDiagnostico,     _diagnostic.GetDiagnosisOhmLaw());
+                Set(txtAccionSiguiente, _diagnostic.GetNextActionOhmLaw());
+                break;
+
+            case LevelType.Parallel:
+                Set(txtDiagnostico,     _diagnostic.GetDiagnosisParallel());
+                Set(txtAccionSiguiente, _diagnostic.GetNextActionParallel());
+                break;
+
+            case LevelType.Mixed:
+                Set(txtDiagnostico,     _diagnostic.GetDiagnosisMixed());
+                Set(txtAccionSiguiente, _diagnostic.GetNextActionMixed());
+                break;
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -144,7 +168,7 @@ public class TechnicianWorkstation : MonoBehaviour
         {
             var arduino  = UnityEngine.Object.FindAnyObjectByType<ArduinoCore>();
             var protoSim = gameManager.protoSim;
-            bool  pinOk  = arduino != null && arduino.activePinNumber == 2;
+            bool  pinOk  = arduino != null && arduino.activePinMode == PinMode.OUTPUT && arduino.PinsRecentlyDriven().Any();
             float ardMA  = protoSim != null ? protoSim.totalCurrentmA : 0f;
 
             Set(hudVoltaje,
@@ -155,7 +179,7 @@ public class TechnicianWorkstation : MonoBehaviour
             var sb2 = new StringBuilder();
             if (arduino != null)
             {
-                sb2.AppendLine(pinOk ? "Sketch: D2 OK" : $"Sketch: D{arduino.activePinNumber} FALLA");
+                sb2.AppendLine(pinOk ? $"Sketch: D{arduino.activePinNumber} OK" : $"Sketch: D{arduino.activePinNumber} incompleto");
                 sb2.AppendLine($"Modo: {arduino.activePinMode} | {arduino.activePinState}");
                 sb2.AppendLine($"Vout: {arduino.OutputVoltage:F2}V");
             }

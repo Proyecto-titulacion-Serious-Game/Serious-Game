@@ -60,6 +60,14 @@ public class PlayerFeedbackUI : MonoBehaviour
     public Color colorCompletado= new Color(0.0f,  0.2f,  0.05f, 0.88f);
     public Image fondoPanel;
 
+    [Header("Panel de mensaje (contenedor de txtInstruccion/txtSubInstruccion)")]
+    [Tooltip("Se activa solo al completar/perder un reto y se oculta solo 5s después.")]
+    public GameObject panelMensaje;
+
+    [Header("Celebración de victoria (Canvas Screen Space propio, enganchado a la cámara)")]
+    [Tooltip("Segundos que el panel central '¡FELICIDADES!' queda visible antes de ocultarse solo.")]
+    public float duracionFelicitacionCentro = 3f;
+
     // ─────────────────────────────────────────────
     //  Internos
     // ─────────────────────────────────────────────
@@ -67,6 +75,20 @@ public class PlayerFeedbackUI : MonoBehaviour
     private const float INTERVAL = 0.15f;
     private int   _totalPasos = 4;
     private bool  _mostrandoNotificacion = false;
+
+    // Celebración: canvas Screen Space - Camera independiente del ExplorerHUD WorldSpace,
+    // para que el aviso quede fijo en la vista del Explorador (no billboardeado/lerp como el resto del HUD).
+    // STATIC a propósito: Explorador.unity tiene MÁS DE UNA instancia de PlayerFeedbackUI activa a la
+    // vez (ExplorerHUD propio + un "PlayerFeedbackSystem" agregado aparte bajo GameManager_System —
+    // ver memoria 'explorador_instructionsystem_duplicado'). Si esto fuera de instancia, cada una
+    // crearía su PROPIO canvas y el jugador vería el aviso duplicado/superpuesto.
+    private static GameObject _celebCanvasGO;
+    private static GameObject _panelCentro;
+    private static TMP_Text   _txtCentroTitulo;
+    private static TMP_Text   _txtCentroSub;
+    private static GameObject _panelEsquina;
+    private static TMP_Text   _txtEsquina;
+    private static Coroutine  _celebracionCentroCo;
 
     // ─────────────────────────────────────────────
     //  Unity Lifecycle
@@ -90,6 +112,23 @@ public class PlayerFeedbackUI : MonoBehaviour
     void Start()
     {
         if (panelNotificacion != null) panelNotificacion.SetActive(false);
+        AutoWireReferencias();
+    }
+
+    /// <summary>
+    /// Estas referencias nunca se cablearon en el ExplorerHUD.prefab (fileID: 0 en el YAML), así
+    /// que el HUD de instrucciones y el panel de mensaje quedaban mudos aunque el código disparara
+    /// los eventos correctamente. Fallback defensivo: si el Inspector no las asignó, buscarlas en
+    /// escena, igual que ya hace GameManager con protoSim o RoomCodeEntryUI con el runner.
+    /// </summary>
+    void AutoWireReferencias()
+    {
+        if (gameManager        == null) gameManager        = FindAnyObjectByType<GameManager>();
+        if (instructionSystem  == null) instructionSystem  = FindAnyObjectByType<InstructionSystem>();
+        if (multimeter         == null) multimeter         = FindAnyObjectByType<Multimeter>();
+        if (delivery           == null) delivery           = FindAnyObjectByType<ComponentDeliverySystem>();
+        if (panelMensaje       == null && txtInstruccion != null && txtInstruccion.transform.parent != null)
+            panelMensaje = txtInstruccion.transform.parent.gameObject;
     }
 
     void Update()
@@ -310,30 +349,151 @@ public class PlayerFeedbackUI : MonoBehaviour
     {
         if (panelNotificacion != null) panelNotificacion.SetActive(false);
         _mostrandoNotificacion = false;
+        // Nuevo reto en marcha: la insignia "reto completado" del reto anterior ya no aplica.
+        if (_panelEsquina != null) _panelEsquina.SetActive(false);
     }
 
     void OnLevelCompleted(LevelType level, bool success)
     {
-        // Reto 4 es el reto LIBRE y final: cuando su circuito creado por ellos funciona, mensaje especial.
-        if (success && level == LevelType.Arduino)
+        if (success)
         {
-            Mostrar("¡FELICIDADES!",
-                    "¡Su circuito funciona! El LED parpadea de forma segura.\nDiseñaron y validaron su propio diseño.",
-                    Color.clear, colorCompletado);
+            // Reto 4 es el reto LIBRE y final: cuando su circuito creado por ellos funciona, mensaje especial.
+            string sub = level == LevelType.Arduino
+                ? "¡Su circuito funciona! El LED parpadea de forma segura.\nDiseñaron y validaron su propio diseño."
+                : $"Completaste el Reto {(int)level + 1}.\n¡Listo para el nuevo reto!";
+            MostrarCelebracion("¡FELICIDADES!", sub, (int)level + 1);
             return;
         }
 
-        if (success)
+        MostrarConAutoOcultar($"Reto {(int)level + 1} — intenta mejor",
+                "Revisa el procedimiento.", colorCompletado);
+    }
+
+    // ─────────────────────────────────────────────
+    //  Celebración de victoria — Canvas Screen Space propio
+    // ─────────────────────────────────────────────
+
+    /// <summary>
+    /// Muestra el panel central "¡FELICIDADES!" (se oculta solo tras <see cref="duracionFelicitacionCentro"/>)
+    /// y activa la insignia de la esquina inferior derecha, que persiste hasta que cargue el siguiente reto.
+    /// </summary>
+    void MostrarCelebracion(string titulo, string sub, int numeroReto)
+    {
+        EnsureCelebrationCanvas();
+        if (_panelCentro == null) return;   // sin Camera.main aún — no debería pasar en runtime real
+
+        if (_txtCentroTitulo != null) _txtCentroTitulo.text = titulo;
+        if (_txtCentroSub    != null) _txtCentroSub.text    = sub;
+        _panelCentro.SetActive(true);
+        if (_celebracionCentroCo != null) StopCoroutine(_celebracionCentroCo);
+        _celebracionCentroCo = StartCoroutine(OcultarPanelCentroTrasDelay(duracionFelicitacionCentro));
+
+        if (_txtEsquina != null) _txtEsquina.text = $"✓ Reto {numeroReto} completado";
+        if (_panelEsquina != null) _panelEsquina.SetActive(true);
+    }
+
+    IEnumerator OcultarPanelCentroTrasDelay(float segundos)
+    {
+        yield return new WaitForSeconds(segundos);
+        if (_panelCentro != null) _panelCentro.SetActive(false);
+        _celebracionCentroCo = null;
+    }
+
+    /// <summary>
+    /// Construye, la primera vez que se necesita, un Canvas Screen Space - Camera (enganchado a
+    /// Camera.main del Explorador) con dos paneles: uno central temporal y uno de esquina persistente.
+    /// Independiente del ExplorerHUD (World Space + billboard/lerp) para que la celebración quede
+    /// fija en la vista, tal como se pidió, sin interferir con las instrucciones permanentes del HUD.
+    /// </summary>
+    void EnsureCelebrationCanvas()
+    {
+        if (_celebCanvasGO != null) return;
+
+        Camera cam = Camera.main;
+        if (cam == null)
         {
-            Mostrar("¡FELICIDADES!",
-                    $"Completaste el Reto {(int)level + 1}.\n¡Listo para el nuevo reto!",
-                    Color.clear, colorCompletado);
+            Debug.LogWarning("[PlayerFeedbackUI] Camera.main no encontrada — no se puede crear el canvas de celebración.");
+            return;
         }
-        else
-        {
-            Mostrar($"Reto {(int)level + 1} — intenta mejor",
-                    "Revisa el procedimiento.", Color.clear, colorCompletado);
-        }
+
+        _celebCanvasGO = new GameObject("ExplorerCelebrationCanvas");
+        var canvas = _celebCanvasGO.AddComponent<Canvas>();
+        canvas.renderMode    = RenderMode.ScreenSpaceCamera;
+        canvas.worldCamera   = cam;
+        canvas.planeDistance = 1f;
+
+        var scaler = _celebCanvasGO.AddComponent<CanvasScaler>();
+        scaler.uiScaleMode         = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+        scaler.referenceResolution = new Vector2(1920, 1080);
+        scaler.matchWidthOrHeight  = 0.5f;
+
+        _celebCanvasGO.AddComponent<GraphicRaycaster>();
+
+        var canvasRT = _celebCanvasGO.GetComponent<RectTransform>();
+
+        _panelCentro  = BuildPanelCentro(canvasRT);
+        _panelEsquina = BuildPanelEsquina(canvasRT);
+        _panelCentro.SetActive(false);
+        _panelEsquina.SetActive(false);
+    }
+
+    GameObject BuildPanelCentro(RectTransform parent)
+    {
+        var panel = new GameObject("Panel_Centro");
+        panel.transform.SetParent(parent, false);
+        var rt = panel.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0.5f);
+        rt.pivot = new Vector2(0.5f, 0.5f);
+        rt.sizeDelta = new Vector2(820, 260);
+        rt.anchoredPosition = Vector2.zero;
+
+        var bg = panel.AddComponent<Image>();
+        bg.color = colorCompletado;
+
+        _txtCentroTitulo = AddCelebText("Titulo", rt, new Vector2(760, 90), new Vector2(0, 55), 56);
+        _txtCentroTitulo.fontStyle = FontStyles.Bold;
+        _txtCentroTitulo.color     = new Color(0.55f, 1f, 0.6f);
+
+        _txtCentroSub = AddCelebText("Sub", rt, new Vector2(760, 100), new Vector2(0, -50), 26);
+        _txtCentroSub.color = new Color(0.92f, 0.95f, 0.92f);
+
+        return panel;
+    }
+
+    GameObject BuildPanelEsquina(RectTransform parent)
+    {
+        var panel = new GameObject("Panel_Esquina");
+        panel.transform.SetParent(parent, false);
+        var rt = panel.AddComponent<RectTransform>();
+        rt.anchorMin = rt.anchorMax = new Vector2(1f, 0f);
+        rt.pivot = new Vector2(1f, 0f);
+        rt.sizeDelta = new Vector2(400, 70);
+        rt.anchoredPosition = new Vector2(-28, 28);
+
+        var bg = panel.AddComponent<Image>();
+        bg.color = new Color(colorCompletado.r, colorCompletado.g, colorCompletado.b, 0.92f);
+
+        _txtEsquina = AddCelebText("Txt", rt, new Vector2(360, 50), Vector2.zero, 26);
+        _txtEsquina.fontStyle = FontStyles.Bold;
+        _txtEsquina.color     = new Color(0.6f, 1f, 0.65f);
+
+        return panel;
+    }
+
+    TMP_Text AddCelebText(string name, RectTransform parent, Vector2 size, Vector2 pos, float fontSize)
+    {
+        var go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        var rt = go.AddComponent<RectTransform>();
+        rt.sizeDelta = size;
+        rt.anchoredPosition = pos;
+        rt.localScale = Vector3.one;
+        var tmp = go.AddComponent<TextMeshProUGUI>();
+        tmp.fontSize   = fontSize;
+        tmp.alignment  = TextAlignmentOptions.Center;
+        tmp.richText   = true;
+        tmp.textWrappingMode = TextWrappingModes.Normal;
+        return tmp;
     }
 
     /// <summary>
@@ -341,9 +501,29 @@ public class PlayerFeedbackUI : MonoBehaviour
     /// </summary>
     void OnGameCompleted()
     {
-        Mostrar("¡MISIÓN CUMPLIDA!",
+        MostrarConAutoOcultar("¡MISIÓN CUMPLIDA!",
                 "Completaron los 4 retos en equipo. ¡Excelente trabajo, técnico y explorador!",
-                Color.clear, colorCompletado);
+                colorCompletado);
+    }
+
+    // ─────────────────────────────────────────────
+    //  Panel de mensaje: aparece solo al completar/perder un reto, se oculta solo a los 5s
+    // ─────────────────────────────────────────────
+    Coroutine _ocultarMensajeCo;
+
+    void MostrarConAutoOcultar(string instruccion, string sub, Color fondo)
+    {
+        Mostrar(instruccion, sub, Color.clear, fondo);
+        if (panelMensaje != null) panelMensaje.SetActive(true);
+        if (_ocultarMensajeCo != null) StopCoroutine(_ocultarMensajeCo);
+        _ocultarMensajeCo = StartCoroutine(OcultarMensajeTrasDelay(5f));
+    }
+
+    IEnumerator OcultarMensajeTrasDelay(float segundos)
+    {
+        yield return new WaitForSeconds(segundos);
+        if (panelMensaje != null) panelMensaje.SetActive(false);
+        _ocultarMensajeCo = null;
     }
 
     // ─────────────────────────────────────────────

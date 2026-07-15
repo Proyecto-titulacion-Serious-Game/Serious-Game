@@ -294,7 +294,7 @@ public class ComponentSendingTray : MonoBehaviour
 
         // Mostrar feedback (se limpia tras 3 s)
         if (_feedbackCoroutine != null) StopCoroutine(_feedbackCoroutine);
-        SetTexto(txtFeedback, "✓ Componente enviado");
+        SetTexto(txtFeedback, "[OK] Componente enviado");
         _feedbackCoroutine = StartCoroutine(LimpiarFeedback(3f));
     }
 

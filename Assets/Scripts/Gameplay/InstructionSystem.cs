@@ -66,6 +66,17 @@ public class InstructionSystem : MonoBehaviour
     /// <summary>Inicializa y construye las instrucciones al arrancar.</summary>
     private void Start()
     {
+        // El campo 'multimeter' quedó sin asignar en el Inspector del prefab GameManager_System:
+        // sin esto, ValidateOhmLaw()/ValidateParallel() nunca pasan del paso 0 (la comprobación
+        // "multimeter?.probeA != null" siempre da null), y el HUD del Explorador (PlayerFeedbackUI)
+        // se queda mostrando el hint del primer paso durante TODO el reto, aunque ya lo completó.
+        // Hay 2 Multimeter en la escena (uno colgado del propio GameManager_System, sin usar en
+        // juego, y el prop VR real que sostiene el Explorador): FindObjectsByType + Exclude
+        // inactivos prefiere el que esté realmente activo en la jerarquía.
+        if (multimeter == null)
+            foreach (var m in FindObjectsByType<Multimeter>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                { multimeter = m; break; }
+
         ResetInstructions();
         BuildInstructions();
     }
@@ -131,8 +142,10 @@ public class InstructionSystem : MonoBehaviour
                 {
                     "Paso 1: El Explorador conecta los cables de cada rama (VCC -> R -> LED -> GND).",
                     "Paso 2: Pide medir el LED dañado: 0V / sin corriente = polaridad invertida.",
-                    "Paso 3: Envía un LED NUEVO. El Explorador lo coloca donde estaba el dañado " +
-                    "y al soltarlo se conecta y enciende solo. Los 2 LED en verde = reto superado."
+                    "Paso 3: Envía un LED NUEVO. El Explorador debe soltarlo EXACTAMENTE en el slot " +
+                    "marcado de la protoboard (fila 3, columna 5) — ahí encaja solo y ya no se puede " +
+                    "quitar; en cualquier otro sitio sigue agarrable. Luego conecta los cables de esa " +
+                    "rama. Los 2 LED en verde = reto superado."
                 };
                 break;
 

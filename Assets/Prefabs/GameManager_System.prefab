@@ -188,6 +188,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ConnectionManager
   playerPrefab:
     RawGuidValue: 00000000000000000000000000000000
+  roomCode:
+  esperarEntradaDeCodigo: 1
   rolAutomatico: 0
   modoOffline: 0
   connectionTimeoutSeconds: 25

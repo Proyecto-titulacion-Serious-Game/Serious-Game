@@ -13,6 +13,11 @@ using UnityEngine.UI;
 /// (apunta al root del PC u otro GO sin Canvas), Start() busca automáticamente
 /// el Canvas correcto subiendo por la jerarquía desde ArduinoIDEUI.
 /// </summary>
+// Debe correr ANTES que ManualBookOpener (orden por defecto 0) en el Update de este frame:
+// así, si el manual también está abierto, este script todavía ve ManualBookOpener.AnyOpen==true
+// (el manual aún no procesó su propio cierre) y sabe que debe CEDER el Escape en vez de cerrarse
+// a la vez — el Hub conserva su prioridad y sigue abierto detrás del manual.
+[DefaultExecutionOrder(-100)]
 [RequireComponent(typeof(Collider))]
 public class ArduinoMonitorInteract : MonoBehaviour,
     IPointerClickHandler, IPointerEnterHandler, IPointerExitHandler
@@ -88,7 +93,14 @@ public class ArduinoMonitorInteract : MonoBehaviour,
         if (!_isOpen) return;
 #if ENABLE_INPUT_SYSTEM
         var kb = Keyboard.current;
-        if (kb != null && kb.escapeKey.wasPressedThisFrame) Close();
+        if (kb != null && kb.escapeKey.wasPressedThisFrame)
+        {
+            // El manual (overlay de pantalla completa) tapa al Hub visualmente. Si está abierto,
+            // este Escape es para ÉL — el Hub debe conservar su prioridad y seguir abierto detrás,
+            // en vez de cerrarse también sin que el Técnico lo haya pedido explícitamente.
+            if (ManualBookOpener.AnyOpen) return;
+            Close();
+        }
 #endif
     }
 

@@ -187,6 +187,15 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
         if (!esReto4 && _ultimoPorTipo.TryGetValue(tipo, out var previo) && previo != null)
         {
+            if (YaFijadoEnSlot(previo))
+            {
+                // El anterior ya quedó "soldado" en su slot (p.ej. Reto2CircuitGuard lo cableó a la
+                // rama dañada y deshabilitó su grab). Un reenvío del Técnico (doble clic, reintento
+                // porque el diagnóstico aún no marca "completo", o una reconexión de red que repite
+                // el envío) no debe destruir la pieza que el jugador ya colocó correctamente.
+                Debug.Log($"[Receiver] {tipo} anterior ya está fijado en su slot; se ignora el reenvío duplicado.");
+                return;
+            }
             _componentesRecibidos.Remove(previo);
             Destroy(previo);
         }
@@ -316,6 +325,15 @@ public class ExplorerComponentReceiver : MonoBehaviour
             default:
                 return null;
         }
+    }
+
+    /// <summary>Un componente entregado queda "fijado" (soldado) en su slot cuando algo lo dejó sin
+    /// grab (p.ej. Reto2CircuitGuard.CablearEnRamaDanada deshabilita su XRGrabInteractable tras
+    /// cablearlo). Sirve para no destruirlo/duplicarlo si el Técnico reenvía el mismo tipo.</summary>
+    static bool YaFijadoEnSlot(GameObject go)
+    {
+        var grab = go.GetComponentInChildren<XRGrabInteractable>(true);
+        return grab != null && !grab.enabled;
     }
 
     /// <summary>Avisa si el punto de entrega tiene escala no uniforme (deformaría a los hijos).</summary>

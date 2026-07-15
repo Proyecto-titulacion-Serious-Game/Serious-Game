@@ -98,11 +98,26 @@ public class ArduinoCore : MonoBehaviour, ArduinoInterpreter.IBoard
     private readonly Dictionary<int, PinOut> _programPins = new Dictionary<int, PinOut>();
     private struct PinOut { public bool high; public float duty01; }
 
-    // Detección de "parpadeo" para la validación de victoria (sin parsear texto):
+    // Detección de "parpadeo" para la telemetría del Técnico (sin parsear texto):
     // si un pin OUTPUT alterna su nivel, se considera blink en ese pin.
     private readonly Dictionary<int, bool> _lastLevel = new Dictionary<int, bool>();
     private int   _blinkPin = -1;
     private float _blinkLastToggle = -999f;
+
+    // Tracking POR PIN (independiente del blink de arriba) para el validador libre del Reto 4:
+    // cualquier pin que haya estado activo (HIGH o PWM>0) recientemente cuenta como "en juego",
+    // sin exigir que parpadee ni limitarse a un único pin global.
+    const float RECENT_PIN_WINDOW = 6f;   // cubre un ciclo típico de delay()-based (p.ej. semáforo)
+    private readonly Dictionary<int, float> _lastDrivenTime = new Dictionary<int, float>();
+
+    /// <summary>Pines que estuvieron activos (HIGH/PWM&gt;0) en los últimos <paramref name="windowSeconds"/>.
+    /// Lo usa <see cref="ProtoboardSimulator"/> para validar el Reto 4 sin depender de un único pin.</summary>
+    public IEnumerable<int> PinsRecentlyDriven(float windowSeconds = RECENT_PIN_WINDOW)
+    {
+        float now = Time.time;
+        foreach (var kv in _lastDrivenTime)
+            if (now - kv.Value < windowSeconds) yield return kv.Key;
+    }
 
     /// <summary>Estado runtime de un pin de salida (su propio blink).</summary>
     private class ActivePinState
@@ -199,6 +214,7 @@ public class ArduinoCore : MonoBehaviour, ArduinoInterpreter.IBoard
         var node = PinToNode(pin);
         if (node == null) return false;
         float v = high ? outputVoltageTTL : 0f;
+        if (high) _lastDrivenTime[pin] = Time.time;
         if (Mathf.Approximately(node.voltage, v)) return false;
         node.voltage = v;
         if (pin == activePinNumber) _outputVoltage = v;   // telemetría del pin principal
@@ -425,13 +441,15 @@ public class ArduinoCore : MonoBehaviour, ArduinoInterpreter.IBoard
         if (node != null) node.voltage = duty01 * outputVoltageTTL;
         if (pin == activePinNumber) _outputVoltage = duty01 * outputVoltageTTL;
 
-        // Detección de parpadeo (para "Comprobar"): un pin que alterna su nivel = blink.
+        // Detección de parpadeo (para telemetría del Técnico): un pin que alterna su nivel = blink.
         if (_lastLevel.TryGetValue(pin, out bool prev) && prev != level)
         {
             _blinkPin = pin;
             _blinkLastToggle = Time.time;
         }
         _lastLevel[pin] = level;
+
+        if (level) _lastDrivenTime[pin] = Time.time;
 
         MarkProtoboardDirty();
     }
