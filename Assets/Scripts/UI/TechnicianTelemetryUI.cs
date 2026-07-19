@@ -39,6 +39,13 @@ public class TechnicianTelemetryUI : MonoBehaviour
 
     public Image panelAlerta;
 
+    [Header("Rendimiento")]
+    [Tooltip("Cada cuántos segundos se refresca el texto de telemetría. El motor eléctrico ya " +
+             "corre a 20 Hz (ver CLAUDE.md); reconstruir el TMP_Text a framerate completo (antes: " +
+             "cada Update() sin límite) no aporta nada visible y era puro costo de CPU/GC.")]
+    public float refreshInterval = 0.1f;
+    private float _refreshTimer = 0f;
+
     // ─────────────────────────────────────────────
     //  Lifecycle — Opción A: suscripción a evento de red
     // ─────────────────────────────────────────────
@@ -78,6 +85,10 @@ public class TechnicianTelemetryUI : MonoBehaviour
 
     void Update()
     {
+        _refreshTimer -= Time.deltaTime;
+        if (_refreshTimer > 0f) return;
+        _refreshTimer = refreshInterval;
+
         ActualizarTelemetriaGeneral();
         ActualizarTelemetriaArduino();
     }

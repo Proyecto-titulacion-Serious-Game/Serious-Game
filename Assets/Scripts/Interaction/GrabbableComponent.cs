@@ -127,8 +127,16 @@ public class GrabbableComponent : MonoBehaviour
     public static void RaisePlacedInSlot() => PlacedInSlot?.Invoke();
 
     /// <summary>Llamado por ComponentSlot tras instalación exitosa. El componente queda fijo.</summary>
-    public void DisableGrab() => _grab.enabled = false;
+    public void DisableGrab()
+    {
+        if (_grab == null) _grab = GetComponent<XRGrabInteractable>();   // lazy: Awake() puede no haber corrido aún
+        if (_grab != null) _grab.enabled = false;
+    }
 
     /// <summary>Re-habilita el grab (usado cuando el slot permite remover el componente instalado).</summary>
-    public void EnableGrab()  => _grab.enabled = true;
+    public void EnableGrab()
+    {
+        if (_grab == null) _grab = GetComponent<XRGrabInteractable>();
+        if (_grab != null) _grab.enabled = true;
+    }
 }

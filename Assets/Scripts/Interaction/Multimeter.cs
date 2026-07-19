@@ -1,6 +1,8 @@
 using UnityEngine;
+using UnityEngine.XR;
 using UnityEngine.XR.Interaction.Toolkit;
 using UnityEngine.XR.Interaction.Toolkit.Interactables;
+using UnityEngine.XR.Interaction.Toolkit.Interactors;
 using TMPro;
 
 /// <summary>
@@ -67,6 +69,20 @@ public class Multimeter : MonoBehaviour
     public bool  isReading       => _isReading;
 
     // ─────────────────────────────────────────────
+    //  Seguimiento de modo Resistencia (requisito Reto 4)
+    // ─────────────────────────────────────────────
+    // No se limpia en ResetProbes()/SetMode() (eso pasaría cada vez que se suelta una punta o
+    // se cambia de modo) — solo GameManager.LoadLevel() la reinicia al entrar a un reto nuevo.
+    [SerializeField] private bool _usedResistanceMode;
+
+    /// <summary>True si en algún momento de este reto se tomó una lectura real (ambas puntas
+    /// asignadas) con el multímetro en modo Resistencia. Lo consulta GameManager.EvaluarReto4().</summary>
+    public bool wasUsedInResistanceMode => _usedResistanceMode;
+
+    /// <summary>Reinicia el seguimiento de modo Resistencia — llamado por GameManager al cargar reto.</summary>
+    public void ResetResistanceModeTracking() => _usedResistanceMode = false;
+
+    // ─────────────────────────────────────────────
     //  Nodos asignados por NodeInteractable
     // ─────────────────────────────────────────────
     private ElectricalNode _nodeRed;
@@ -94,6 +110,21 @@ public class Multimeter : MonoBehaviour
         _grab.selectEntered.AddListener(OnGrabbed);
         _grab.selectExited.AddListener(OnReleased);
         _indicatorMpb = new MaterialPropertyBlock();
+
+        // Mismo bug ya documentado y arreglado antes en CableBoxSpawner.RepararInteraccionVR(): un
+        // XRGrabInteractable con la lista 'colliders' VACÍA auto-recolecta TODOS los colliders de sus
+        // hijos (Physics.GetComponentsInChildren), no solo el propio — con las 2 puntas del
+        // multímetro (Probe_Red_Tip/Probe_Black_Tip) colgando como hijos vía Cable_Red/Cable_Black,
+        // el grab del CUERPO del multímetro podía "robarse" el collider de una punta, dejándola sin
+        // poder agarrarse por separado (el reporte: "solo la punta negra se puede agarrar"). Acotar
+        // la lista al collider propio del cuerpo evita la ambigüedad, sin tocar las puntas (que ya
+        // tienen su propio XRGrabInteractable independiente vía MultimeterProbe).
+        var bodyCollider = GetComponent<Collider>();
+        if (bodyCollider != null)
+        {
+            _grab.colliders.Clear();
+            _grab.colliders.Add(bodyCollider);
+        }
     }
 
     void OnDestroy()
@@ -107,6 +138,50 @@ public class Multimeter : MonoBehaviour
     {
         TakeReading();
         UpdateDisplay();
+        AtenderCambioDeModoPorStick();
+    }
+
+    // ─────────────────────────────────────────────
+    //  Cambio de modo con el CLICK del joystick (mano que sostiene)
+    // ─────────────────────────────────────────────
+    //  El botón físico Mode_Button perdía el "duelo de distancias" de XRI contra el grab del
+    //  cuerpo (el pivote del multímetro queda a ~1 cm del botón): al querer presionarlo, la mano
+    //  agarraba el multímetro (reporte real). Como el Reto 4 EXIGE pasar a modo OHMS, hace falta
+    //  un camino que no dependa de puntería: mientras se SOSTIENE el multímetro, apretar el
+    //  JOYSTICK (click del stick) de esa misma mano cicla Voltaje → Corriente → Resistencia.
+    //  (El stick de esa mano no compite con nada: mover/girar usa el stick de la otra o queda
+    //  consumido por la rotación de objeto en mano, que ignora el click.)
+    //  En PCVR/editor también funciona la tecla M como atajo de prueba.
+
+    private bool _stickClickPrev;
+
+    void AtenderCambioDeModoPorStick()
+    {
+        bool kb = UnityEngine.InputSystem.Keyboard.current != null &&
+                  UnityEngine.InputSystem.Keyboard.current.mKey.wasPressedThisFrame;
+
+        bool click = false;
+        if (_currentInteractor != null)   // solo mientras alguien lo sostiene
+        {
+            XRNode nodo = XRNode.RightHand;
+            if (_currentInteractor is XRBaseInputInteractor input &&
+                input.handedness == InteractorHandedness.Left)
+                nodo = XRNode.LeftHand;
+
+            var dev = InputDevices.GetDeviceAtXRNode(nodo);
+            dev.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out click);
+        }
+
+        if ((click && !_stickClickPrev) || kb) CiclarModo();
+        _stickClickPrev = click;
+    }
+
+    /// <summary>Cicla Voltaje → Corriente → Resistencia (usado por el stick-click y el botón físico).</summary>
+    public void CiclarModo()
+    {
+        SetMode((MultimeterMode)(((int)mode + 1) % 3));
+        SendHaptic();
+        Debug.Log($"[Multimeter] Modo → {mode}");
     }
 
     // ─────────────────────────────────────────────
@@ -122,8 +197,9 @@ public class Multimeter : MonoBehaviour
         {
             Debug.Log($"[Multimeter] Punta roja → {node?.gameObject.name} ({node?.voltage:F2}V)");
             SendHaptic();   // vibrar solo al tocar un nodo NUEVO, no 60 veces/s de contacto
+            _nodeRed = node;
+            RecomputeBridgeComponent();
         }
-        _nodeRed = node;
         SetIndicator(indicatorRed, node != null);
     }
 
@@ -134,9 +210,37 @@ public class Multimeter : MonoBehaviour
         {
             Debug.Log($"[Multimeter] Punta negra → {node?.gameObject.name} ({node?.voltage:F2}V)");
             SendHaptic();
+            _nodeBlack = node;
+            RecomputeBridgeComponent();
         }
-        _nodeBlack = node;
         SetIndicator(indicatorBlack, node != null);
+    }
+
+    // ─────────────────────────────────────────────
+    //  Componente puente (para lectura de corriente) — cacheado
+    // ─────────────────────────────────────────────
+    // TakeReading() corre cada Update() mientras ambas puntas están asignadas (constante
+    // mientras el Explorador sostiene el multímetro en contacto). Antes escaneaba TODA la
+    // escena con FindObjectsByType cada frame para hallar el componente entre las 2 puntas
+    // — costoso en Quest. Ahora se recalcula solo cuando cambia una punta (ver SetRedNode/
+    // SetBlackNode) y TakeReading() reutiliza el resultado cacheado.
+    private ElectricalComponent _bridgeComponent;
+
+    void RecomputeBridgeComponent()
+    {
+        _bridgeComponent = null;
+        if (_nodeRed == null || _nodeBlack == null) return;
+
+        var allComps = FindObjectsByType<ElectricalComponent>(FindObjectsInactive.Exclude);
+        foreach (var comp in allComps)
+        {
+            if ((comp.nodeA == _nodeRed && comp.nodeB == _nodeBlack) ||
+                (comp.nodeA == _nodeBlack && comp.nodeB == _nodeRed))
+            {
+                _bridgeComponent = comp;
+                break;
+            }
+        }
     }
 
     // ─────────────────────────────────────────────
@@ -242,6 +346,7 @@ public class Multimeter : MonoBehaviour
     {
         _nodeRed   = null;
         _nodeBlack = null;
+        _bridgeComponent = null;
         _measuredVoltage = 0f;
         _measuredCurrent = 0f;
         _isReading = false;
@@ -274,23 +379,17 @@ public class Multimeter : MonoBehaviour
         bool wasReading = _isReading;
         _isReading = true;
         if (!wasReading) OnReadingTaken?.Invoke();
+        if (mode == MultimeterMode.Resistance) _usedResistanceMode = true;
 
         // 1. Voltaje (Diferencia de potencial real)
         float vDiff = _nodeRed.voltage - _nodeBlack.voltage;
         
-        // 2. Corriente (CORRECCIÓN: Buscar el componente puente)
-        float i = 0f;
-        var allComps = FindObjectsByType<ElectricalComponent>(FindObjectsInactive.Exclude);
-        foreach (var comp in allComps)
-        {
-            if ((comp.nodeA == _nodeRed && comp.nodeB == _nodeBlack) || 
-                (comp.nodeA == _nodeBlack && comp.nodeB == _nodeRed))
-            {
-                // Extraer la corriente que fluye a través del componente conectado en serie
-                i = Mathf.Abs(comp.current);
-                break;
-            }
-        }
+        // 2. Corriente — componente puente, cacheado (ver RecomputeBridgeComponent). Si el
+        // objeto cacheado fue destruido (p.ej. componente reemplazado por red) el operador ==
+        // de Unity lo detecta como null; se recalcula una vez en vez de volver a escanear
+        // la escena cada frame de forma incondicional.
+        if (_bridgeComponent == null) RecomputeBridgeComponent();
+        float i = _bridgeComponent != null ? Mathf.Abs(_bridgeComponent.current) : 0f;
 
         switch (mode)
         {
@@ -376,6 +475,10 @@ public class Multimeter : MonoBehaviour
     void SetIndicator(Renderer r, bool assigned)
     {
         if (r == null) return;
+        // Lazy-init defensivo: si algo llama ResetProbes()/SetMode() antes de que Awake() corra
+        // (p.ej. GameManager.LoadLevel invocado muy temprano tras cargar la escena), _indicatorMpb
+        // todavía era null y Renderer.GetPropertyBlock(null) tiraba ArgumentNullException.
+        if (_indicatorMpb == null) _indicatorMpb = new MaterialPropertyBlock();
         r.GetPropertyBlock(_indicatorMpb);
         _indicatorMpb.SetColor(_baseColorID, assigned ? _colorAssigned : _colorIdle);
         r.SetPropertyBlock(_indicatorMpb);

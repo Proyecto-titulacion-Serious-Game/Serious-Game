@@ -33,6 +33,11 @@ public class GameSession : NetworkBehaviour
     [Networked] public float        ValorComponentePendiente { get; set; }
     [Networked] public int          VarianteComponentePendiente { get; set; }
     [Networked] public TickTimer    HeartbeatTimer          { get; set; }
+    /// <summary>Deadline del reto actual en el reloj de RED (lo publica el Host al cargar cada
+    /// reto). Ambos roles leen el tiempo restante de este MISMO timer de Fusion — sin esto, cada
+    /// GameManager contaba su propio timer local (arrancado en momentos distintos por proceso) y
+    /// al Explorador se le acababa el tiempo antes que al Técnico.</summary>
+    [Networked] public TickTimer    RetoTimer               { get; set; }
 
     // Host resetea el timer cada N segundos; clientes detectan si supera el timeout.
     private const float HeartbeatInterval = 5f;
@@ -179,6 +184,43 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     {
         OnCableFixed?.Invoke();
         Debug.Log("[GameSession] Cable suelto reparado (Reto 4).");
+    }
+
+    // ─────────────────────────────────────────────
+    //  Errores → métricas del Host (dashboard docente)
+    // ─────────────────────────────────────────────
+    //  Los errores del Explorador (colocar un LED con la polaridad invertida, valor incorrecto,
+    //  validación fallida del Reto 4…) se registraban SOLO en su PerformanceTracker local — pero el
+    //  dashboard localhost y la subida a Sheets leen el tracker del HOST (Técnico), que mostraba
+    //  "0 errores" aunque el Explorador sí se hubiera equivocado. El cliente los reenvía por aquí.
+
+    /// <summary>Cliente → Host: registra un error en el PerformanceTracker del Host (métricas).</summary>
+    [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
+    public void RPC_RegistrarErrorRemoto(string categoria)
+    {
+        var tracker = FindAnyObjectByType<PerformanceTracker>();
+        if (tracker != null) tracker.AddError(string.IsNullOrEmpty(categoria) ? "General" : categoria);
+        else Debug.LogWarning("[GameSession] RPC_RegistrarErrorRemoto: no hay PerformanceTracker en el Host.");
+    }
+
+    // ─────────────────────────────────────────────
+    //  Timer del reto (host-autoritativo, reloj de red)
+    // ─────────────────────────────────────────────
+
+    /// <summary>Host: arranca el timer del reto en el reloj de red (0 o negativo = sin límite).</summary>
+    public void IniciarTimerReto(float segundos)
+    {
+        if (Object == null || !Object.IsValid || !Object.HasStateAuthority) return;
+        RetoTimer = segundos > 0f ? TickTimer.CreateFromSeconds(Runner, segundos) : TickTimer.None;
+    }
+
+    /// <summary>Tiempo restante del reto según el reloj de RED: null si el Host aún no publicó
+    /// timer para este reto, 0 si ya expiró. Ambos roles ven el mismo valor.</summary>
+    public float? TiempoRestanteReto()
+    {
+        if (Object == null || !Object.IsValid) return null;
+        if (RetoTimer.Expired(Runner)) return 0f;
+        return RetoTimer.RemainingTime(Runner);   // null si nunca se seteó (TickTimer.None)
     }
 
     // ─────────────────────────────────────────────
@@ -381,21 +423,50 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     /// <summary>(reto, resumen). El Técnico (UI del clipboard) se suscribe para mostrarlo.</summary>
     public static event System.Action<int, string> OnDiagnosticoRetoActualizado;
 
-    /// <summary>Publica el resumen del reto actual (llamar desde el Explorador). Funciona en solo/offline (local).</summary>
+    /// <summary>Publica el resumen del reto actual (llamar desde el Explorador). Funciona en solo/offline (local).
+    /// Se manda POR TROZOS (mismo patrón que RPC_SubirSketchChunk): el resumen "rico" (nombre + estado
+    /// de cada rama/cable + próxima acción) supera fácilmente los 512 bytes que Fusion permite por RPC
+    /// —más aún con acentos/ñ, que en UTF-8 ocupan 2 bytes cada uno—. Reto 2 con sus 2 ramas llegó a
+    /// 984 bytes; Fusion lo rechazaba SILENCIOSAMENTE (un warning en el log del emisor, sin excepción
+    /// visible ni de vuelta al llamador) y el clipboard del Técnico quedaba vacío para siempre en ese
+    /// reto, porque el resumen ya se había marcado como "enviado" en el reporter antes de saber que el
+    /// RPC había fallado. Confirmado con un test de red real (2 procesos, Fusion log: "payload is too
+    /// large (984 bytes). Max allowed: 512 bytes").</summary>
     public static void ReportarDiagnosticoReto(int reto, string resumen)
     {
         resumen ??= "";
         if (Instance != null && Instance.Object != null && Instance.Object.IsValid)
-            Instance.RPC_ReportarDiagnosticoReto(reto, resumen);
+        {
+            const int Chunk = 200;   // caracteres; conservador por el UTF-8 de acentos/ñ (hasta 2 bytes c/u)
+            int total = Mathf.Max(1, Mathf.CeilToInt(resumen.Length / (float)Chunk));
+            for (int i = 0; i < total; i++)
+            {
+                int start = i * Chunk;
+                string trozo = resumen.Substring(start, Mathf.Min(Chunk, resumen.Length - start));
+                Instance.RPC_ReportarDiagnosticoRetoChunk(reto, i, total, trozo);
+            }
+        }
         else
             OnDiagnosticoRetoActualizado?.Invoke(reto, resumen);   // sin red → evento local
     }
 
-    /// <summary>El Explorador publica el resumen del reto; llega a todos (incl. Host/Técnico).</summary>
+    readonly System.Text.StringBuilder _diagChunkBuffer = new System.Text.StringBuilder();
+    int _diagChunkReto = -1;
+
+    /// <summary>El Explorador publica un TROZO del resumen del reto; llega a todos (incl. Host/Técnico).
+    /// Al llegar el último trozo, reensambla y dispara el evento igual que antes.</summary>
     [Rpc(RpcSources.All, RpcTargets.All)]
-    public void RPC_ReportarDiagnosticoReto(int reto, string resumen)
+    public void RPC_ReportarDiagnosticoRetoChunk(int reto, int idx, int total, string chunk)
     {
+        if (idx == 0 || _diagChunkReto != reto) { _diagChunkBuffer.Clear(); _diagChunkReto = reto; }
+        _diagChunkBuffer.Append(chunk);
+        if (idx < total - 1) return;   // esperar el resto de los trozos
+
+        string resumen = _diagChunkBuffer.ToString();
+        _diagChunkBuffer.Clear();
         if (reto >= 1 && reto <= 4) _diagReto[reto] = resumen;
+        Debug.Log($"[GameSession] Diagnóstico reto={reto} reensamblado ({total} trozo(s), {resumen.Length} chars) — " +
+                  $"suscriptores={OnDiagnosticoRetoActualizado?.GetInvocationList().Length ?? 0}");
         OnDiagnosticoRetoActualizado?.Invoke(reto, resumen);
     }
 
@@ -440,5 +511,37 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     {
         OnErrorRemoto?.Invoke(error);
         Debug.Log($"[GameSession] Error de sketch reportado por red: {error}");
+    }
+
+    // ─────────────────────────────────────────────
+    //  Caminadora KAT remota: Técnico (PC con la KAT por USB) → Explorador
+    // ─────────────────────────────────────────────
+    //  Caso: no se quiere/puede emparejar la KAT directo al visor Quest standalone. La KAT se
+    //  conecta por USB a la PC del Técnico (que ya tiene soporte KAT completo vía KAT Gateway) y
+    //  TecnicoKatBridge retransmite ahí la lectura cruda del SDK. El PlayerController del
+    //  Explorador, con katViaRed=true, usa estos campos en vez de leer KATNativeSDK localmente —
+    //  la calibración de orientación sigue siendo LOCAL (usa el headCamera del Explorador), solo
+    //  el dato crudo de la caminadora viaja por red. [Networked] en vez de RPC por frame: son
+    //  valores continuos (actualizan ~cada tick), no eventos discretos.
+
+    [Networked] public Vector3     KatRedMoveSpeed    { get; set; }
+    [Networked] public Quaternion  KatRedBodyRotation { get; set; }
+    [Networked] public NetworkBool KatRedConectada    { get; set; }
+    /// <summary>Se incrementa cada vez que el SDK del Técnico entrega datos frescos (equivalente
+    /// networked de TreadMillData.lastUpdateTimePoint, que es un double y Fusion no sincroniza).</summary>
+    [Networked] public int         KatRedDataSeq      { get; set; }
+    /// <summary>Se incrementa en cada flanco de pulsación del botón de calibración de la KAT.</summary>
+    [Networked] public int         KatRedBtnSeq       { get; set; }
+
+    /// <summary>Solo el Técnico (StateAuthority) llama esto — lee la KAT conectada a SU PC.</summary>
+    public void PublicarKatRemota(Vector3 moveSpeed, Quaternion bodyRotation, bool conectada,
+                                   bool datosFrescos, bool botonPulsado)
+    {
+        if (!Object.HasStateAuthority) return;
+        KatRedMoveSpeed    = moveSpeed;
+        KatRedBodyRotation = bodyRotation;
+        KatRedConectada    = conectada;
+        if (datosFrescos)  KatRedDataSeq++;
+        if (botonPulsado)  KatRedBtnSeq++;
     }
 }

@@ -323,6 +323,24 @@ public class ComponentDeliverySystem : MonoBehaviour
     }
 
     /// <summary>
+    /// Capacitor del reto a reparar (pieza fija de la escena, Reto 3): busca el cableado con
+    /// polaridad invertida. Ignora capacitores sin nodos (el de la bandeja, que no está cableado).
+    /// Mismo patrón que BuscarResistorDelReto/BuscarLEDDelReto — antes NO existía, así que el
+    /// capacitor del Reto 3 nunca se podía reparar (ver ApplyRepairToCircuit).
+    /// </summary>
+    Capacitor BuscarCapacitorDelReto()
+    {
+        Capacitor fallback = null;
+        foreach (var cap in FindObjectsByType<Capacitor>(FindObjectsInactive.Exclude))
+        {
+            if (cap == null || cap.nodeA == null || cap.nodeB == null) continue;  // solo cableados
+            if (cap.polarityInverted) return cap;
+            if (fallback == null) fallback = cap;
+        }
+        return fallback;
+    }
+
+    /// <summary>
     /// Fuerza que AMBOS motores recalculen tras un cambio de componente: el CircuitSimulator
     /// (Gameplay, vía GameManager) y el CircuitManager (Electrical, que es el que pinta el LED en
     /// los Retos 1–3 con SimulateSeries/Parallel y dispara OnCircuitChanged).
@@ -393,6 +411,7 @@ public class ComponentDeliverySystem : MonoBehaviour
                 // > powerRatingWatts) se limpia. En estos circuitos de baja tensión la disipación es
                 // < 1 W, así que 1 W de margen elimina cualquier falla de "potencia insuficiente".
                 r.powerRatingWatts = Mathf.Max(r.powerRatingWatts, 1f);
+                LockRepairedComponent(r.gameObject);
             }
             ResimularCircuitos();
             return;
@@ -412,6 +431,22 @@ public class ComponentDeliverySystem : MonoBehaviour
             {
                 if (esPolaridad) led.polarityInverted = false;
                 else if (_pendingValue > 0f) { led.resistance = _pendingValue; led.isOpenCircuit = false; }
+                LockRepairedComponent(led.gameObject);
+            }
+            ResimularCircuitos();
+            return;
+        }
+
+        // El Capacitor del Reto 3 también es pieza FIJA (no en slot): sin esta rama, ApplyRepairToCircuit
+        // caía directo al 'if (gameManager?.circuit == null) return;' de abajo (circuit SIEMPRE null en
+        // Retos 1-3) y la polaridad del capacitor nunca se corregía — el Reto 3 quedaba incompletable.
+        if (_pendingType == ComponentType.Capacitor)
+        {
+            var cap = BuscarCapacitorDelReto();
+            if (cap != null)
+            {
+                cap.polarityInverted = false;
+                LockRepairedComponent(cap.gameObject);
             }
             ResimularCircuitos();
             return;
@@ -481,6 +516,18 @@ public class ComponentDeliverySystem : MonoBehaviour
             return;
         }
 
+        // Capacitor fijo (Reto 3): valor/polaridad incorrecta enviada → deja/deja constancia de que
+        // sigue invertido (mismo patrón "panel honesto" que el resistor de arriba). Sin esto caía en
+        // el guard de circuit==null de abajo y no pasaba nada (no rompía nada, pero tampoco confirmaba
+        // el estado averiado explícitamente).
+        if (_pendingType == ComponentType.Capacitor)
+        {
+            var cap = BuscarCapacitorDelReto();
+            if (cap != null) cap.polarityInverted = true;
+            ResimularCircuitos();
+            return;
+        }
+
         if (gameManager?.circuit == null) return;
 
         foreach (var comp in gameManager.circuit.components)
@@ -512,6 +559,23 @@ public class ComponentDeliverySystem : MonoBehaviour
         }
 
         gameManager.circuit.MarkDirty();
+    }
+
+    /// <summary>
+    /// Traba una pieza FIJA (Retos 1-3) ya reparada para que no se pueda volver a agarrar y sacar de
+    /// su sitio. Sin esto, tras una reparación exitosa el Explorador podía seguir sacando el
+    /// LED/Resistor/Capacitor (siguen siendo XRGrabInteractable) y dejarlo fuera de su ancla — el
+    /// cable decorativo (ver VRCableRenderer, anclado al slot fijo) quedaría "vacío" con la pieza ya
+    /// buena tirada en otro lado, aunque el circuito ya cuente como resuelto. Mismo patrón que ya usa
+    /// <see cref="Reto2CircuitGuard"/> para el LED de reemplazo.
+    /// </summary>
+    static void LockRepairedComponent(GameObject go)
+    {
+        foreach (var grab in go.GetComponentsInChildren<UnityEngine.XR.Interaction.Toolkit.Interactables.XRGrabInteractable>(true))
+            if (grab != null) grab.enabled = false;
+
+        var gc = go.GetComponentInChildren<GrabbableComponent>(true);
+        if (gc != null) gc.DisableGrab();
     }
 
     // ─────────────────────────────────────────────

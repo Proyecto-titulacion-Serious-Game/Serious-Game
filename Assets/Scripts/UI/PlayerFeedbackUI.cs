@@ -250,9 +250,18 @@ public class PlayerFeedbackUI : MonoBehaviour
                     Color.clear, colorAlerta);
                 break;
             case 1:
+                // BUG real corregido: este paso decía "gira el capacitor con Botón B", pero esa
+                // rotación en el sitio (PlayerInteraction.CorrectCapacitorPolarity) es código MUERTO
+                // — nada la llama. La corrección real del Reto 3 es por ENTREGA (igual que el
+                // resistor/LED): el Técnico manda un capacitor con polaridad correcta y el Explorador
+                // lo instala en el slot (ComponentDeliverySystem.ApplyRepairToCircuit), tal como ya lo
+                // dice el paso 3 para el resto de piezas. Ver memoria "Reto3 capacitor: bug de
+                // completabilidad arreglado" — ese fix ya movió la corrección a la entrega; esta
+                // instrucción en pantalla nunca se actualizó y dejaba al jugador rotando algo que no
+                // hacía nada.
                 Mostrar(
-                    "Gira el capacitor 180°\npara corregir la polaridad",
-                    "Botón B (mano derecha)\npara rotar el componente",
+                    "Espera el capacitor\ncorregido del Técnico",
+                    "Grip para tomarlo.\nColócalo en el slot correcto.",
                     Color.clear, colorAccion);
                 break;
             case 2:

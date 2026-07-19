@@ -56,6 +56,10 @@ public class TechnicianManualDisplay : MonoBehaviour
     [Header("Reto 4 — imágenes específicas")]
     public Sprite arduinoPinoutReto4;     // mapa de pines del Arduino UNO (D0-D13, A0-A5)
     public Sprite fotoProtoboardReto4;    // captura real de la protoboard armada
+    public Sprite resistenciaMultimetroReto4; // multimetro en modo OHMS midiendo un resistor
+    [Header("INFO — página fija de referencia (todos los retos)")]
+    [Tooltip("Assets/Imagenes/reto1/Multimetro.jpg — foto/diagrama del multímetro con sus 2 puntas.")]
+    public Sprite imagenMultimetro;
 
     // ─────────────────────────────────────────────
     //  Páginas del manual
@@ -244,9 +248,14 @@ public class TechnicianManualDisplay : MonoBehaviour
     }
 
     /// <summary>
-    /// Páginas adicionales por reto — aquí vive la diferencia de grosor del manual:
-    /// Reto 1 = 0 extra (3 en total) · Retos 2-3 = 1 extra de diagnóstico (4) ·
-    /// Reto 4 = 3 extra: código Arduino, cableado del protoboard y diagnóstico (6).
+    /// Páginas adicionales por reto — aquí vive la diferencia de grosor del manual (más la
+    /// página fija INFO del multímetro que BuildPages() agrega siempre al final, ver
+    /// <see cref="PaginaInfoMultimetro"/>): Reto 1 = 2 extra (6 en total con INFO: código de
+    /// colores + diagnóstico) · Reto 2 = 4 extra (8) · Reto 3 = 3 extra (7) · Reto 4 = 10 extra:
+    /// código Arduino, cableado del protoboard, diagnóstico graduado (Comprobar), panel en vivo
+    /// (Reto4DiagnosticoReporter) y requisito de modo OHMS (14). Cada página "DIAGNOSTICO — RETO
+    /// N" debe citar el vocabulario REAL que produce DiagnosticSystem — si cambia el texto ahí,
+    /// actualizar la página correspondiente para que no describa algo que el panel ya no dice.
     /// Texto ASCII-safe (LiberationSans SDF no tiene flechas ni símbolos especiales).
     /// </summary>
     Pagina[] PaginasExtraPorReto(LevelType level)
@@ -273,6 +282,37 @@ public class TechnicianManualDisplay : MonoBehaviour
                     },
                     new Pagina
                     {
+                        izquierda = "COMO CABLEAR — LA BATERIA:\n\n" +
+                                    "La bateria tiene DOS terminales:\n" +
+                                    "  +  (positivo)   y   -  (negativo)\n\n" +
+                                    "1. Cable de bateria (+) -> riel VCC\n" +
+                                    "   (riel ROJO, en el borde de la\n   protoboard)\n" +
+                                    "2. Cable de bateria (-) -> riel GND\n" +
+                                    "   (riel AZUL, al centro)\n\n" +
+                                    "SIN estos 2 cables, TODA la\n" +
+                                    "protoboard queda en 0 V, aunque\n" +
+                                    "el resto este perfecto — es lo\n" +
+                                    "primero que hay que revisar si\n" +
+                                    "el Explorador dice 'no prende\n" +
+                                    "nada, ni un LED'.",
+                        derecha   = "COMO CABLEAR — CADA RAMA:\n\n" +
+                                    "Por cada rama (resistencia + LED),\n" +
+                                    "en este orden:\n\n" +
+                                    "3. Riel VCC -> entrada de la\n" +
+                                    "   resistencia\n" +
+                                    "4. Salida de la resistencia ->\n" +
+                                    "   entrada del LED (anodo,\n" +
+                                    "   la pata LARGA)\n" +
+                                    "5. Salida del LED (catodo) ->\n" +
+                                    "   riel GND\n\n" +
+                                    "Repetir 3-5 para la OTRA rama.\n" +
+                                    "En total son 6 cables: 2 de\n" +
+                                    "bateria + 2 por rama x 2 ramas.\n\n" +
+                                    "Guialo con la foto de la\n" +
+                                    "protoboard (pagina siguiente)."
+                    },
+                    new Pagina
+                    {
                         izquierda = "PROTOBOARD REAL:\n\n" +
                                     "Asi se ve la protoboard armada\n" +
                                     "del Reto 2 desde arriba.\n\n" +
@@ -288,11 +328,12 @@ public class TechnicianManualDisplay : MonoBehaviour
                     new Pagina
                     {
                         izquierda = "DIAGNOSTICO — RETO 2:\n\n" +
-                                    "El panel de diagnostico (pantalla)\n" +
+                                    "El panel de diagnostico (clipboard)\n" +
                                     "te dice esto EN VIVO, en su propio\nvocabulario:\n\n" +
-                                    "- 'Cables: X/Y conectados' = cuantos\n  jumpers YA cierran una rama.\n" +
                                     "- 'Rama N: [OK]/[!]' = si ESA rama\n  ya prende de forma segura.\n" +
-                                    "- 'Ramas correctas: X/2' = cuantas\n  ramas ya estan listas.",
+                                    "- 'Ramas correctas: X/Y' = cuantas\n  ramas ya estan listas.\n" +
+                                    "- 'CABLES FISICOS' lista cada\n  jumper por nombre: [OK] conectado\n  en ambas puntas, o [!] si le\n  falta una o las dos.\n" +
+                                    "- 'Total: X/Y cables cerrando el\n  circuito' = cuantos jumpers YA\n  cierran alguna rama.",
                         derecha   = "GUIA AL EXPLORADOR:\n\n" +
                                     "- Si falta un cable: usa la foto\n  de la protoboard (pagina anterior)\n" +
                                     "  para indicarle CUAL slot.\n" +
@@ -351,6 +392,26 @@ public class TechnicianManualDisplay : MonoBehaviour
                 {
                     new Pagina
                     {
+                        izquierda = "COMO USAR EL BLINK DEL ARDUINO (PC):\n\n" +
+                                    "• [Ctrl + Enter]: Ejecutar / Enviar el código al Arduino.\n" +
+                                    "• [Ctrl + L]: Limpiar el código.\n\n" +
+                                    "PASOS DEL TÉCNICO:\n\n" +
+                                    "1. Clic en el monitor del PC_Arduino.\n" +
+                                    "2. Escribe el sketch (reemplaza ___ por tu pin).\n" +
+                                    "3. Usa Ctrl+Enter para compilar y subir.",
+                        
+                        derecha   = "CÓMO ELEGIR / VER EL PIN:\n\n" +
+                                    "Los pines van rotulados D2..D13 en la placa\n" +
+                                    "(el Explorador los ve en VR).\n\n" +
+                                    "El NÚMERO que escribas en el código es el pin\n" +
+                                    "que se activa. Ej: Escribe 7 -> se enciende D7.\n\n" +
+                                    "¡COMUNICACIÓN CRÍTICA!\n" +
+                                    "Avisa al Explorador qué pin elegiste:\n" +
+                                    "él debe conectar el LED a ESE pin exacto."
+                    },
+
+                    new Pagina
+                    {
                         izquierda = "CODIGO ARDUINO — BASICO:\n\n" +
                                     "void setup() {\n  pinMode(13, OUTPUT);\n}\n\n" +
                                     "void loop() {\n  digitalWrite(13, HIGH);\n  delay(500);\n" +
@@ -359,24 +420,8 @@ public class TechnicianManualDisplay : MonoBehaviour
                         derecha   = "FUNCIONES DISPONIBLES:\n\n" +
                                     "pinMode(pin, OUTPUT)\ndigitalWrite(pin, HIGH/LOW)\n" +
                                     "analogWrite(pin, 0-255)  (brillo)\nanalogRead(A0)\ndelay(ms)\nmillis()\n\n" +
-                                    "El codigo es LIBRE: no hay un\nunico patron correcto.\n\n" +
+                                    "El codigo es LIBRE: no hay un\nunico patron correcto.\n" +
                                     "Ver pag. siguiente: estructuras\nde control y mas ejemplos."
-                    },
-                    new Pagina
-                    {
-                        izquierda = "MAPA DE PINES:\n\n" +
-                                    "Cada pin digital tiene un NUMERO\n" +
-                                    "(el que usas en pinMode/\n" +
-                                    "digitalWrite). Los marcados con\n" +
-                                    "'~' tambien sirven para PWM\n" +
-                                    "(analogWrite).\n\n" +
-                                    "A0-A5 son ENTRADAS analogicas\n" +
-                                    "(analogRead), no de salida.\n\n" +
-                                    "GND aparece en varios lugares:\ncualquiera sirve.",
-                        derecha   = "",
-                        imagen    = arduinoPinoutReto4,
-                        imagenTitulo = "Arduino UNO — pines etiquetados",
-                        imagenTamano = new Vector2(580, 387)
                     },
                     new Pagina
                     {
@@ -467,6 +512,43 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "- 'Sobrecarga o cortocircuito'\n  (rama sin LED) = sube la R.\n\n" +
                                     "Ya NO hace falta que el LED\nparpadee: HIGH fijo, PWM, o\n" +
                                     "corriente continua sin LED\ntambien son validos si la\nconexion es segura."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "PANEL EN VIVO — RETO 4:\n\n" +
+                                    "Ademas del mensaje al presionar\nComprobar (pagina anterior), el\n" +
+                                    "panel de diagnostico se actualiza\nSOLO cada 2s con el estado real\n" +
+                                    "de la protoboard, sin que nadie\ntenga que presionar nada:\n\n" +
+                                    "-- SKETCH CARGADO --\nPin activo, Modo, Estado y\nVoltaje del pin que programaste.\n\n" +
+                                    "-- PROTOBOARD --\nCorriente y Potencia reales que\ncirculan por la rama ahora mismo.",
+                        derecha   = "COMO LEERLO:\n\n" +
+                                    "- Corriente en 0 mA = el circuito\n  no esta cerrado todavia.\n" +
+                                    "- '[!] SOBRECARGA' = corriente\n  arriba de 25 mA — sube la R.\n" +
+                                    "- '[!] CIRCUITO ABIERTO' = falta\n  un cable o el resistor.\n" +
+                                    "- 'FALLAS PENDIENTES' lista cada\n  problema por separado; si en\n  vez dice '[OK] Sin fallas',\n  pide al Explorador presionar\n  el boton fisico."
+                    },
+                    new Pagina
+                    {
+                        izquierda = "BUENA PRACTICA: MODO OHMS:\n\n" +
+                                    "El reto se completa SOLO cuando\nel circuito cumple tu codigo —\n" +
+                                    "pero un tecnico real no confia\nen un resistor solo por su\n" +
+                                    "color: lo MIDE con el multimetro\nen modo OHMS para confirmar su\n" +
+                                    "valor real.\n\n" +
+                                    "COMO HACERLO:\n\n" +
+                                    "1. El Explorador toma el multimetro.\n" +
+                                    "2. Cambia el modo hasta que diga\n   'RESISTANCE': APRIETA EL\n" +
+                                    "   JOYSTICK de la mano que\n   sostiene el multimetro (o\n" +
+                                    "   toca el boton fisico de modo).\n" +
+                                    "3. Toca con las 2 puntas los\n   extremos del resistor.\n" +
+                                    "4. La pantalla muestra los OHMS\n   reales del componente.\n\n" +
+                                    "(Si el docente activa el candado\n" +
+                                    "'exigir medicion OHMS' en el\n" +
+                                    "GameManager, este paso vuelve a\n" +
+                                    "ser obligatorio antes de validar.)",
+                        derecha   = "",
+                        imagen        = resistenciaMultimetroReto4,
+                        imagenTitulo  = "Multimetro en modo OHMS midiendo un resistor",
+                        imagenTamano  = new Vector2(440, 500)
                     }
                 };
 
@@ -487,12 +569,67 @@ public class TechnicianManualDisplay : MonoBehaviour
                         imagen    = codigoColoresReto1,
                         imagenTitulo = "Bandas de color de la resistencia",
                         imagenTamano = new Vector2(580, 330)
+                    },
+                    new Pagina
+                    {
+                        izquierda = "DIAGNOSTICO — RETO 1:\n\n" +
+                                    "El panel de diagnostico (clipboard)\n" +
+                                    "te dice esto EN VIVO, en su propio\nvocabulario:\n\n" +
+                                    "- 'Resistencia colocada: X Ohm\n  [OK]/[!] INCORRECTA' = el valor\n  real que el Explorador puso.\n" +
+                                    "- 'Muy BAJA' = pasa demasiada\n  corriente, sobrecarga el LED.\n" +
+                                    "- 'Muy ALTA' = pasa poca\n  corriente, no enciende.",
+                        derecha   = "GUIA AL EXPLORADOR:\n\n" +
+                                    "- 'LED: ENCENDIDO/APAGADO' +\n  voltaje y corriente medidos\n  (objetivo: 10 mA) — te dice si\n  ya casi llega o esta lejos.\n" +
+                                    "- Si dice 'Muy BAJA': pide una\n  resistencia de MAYOR valor.\n" +
+                                    "- Si dice 'Muy ALTA': pide una\n  de MENOR valor.\n\n" +
+                                    "Victoria: '[OK] Circuito correcto:\n850 Ohm entrega ~10 mA al LED.'"
                     }
                 };
 
             default:
                 return System.Array.Empty<Pagina>();
         }
+    }
+
+    /// <summary>
+    /// Página de referencia fija sobre el multímetro (misma en los 4 retos) — la abre el botón
+    /// "INFO" del panel de glosario vía <see cref="IrAPaginaInfoMultimetro"/>. No revela valores
+    /// calculados de ningún reto (solo explica la herramienta), respetando la regla de que el
+    /// manual diagnostica pero no da la respuesta.
+    /// </summary>
+    Pagina PaginaInfoMultimetro() => new Pagina
+    {
+        izquierda = "EL MULTIMETRO:\n\n" +
+                    "Herramienta del Explorador (VR)\npara medir el circuito con 2\n" +
+                    "puntas: ROJA (mano derecha) y\nNEGRA (mano izquierda,\nreferencia).\n\n" +
+                    "Tiene 3 MODOS — se cambian con\nel boton fisico de su cuerpo:\n\n" +
+                    "1. VOLTAJE (DC): diferencia de\n   potencial entre las 2 puntas.\n" +
+                    "2. CORRIENTE (DC): corriente que\n   atraviesa el componente\n   entre las puntas.\n" +
+                    "3. RESISTENCIA (OHMS): valor del\n   componente que tocan las\n   puntas.",
+        derecha   = "COMO SE USA:\n\n" +
+                    "1. El Explorador agarra el\n   multimetro.\n" +
+                    "2. Presiona el boton para elegir\n   el modo (Voltaje / Corriente /\n   Resistencia).\n" +
+                    "3. Apunta la mano DERECHA (punta\n   roja) a un nodo o slot.\n" +
+                    "4. Apunta la mano IZQUIERDA\n   (punta negra) a otro nodo.\n" +
+                    "5. La pantalla muestra la\n   lectura en vivo.\n\n" +
+                    "CUANDO USARLO EN EL JUEGO:\n\n" +
+                    "- Reto 1: confirmar el voltaje\n  sobre el LED/resistor.\n" +
+                    "- Retos 2 y 3: diagnosticar por\n  que una rama no enciende.\n" +
+                    "- Reto 4: medir la RESISTENCIA\n  (modo OHMS) es la buena\n  practica del tecnico real.\n  Cambio de modo: click del\n  joystick de la mano que\n  sostiene el multimetro.",
+        imagen        = imagenMultimetro,
+        imagenTitulo  = "El multimetro: puntas roja y negra",
+        imagenTamano  = new Vector2(480, 480)
+    };
+
+    /// <summary>Salta a la página fija de referencia del multímetro — la abre el botón "INFO"
+    /// del panel de glosario (<see cref="ManualGlossaryToggle"/>). Es siempre la última página
+    /// del reto activo (ver <see cref="BuildPages"/>), así que no depende de cuántas páginas
+    /// extra tenga cada reto.</summary>
+    public void IrAPaginaInfoMultimetro()
+    {
+        if (_paginas == null || _paginas.Length == 0) return;
+        SetImagenVisible(true);
+        IrAPagina(_paginas.Length - 1);
     }
 
     ManualPage GetManualPage(LevelType level)
@@ -624,10 +761,15 @@ public class TechnicianManualDisplay : MonoBehaviour
 
         return gameManager.currentLevel switch
         {
-            LevelType.OhmLaw   => "VALORES DEL RETO 1:\n\nFuente: 9V\nR correcta: 850 Ohm\nLED R interna: 50 Ohm\nI objetivo: 10 mA",
+            // REGLA PERMANENTE del proyecto: el manual da DIAGNÓSTICO (qué está mal, qué se mide,
+            // qué hace falta), nunca el VALOR CALCULADO — eso es lo que el Técnico tiene que resolver
+            // con V=I×R a partir de lo que le dicte el Explorador. "R correcta: 850/220 Ohm" y las
+            // filas de código de colores que apuntaban a esos mismos valores en BuildColorCodes()
+            // regalaban la respuesta del Reto 1 y del Reto 3 directamente — quitadas.
+            LevelType.OhmLaw   => "VALORES DEL RETO 1:\n\nFuente: 9V\nLED R interna: 50 Ohm\nI objetivo: 10 mA\n\nCalcula R con V=I×R usando el voltaje que te dicte el Explorador.",
             LevelType.Parallel => "VALORES DEL RETO 2:\n\nFuente: 9V\nProteccion de rama: 470 Ohm\nRama rota: circuito abierto\nI segura por rama: ~13 mA",
-            LevelType.Mixed    => "VALORES DEL RETO 3:\n\nR serie incorrecta: 470 Ohm\nR correcta: 220 Ohm\nLED: polaridad invertida\nCap: polaridad invertida",
-            LevelType.Arduino  => "SANDBOX RETO 4:\n\nFuente: 5V (TTL)\nPines libres: D2-D13\nR minima: 100 Ohm\nR recomendada: 330 Ohm\nI max LED: 20 mA",
+            LevelType.Mixed    => "VALORES DEL RETO 3:\n\nR serie incorrecta: 470 Ohm\nLED: polaridad invertida\nCap: polaridad invertida\n\nCalcula la R correcta con V=I×R usando lo que te dicte el Explorador.",
+            LevelType.Arduino  => "SANDBOX RETO 4:\n\nFuente: 5V (TTL)\nPines libres: D2-D13\nR minima: 100 Ohm\nI max LED: 20 mA",
             _ => "—"
         };
     }
@@ -644,9 +786,8 @@ public class TechnicianManualDisplay : MonoBehaviour
         "Azul=6    Violeta=7  Gris=8\n" +
         "Blanco=9\n\n" +
         "Tolerancia: Oro=5% Plata=10%\n\n" +
-        "850 Ohm = Gris-Verde-Marron-Oro\n" +
-        "220 Ohm = Rojo-Rojo-Marron-Oro\n" +
-        "330 Ohm = Naranja-Naranja-Marron-Oro\n" +
+        "Ejemplo (no es la respuesta de ningun reto):\n" +
+        "100 Ohm = Marron-Negro-Marron-Oro\n" +
         "470 Ohm = Amarillo-Violeta-Marron-Oro";
 
     void Set(TMP_Text t, string s) { if (t != null) t.text = s; }

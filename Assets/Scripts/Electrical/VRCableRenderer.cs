@@ -32,6 +32,21 @@ public class VRCableRenderer : MonoBehaviour
     [Tooltip("Cable RECTO: línea directa de punta a punta, sin arco/parábola.")]
     public bool straight = false;
 
+    [Tooltip("Transform cuyo eje define la dirección del arco (ver arcAxis). Vacío = arriba de MUNDO " +
+             "(comportamiento de siempre, correcto para tableros horizontales como Reto 2/3). Asignar " +
+             "el tablero/grupo cuando el jumper vive en una superficie inclinada o vertical (Reto 4 en " +
+             "atril), para que el arco se aleje de la superficie en vez de siempre apuntar al techo.")]
+    public Transform referenceUp;
+
+    public enum ArcAxis { Up, Forward, Right }
+
+    [Tooltip("Qué eje de referenceUp define la dirección del arco. En un tablero inclinado, 'Up' local " +
+             "suele apuntar casi al techo del mundo (arco invisible desde el punto de vista del " +
+             "jugador); 'Forward' apunta en profundidad hacia/desde el jugador (el arco se ve casi " +
+             "plano por escorzo); 'Right' queda de lado a lado en el campo visual — el que realmente " +
+             "se ve como un arco al mirar el tablero de frente. Ignorado si referenceUp es null.")]
+    public ArcAxis arcAxis = ArcAxis.Up;
+
     private LineRenderer _lineRenderer;
 
     void Awake()    => _lineRenderer = GetComponent<LineRenderer>();
@@ -59,7 +74,17 @@ public class VRCableRenderer : MonoBehaviour
 
         // Control de la Bézier cuadrática. Para que el PICO real del arco sea ~h, el control va a 2h
         // (en una cuadrática el punto medio de la curva está a la mitad de la altura del control).
-        Vector3 dir  = arcUpward ? Vector3.up : Vector3.down;
+        Vector3 up = Vector3.up;
+        if (referenceUp != null)
+        {
+            up = arcAxis switch
+            {
+                ArcAxis.Forward => referenceUp.forward,
+                ArcAxis.Right   => referenceUp.right,
+                _               => referenceUp.up,
+            };
+        }
+        Vector3 dir  = arcUpward ? up : -up;
         Vector3 ctrl = (start + end) * 0.5f + dir * (2f * h);
 
         if (_lineRenderer.positionCount != segments) _lineRenderer.positionCount = segments;

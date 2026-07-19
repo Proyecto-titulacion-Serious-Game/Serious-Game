@@ -31,6 +31,10 @@ public class Reto2CircuitGuard : MonoBehaviour
     // LED de reemplazo ya fijado en su rama (si existe) — se destruye al completar el Reto 2
     // con éxito, para no dejarlo "de sobra" en la escena una vez resuelto el reto.
     GameObject _ledReemplazoActual;
+    // El LED dañado ORIGINAL que se ocultó (SetActive(false)) al fijar _ledReemplazoActual — hace
+    // falta reactivarlo si el Técnico cambia de variante (otro color) antes de completar el reto,
+    // para no perder el punto de referencia de la rama dañada. Ver DeshacerReemplazo().
+    GameObject _ledDanadoOculto;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     static void Bootstrap()
@@ -85,63 +89,55 @@ public class Reto2CircuitGuard : MonoBehaviour
         ApagarCircuitManagerViejo();
         _sim?.MarkDirty();
 
+        // Al (re)entrar al reto, ExplorerComponentReceiver ya destruyó cualquier LED de reemplazo
+        // de la vez anterior (HandleRetoChanged) — no dejar referencias colgantes a esos GameObjects.
+        _ledReemplazoActual = null;
+        _ledDanadoOculto    = null;
+
         // Forzar el LED dañado INVERTIDO tras un instante (después de los reseteos de polaridad de
         // otros sistemas al cargar el nivel) → el "dañado" es robusto y exige reemplazo.
         CancelInvoke(nameof(ForzarLedDanado));
         Invoke(nameof(ForzarLedDanado), 0.4f);
 
         // Enviar resumen al clipboard del Técnico cada 2s (solo si cambió) → ambos saben qué falta.
+        // _ultimoResumen se limpia para forzar un envío fresco al (re)entrar al reto — si no,
+        // "cambió" se compara contra el resumen de la vez anterior que se jugó este mismo reto.
+        _ultimoResumen = null;
         CancelInvoke(nameof(EnviarResumenTecnico));
         InvokeRepeating(nameof(EnviarResumenTecnico), 1.2f, 2f);
     }
 
     string _ultimoResumen;
+    readonly DiagnosticSystem _diagnostic = new DiagnosticSystem();
 
-    /// <summary>Construye un RESUMEN corto del estado del circuito (Reto 2) y lo publica al Técnico por red
-    /// (GameSession). Es un resumen 2D (LEDs + qué falta), no el circuito — respeta la asimetría.</summary>
+    /// <summary>Construye el diagnóstico del circuito (Reto 2) y lo publica al Técnico por red
+    /// (GameSession). Es un resumen 2D (estado de cada rama + cada cable por nombre), no el circuito
+    /// 3D — respeta la asimetría. Usa DiagnosticSystem (mismo motor que antes solo se veía en el panel
+    /// local del Técnico) para nombrar cada componente/cable en vez de solo contar "Ramas: X/Y".</summary>
     void EnviarResumenTecnico()
     {
+        // EXPLORADOR only — el Técnico tiene su propia copia local (nunca reparada) de este
+        // mismo circuito. Sin este chequeo, ambos clientes reportaban por RPC (RpcSources.All)
+        // y el resumen desactualizado del Técnico podía pisar el real del Explorador.
+        bool esTecnico = ConnectionManager.Instance != null &&
+                          ConnectionManager.Instance.rolAutomatico == ConnectionManager.AutoConnectRole.Tecnico;
+        if (esTecnico) return;
+
         if (_sim == null) return;
 
-        int on = 0, total = 0;
-        bool danadoPresente = false;
-        foreach (var led in _sim.GetComponentsInChildren<LED>(true))
-        {
-            if (led == null || !led.gameObject.activeInHierarchy) continue;
-            if (led.nodeA == null || led.nodeB == null) continue;
-            total++;
-            if (led.isOn) on++;
-            if (EsNombreDanado(led.name) && led.polarityInverted) danadoPresente = true;
-        }
+        // OJO: antes había un guard "si no hay ningún LED cableado, no envíes nada" — parecía
+        // razonable pero dejaba el clipboard del Técnico MOSTRANDO EL DIAGNÓSTICO DEL RETO
+        // ANTERIOR indefinidamente (a veces hasta que el Explorador cableaba el primer LED,
+        // que podía tardar minutos). GetDiagnosisParallel() YA maneja el caso vacío con su
+        // propio "[!] No hay LEDs conectados todavia." — dejar que fluya normal.
+        string r = $"{_diagnostic.GetDiagnosisParallel()}\n\n> {_diagnostic.GetNextActionParallel()}";
+        if (string.IsNullOrEmpty(r)) return;
 
-        // Cables físicos: cuántos están enchufados en AMBAS puntas (cierran de verdad una rama).
-        // Sin esto el resumen decía genéricamente "falta completar el cableado" aunque el Explorador
-        // ya hubiera conectado algo — no le decía CUÁNTOS cables faltan.
-        int cablesOk = 0, cablesTotal = 0;
-        foreach (var cable in FindObjectsByType<CableElectricalBridge>(FindObjectsInactive.Exclude))
-        {
-            cablesTotal++;
-            bool puntaA = cable.start != null && cable.start.IsConnected;
-            bool puntaB = cable.end   != null && cable.end.IsConnected;
-            if (puntaA && puntaB) cablesOk++;
-        }
-
-        // Resumen SIMPLE para el Técnico: estado + una acción. "Ramas" (no "LEDs") para que el
-        // vocabulario coincida con el panel de diagnóstico y con el manual (pág. "RAMA 1 y RAMA 2").
-        string r;
-        if (total > 0 && on == total)
-            r = $"Ramas: {on}/{total} ✅\nCircuito completo.";
-        else if (danadoPresente)
-            r = $"Ramas: {on}/{total}\nFalta: reemplazar el LED dañado.";
-        else if (cablesTotal > 0 && cablesOk < cablesTotal)
-            r = $"Ramas: {on}/{total}\nCables: {cablesOk}/{cablesTotal} conectados. " +
-                $"Falta enchufar {cablesTotal - cablesOk}. Ver foto de la\nprotoboard en el manual.";
-        else if (on == 0)
-            r = $"Ramas: {on}/{total}\nFalta: completar el cableado.";
-        else
-            r = $"Ramas: {on}/{total}\nCasi — revisa la rama apagada.";
-
-        if (r == _ultimoResumen) return;   // no reenviar si no cambió
+        // Ver comentario equivalente en RetoDiagnosticoReporter.Update(): no deduplicar mientras
+        // GameSession todavía no spawneó en red — evita que el primer envío (fallback local,
+        // nunca llega al Técnico) quede marcado como "ya enviado" para siempre.
+        bool haySesion = GameSession.Instance != null && GameSession.Instance.Object != null && GameSession.Instance.Object.IsValid;
+        if (haySesion && r == _ultimoResumen) return;   // no reenviar si no cambió (y ya hay a quién)
         _ultimoResumen = r;
         GameSession.ReportarDiagnosticoReto(2, r);
     }
@@ -215,6 +211,38 @@ public class Reto2CircuitGuard : MonoBehaviour
         Instance.EngancharReemplazo(ledGO);
     }
 
+    /// <summary>El Técnico envió una variante DISTINTA (otro color) mientras el LED anterior ya
+    /// estaba fijado en la rama dañada. Antes de que ExplorerComponentReceiver destruya ese LED
+    /// viejo, hay que reactivar el LED dañado ORIGINAL que quedó oculto — si no, la rama se queda
+    /// sin ningún LED visible (el reportado "el LED desaparece") y sin punto de referencia para
+    /// el próximo BuscarLedDanado()/CablearEnRamaDanada() cuando llegue el nuevo.</summary>
+    public static void DeshacerReemplazo(GameObject ledReemplazoViejo)
+    {
+        if (Instance == null) return;
+        if (Instance._ledReemplazoActual != ledReemplazoViejo) return;   // no es el que estamos rastreando
+
+        if (Instance._ledDanadoOculto != null)
+        {
+            Instance._ledDanadoOculto.SetActive(true);
+
+            // BUG REAL (jugado en VR, mismo patrón que el "sale volando" del Reto 3): SetActive(true)
+            // reactiva TAMBIÉN los colliders del LED dañado — que ocupa la MISMA posición física
+            // donde el jugador debe encajar la pieza nueva. Mientras el nuevo LED no queda cableado
+            // (CablearEnRamaDanada lo vuelve a ocultar recién ahí), el dañado reactivado bloquea
+            // físicamente ese hueco: el jugador podía enviar amarillo/verde después de rojo y la
+            // pieza nueva nunca lograba encajar. Se desactivan sus colliders (deja el renderer
+            // visible, solo para no dejar la rama vacía) mientras dura este estado transitorio.
+            foreach (var col in Instance._ledDanadoOculto.GetComponentsInChildren<Collider>(true))
+                col.enabled = false;
+
+            Debug.Log($"[Reto2CircuitGuard] LED dañado original '{Instance._ledDanadoOculto.name}' reactivado " +
+                      "(el Técnico envió otra variante antes de completar el reto) — colliders desactivados " +
+                      "para no bloquear el hueco donde debe encajar la pieza nueva.");
+        }
+        Instance._ledDanadoOculto    = null;
+        Instance._ledReemplazoActual = null;
+    }
+
     class ReemplazoPendiente { public GameObject ledGO; public bool cableado; }
 
     void EngancharReemplazo(GameObject ledGO)
@@ -267,13 +295,18 @@ public class Reto2CircuitGuard : MonoBehaviour
             if (sostenido) continue;
 
             // RESCATE: si el LED cayó al vacío (atravesó el piso — en la prueba real llegó a
-            // -300 m), devolverlo flotando sobre la protoboard para que el jugador lo retome.
+            // -300 m), devolverlo flotando cerca del slot correcto para que el jugador lo retome.
+            // OJO: antes se devolvía a _sim.transform.position (el PIVOTE del board completo), que
+            // en un board de 2 ramas cae aprox. en el punto medio entre ambas — el LED "rescatado"
+            // reaparecía visualmente en medio de las 2 ramas en vez de cerca de donde debía ir.
             if (e.ledGO.transform.position.y < -3f && _sim != null)
             {
-                e.ledGO.transform.position = _sim.transform.position + Vector3.up * 0.25f;
+                var slotRescate = BuscarSlotCorrecto();
+                Vector3 destino = slotRescate != null ? slotRescate.transform.position : _sim.transform.position;
+                e.ledGO.transform.position = destino + Vector3.up * 0.25f;
                 foreach (var rb in e.ledGO.GetComponentsInChildren<Rigidbody>(true))
                     { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }
-                Debug.Log("[Reto2CircuitGuard] LED rescatado del vacío → devuelto sobre la protoboard.");
+                Debug.Log($"[Reto2CircuitGuard] LED rescatado del vacío → devuelto cerca del slot correcto ({(slotRescate != null ? slotRescate.name : "fallback: centro del board")}).");
             }
 
             IntentarEncajar(e);   // silencioso: solo encaja si está cerca
@@ -336,6 +369,7 @@ public class Reto2CircuitGuard : MonoBehaviour
             ledGO.transform.SetPositionAndRotation(t.position, rotacionHorizontal);
             ledGO.transform.localScale = t.lossyScale;
             danado.gameObject.SetActive(false);
+            _ledDanadoOculto = danado.gameObject;
         }
         else
         {

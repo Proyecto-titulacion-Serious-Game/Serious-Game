@@ -11,17 +11,22 @@ using UnityEngine;
 public class ManualGlossaryToggle : MonoBehaviour
 {
     public GameObject panelGlosario;
+    
+    // NUEVA VARIABLE: Arrastra aquí el panel interno del multímetro que creaste en el Paso 1
+    public GameObject subPanelInfoMultimetro; 
 
-    [Tooltip("Para ocultar/restaurar la imagen del diagrama mientras el glosario tapa la página.")]
     public TechnicianManualDisplay manualDisplay;
 
-    /// <summary>Enganchado al Button_Info: abre si está cerrado, cierra si está abierto.</summary>
     public void ToggleGlosario()
     {
         if (panelGlosario == null) return;
         bool abrir = !panelGlosario.activeSelf;
         panelGlosario.SetActive(abrir);
         manualDisplay?.SetImagenVisible(!abrir);
+        
+        // Si cerramos el glosario principal, asegurarnos de ocultar el subpanel interno también
+        if (!abrir && subPanelInfoMultimetro != null) 
+            subPanelInfoMultimetro.SetActive(false);
     }
 
     public void AbrirGlosario()
@@ -33,6 +38,17 @@ public class ManualGlossaryToggle : MonoBehaviour
     public void CerrarGlosario()
     {
         if (panelGlosario != null) panelGlosario.SetActive(false);
+        if (subPanelInfoMultimetro != null) subPanelInfoMultimetro.SetActive(false);
         manualDisplay?.SetImagenVisible(true);
+    }
+
+    // MODIFICADO: Ya no cierra el glosario ni cambia la página del manual
+    public void AbrirInfoMultimetro()
+    {
+        if (subPanelInfoMultimetro != null)
+        {
+            // Activa la información dentro del propio glosario
+            subPanelInfoMultimetro.SetActive(true); 
+        }
     }
 }

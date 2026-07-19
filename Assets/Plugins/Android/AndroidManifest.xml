@@ -14,9 +14,13 @@
     <meta-data android:name="com.oculus.telemetry.project_guid" android:value="f95b3b5f-42d1-4fab-80ac-d29af1ab4dbe" />
     <meta-data android:name="com.oculus.supportedDevices" android:value="quest|quest2|questpro|quest3|quest3s" tools:replace="android:value" />
     <meta-data android:name="com.oculus.handtracking.frequency" android:value="LOW" />
+    <meta-data android:name="kat_sdk_intergrate" android:value="kat_native" />
   </application>
   <uses-feature android:name="android.hardware.vr.headtracking" android:version="1" android:required="true" />
   <horizonos:uses-horizonos-sdk horizonos:minSdkVersion="60" horizonos:targetSdkVersion="201" />
   <uses-feature android:name="oculus.software.handtracking" android:required="false" />
   <uses-permission android:name="com.oculus.permission.HAND_TRACKING" />
+  <queries>
+    <package android:name="com.bhaptics.player" />
+  </queries>
 </manifest>

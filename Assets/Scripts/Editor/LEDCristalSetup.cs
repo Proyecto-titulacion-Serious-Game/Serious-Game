@@ -58,7 +58,9 @@ public static class LEDCristalSetup
     /// <summary>Color de cristal según el nombre del LED/variante (green/red/yellow/blue). Neutro si no hay color.</summary>
     static Color TintDeNombre(string n)
     {
-        n = (n ?? "").ToLowerInvariant();
+        // "Delivered" contiene "red" ("delive_RED_") — quitarlo antes de buscar colores, si no
+        // "Delivered_LED_Yellow" caía en el tinte ROJO (bug real: el amarillo encendía rojo).
+        n = (n ?? "").ToLowerInvariant().Replace("delivered", "");
         if (n.Contains("green")  || n.Contains("verde"))  return new Color(0.30f, 1.00f, 0.40f, 1f);
         if (n.Contains("red")    || n.Contains("roj"))    return new Color(1.00f, 0.28f, 0.24f, 1f);
         if (n.Contains("yellow") || n.Contains("amaril")) return new Color(1.00f, 0.88f, 0.30f, 1f);

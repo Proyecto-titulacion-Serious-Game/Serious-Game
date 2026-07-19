@@ -138,9 +138,7 @@ public class CircuitSimulator : MonoBehaviour
             case LevelType.Mixed:
                 SimularReto3_Mixed();
                 break;
-            case LevelType.Arduino:
-                SimularReto4_Arduino();
-                break;
+            // Reto 4 usa el sandbox libre (ProtoboardSimulator.ForzarValidacion), no este motor.
         }
     }
 
@@ -279,47 +277,6 @@ public class CircuitSimulator : MonoBehaviour
             }
         }
         totalPower = sourceVoltage * totalCurrent;
-    }
-
-    private void SimularReto4_Arduino()
-    {
-        ArduinoCore arduino = FindAnyObjectByType<ArduinoCore>();
-        if (arduino == null) return;
-
-        sourceVoltage = arduino.outputVoltageTTL;
-
-        Resistor resistenciaProteccion = null;
-        LED ledSalida = null;
-
-        foreach (var slot in todosLosSlots)
-        {
-            if (slot == null || slot.InstalledObject == null) continue;
-
-            if (slot.InstalledObject.TryGetComponent<Resistor>(out var res)) resistenciaProteccion = res;
-            if (slot.InstalledObject.TryGetComponent<LED>(out var led)) ledSalida = led;
-        }
-
-        if (resistenciaProteccion != null && ledSalida != null)
-        {
-            resistenciaProteccion.nodeA = arduino.pin13Node; 
-            
-            if (ledSalida.polarityInverted)
-            {
-                ledSalida.nodeB = resistenciaProteccion.nodeB;
-                ledSalida.nodeA = arduino.gndNode; 
-            }
-            else
-            {
-                ledSalida.nodeA = resistenciaProteccion.nodeB;
-                ledSalida.nodeB = arduino.gndNode; 
-            }
-
-            resistenciaProteccion.Calculate();
-            ledSalida.Calculate();
-
-            totalCurrent = resistenciaProteccion.current;
-            totalPower = resistenciaProteccion.dissipatedPower;
-        }
     }
 
     public bool AreAllLEDsOn()

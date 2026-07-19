@@ -125,15 +125,23 @@ public class ExplorerResultsPanel : MonoBehaviour
         AddImage("Sep2", rt, new Vector2(580, 1), new Vector2(0, 50), new Color(1,1,1,0.15f));
 
         // ── Desglose por reto ────────────────────
+        // Cada fila busca SU registro por LevelType, no por posición en la lista: si algún reto no
+        // llegó a registrarse (p.ej. la victoria se evaluó en el otro proceso y aquí solo llegó el
+        // cambio de reto por red), indexar por posición corría los registros de lugar — el Reto 4
+        // aparecía en la fila del Reto 3 ("Mixto: 15 min y 14 errores") y el 4 quedaba vacío.
         float rowY = 32f;
         for (int i = 0; i < 4; i++)
         {
             string name  = i < RetoNames.Length ? RetoNames[i] : $"Reto {i+1}";
             string label = $"Reto {i + 1}  —  {name}";
 
-            if (i < records.Count)
+            bool found = false;
+            LevelRecord r = default;
+            foreach (var x in records)
+                if ((int)x.level == i) { r = x; found = true; }   // el último si hubiera duplicados
+
+            if (found)
             {
-                var r  = records[i];
                 int rm = Mathf.FloorToInt(r.timeSeconds / 60f);
                 int rs = Mathf.FloorToInt(r.timeSeconds % 60f);
                 string check = r.success ? "✓" : "✗";

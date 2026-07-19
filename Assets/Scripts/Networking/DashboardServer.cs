@@ -344,6 +344,10 @@ public class DashboardServer : MonoBehaviour
         "  <div id='results'><p style='color:#8b949e;padding:12px 0'>Sin datos — la sesión aún no ha finalizado.</p></div>" +
         "</div>" +
         "<div class='card' style='margin-top:16px'>" +
+        "  <h2>Reto m&aacute;s dif&iacute;cil (todas las sesiones)</h2>" +
+        "  <div id='chart-retos'><p style='color:#8b949e;padding:12px 0'>Sin datos todav&iacute;a.</p></div>" +
+        "</div>" +
+        "<div class='card' style='margin-top:16px'>" +
         "  <h2>Historial de Sesiones " +
         "<a class='btn' href='/api/records.csv' download='retos_tita.csv' style='float:right;text-decoration:none;text-transform:none'>CSV por reto</a>" +
         "<a class='btn' href='/api/sessions.csv' download='sesiones_tita.csv' style='float:right;text-decoration:none;text-transform:none;margin-right:6px'>CSV por sesion</a></h2>" +
@@ -405,7 +409,45 @@ public class DashboardServer : MonoBehaviour
         "    h+='</tbody></table>';" +
         "    h+='<p style=\\'font-size:.75em;color:#8b949e;margin-top:8px\\'>'+d.sessions.length+' sesiones registradas (mas recientes arriba).</p>';" +
         "    el.innerHTML=h;" +
+        "    chartRetos(d.sessions);" +
         "  }catch(e){document.getElementById('sessions').textContent='Error al cargar sesiones.';}" +
+        "}" +
+
+        // Gráfica de barras: qué reto acumula más errores / más veces sin completar, sumado sobre
+        // TODAS las sesiones del historial. "Dificultad" = errores + 3 × no-completado (no terminar
+        // un reto pesa más que un intento fallido). Sin librerías externas: barras CSS puras.
+        "function chartRetos(sessions){" +
+        "  var el=document.getElementById('chart-retos');if(!el)return;" +
+        "  var agg={};" +
+        "  for(var i=0;i<sessions.length;i++){" +
+        "    var recs=sessions[i].records||[];" +
+        "    for(var j=0;j<recs.length;j++){" +
+        "      var r=recs[j];var k=r.levelName||'?';" +
+        "      if(!agg[k])agg[k]={err:0,fail:0,n:0};" +
+        "      agg[k].err+=(r.errors||0);agg[k].n++;if(!r.success)agg[k].fail++;" +
+        "    }" +
+        "  }" +
+        "  var keys=Object.keys(agg).sort();" +
+        "  if(!keys.length){el.innerHTML='<p style=\\'color:#8b949e\\'>Sin registros por reto todavia.</p>';return;}" +
+        "  var maxDif=1;var peor=keys[0];" +
+        "  for(var i=0;i<keys.length;i++){var a=agg[keys[i]];a.dif=a.err+a.fail*3;" +
+        "    if(a.dif>maxDif)maxDif=a.dif;if(a.dif>agg[peor].dif)peor=keys[i];}" +
+        "  var h='';" +
+        "  for(var i=0;i<keys.length;i++){" +
+        "    var a=agg[keys[i]];var w=Math.max(3,Math.round(a.dif/maxDif*100));" +
+        "    var esPeor=(keys[i]===peor&&a.dif>0);" +
+        "    var col=esPeor?'#f85149':'#d29922';" +
+        "    h+='<div style=\\'margin:8px 0\\'>';" +
+        "    h+='<div style=\\'display:flex;justify-content:space-between;font-size:.85em\\'>';" +
+        "    h+='<span>'+keys[i]+(esPeor?' <span class=\\'badge badge-fail\\'>mas dificil</span>':'')+'</span>';" +
+        "    h+='<span style=\\'color:#8b949e\\'>'+a.err+' errores &middot; '+a.fail+' sin completar &middot; '+a.n+' intentos</span>';" +
+        "    h+='</div>';" +
+        "    h+='<div style=\\'background:#21262d;border-radius:4px;height:14px;margin-top:3px\\'>';" +
+        "    h+='<div style=\\'background:'+col+';width:'+w+'%;height:100%;border-radius:4px\\'></div>';" +
+        "    h+='</div></div>';" +
+        "  }" +
+        "  h+='<p style=\\'font-size:.75em;color:#8b949e;margin-top:8px\\'>Dificultad = errores + 3 &times; retos sin completar, sumado sobre todas las sesiones.</p>';" +
+        "  el.innerHTML=h;" +
         "}" +
 
         "function fmt(s){if(!s)return'0:00';var m=Math.floor(s/60);return m+':'+String(Math.floor(s%60)).padStart(2,'0');}" +

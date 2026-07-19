@@ -21,6 +21,12 @@ public class CableBoxSpawner : MonoBehaviour
              "moviendo cada punta por separado, así que esta escala ya NO se aplica. Se conserva solo para " +
              "no perder el valor serializado en escena. Ver MakeCableFlexible().")]
     public float      cableEscala      = 0.25f;
+    [Tooltip("Qué eje de esta caja define la dirección del arco del cable. 'Up' (mesa horizontal, " +
+             "Reto 2/3) es el de siempre. En un tablero INCLINADO (Reto 4 en atril), 'Up' local apunta " +
+             "casi al techo del mundo (arco invisible) y 'Forward' apunta en profundidad hacia/desde el " +
+             "jugador (arco casi plano por escorzo) — 'Right' queda de lado a lado en su campo visual, " +
+             "el que realmente se ve como un arco al mirar el tablero de frente.")]
+    public VRCableRenderer.ArcAxis arcAxis = VRCableRenderer.ArcAxis.Up;
 
     [Header("Referencias visuales (asignadas por el tool)")]
     public Renderer  ledRenderer;
@@ -239,6 +245,17 @@ public class CableBoxSpawner : MonoBehaviour
                                  // y se clava por separado; el cuerpo se dibuja flexible (VRCableRenderer).
                                  // Reemplaza al cable rígido de largo fijo (un solo salto). Así un mismo
                                  // cable cubre saltos cortos (slot↔slot) y largos (pin Arduino↔slot).
+
+        // El arco del cable usa por defecto "arriba" de MUNDO — correcto en una mesa horizontal, pero
+        // si esta caja está en un tablero inclinado/vertical (Reto 4 en atril/pared) el arco arquearía
+        // hacia el techo del mundo en vez de alejarse de la superficie. Referenciar la orientación de
+        // la propia caja (que sí sigue la inclinación del tablero al colgar de él) corrige esto.
+        var crUp = go.GetComponent<VRCableRenderer>();
+        if (crUp != null)
+        {
+            crUp.referenceUp = transform;
+            crUp.arcAxis     = arcAxis;
+        }
 
         _activeCables++;
         var tracker = go.AddComponent<CableTracker>();

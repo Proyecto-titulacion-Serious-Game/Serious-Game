@@ -85,7 +85,9 @@ public static class BuildQuest
             locationPathName = apkPath,
             target           = BuildTarget.Android,
             targetGroup      = BuildTargetGroup.Android,
-            options          = BuildOptions.None,
+            // Development: activa DebugLevelSkipper (F1-F4 + combo de control VR) para poder saltar
+            // retos probando en el Quest standalone. Revertir a BuildOptions.None para el APK final de aula.
+            options          = BuildOptions.Development,
         };
 
         Debug.Log($"[BuildQuest] Iniciando build → {apkPath}\n" +

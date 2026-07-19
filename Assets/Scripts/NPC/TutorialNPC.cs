@@ -132,6 +132,7 @@ public class TutorialNPC : MonoBehaviour
     ThirdPersonCamera _camaraTecnico;
     bool  _pausadoPorNombreGrupo;   // true = ya se mostró el Saludo; esperando que RoomCodeEntryUI confirme
     bool  _nombreGrupoYaPedido;     // evita pedir el nombre dos veces si AvanzarIntro se llama de nuevo
+    bool  _camaraLiberada;          // true tras ContinuarTrasNombreGrupo(): no reenganchar focoForzado
 
     static TutorialNPC _instanciaActiva;   // el NPC con la intro en curso (para que RoomCodeEntryUI la reanude)
 
@@ -244,7 +245,12 @@ public class TutorialNPC : MonoBehaviour
         if (EnIntro)
         {
             // NoonA puede tardar en cargar (aditiva/async): reintentar hasta enganchar la cámara.
-            if (_camaraTecnico == null)
+            // OJO: si ya se liberó el control tras el nombre de grupo (_camaraLiberada), NO
+            // reenganchar — si no, este mismo bloque volvía a poner focoForzado cada frame y
+            // el mouse-look quedaba congelado (mirando al NPC) durante Historia/Roles/A trabajar,
+            // justo lo contrario de lo que ContinuarTrasNombreGrupo() pretendía (bug reportado:
+            // "tras la conversación con el bot-guía no se puede mover el mouse").
+            if (_camaraTecnico == null && !_camaraLiberada)
             {
                 _camaraTecnico = FindAnyObjectByType<ThirdPersonCamera>();
                 if (_camaraTecnico != null)
@@ -338,6 +344,7 @@ public class TutorialNPC : MonoBehaviour
         // Ya se escribió el nombre del grupo: devolver la cámara YA al jugador (no esperar a que
         // termine el resto de la bienvenida). Historia/Roles/A trabajar siguen solo por el globo
         // de texto, sin bloquear cámara ni movimiento — el Técnico ya puede caminar mientras lee.
+        _camaraLiberada = true;
         if (_camaraTecnico != null) { _camaraTecnico.focoForzado = null; _camaraTecnico = null; }
 
         AplicarPasoIntro();   // muestra el paso 1 (Historia), que había quedado pendiente

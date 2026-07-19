@@ -2,9 +2,10 @@ using UnityEngine;
 using UnityEngine.XR;
 
 /// <summary>
-/// UI mínima para que el Técnico (PC) escriba el CÓDIGO DE SALA antes de crear la partida.
-/// Resuelve el problema de aula: con <see cref="ConnectionManager"/> usando un SessionName fijo,
-/// 15 grupos en el mismo Wi-Fi caían todos en la misma sala. Ahora cada estación usa su código.
+/// UI mínima que el Técnico (PC) ve antes de empezar: solo pide el nombre del curso/grupo, para
+/// poder diferenciar sesiones después en el dashboard/Sheets. Hay UNA sola partida (código fijo,
+/// resuelto por <see cref="ConnectionManager.ResolveRoomCode"/>) — el Explorador (Quest, sin
+/// teclado) se conecta solo, siempre a esa misma partida. Este panel NO gatea la conexión de nadie.
 /// </summary>
 public class RoomCodeEntryUI : MonoBehaviour
 {
@@ -22,8 +23,6 @@ public class RoomCodeEntryUI : MonoBehaviour
         DontDestroyOnLoad(go);
     }
 
-    string  _code;
-    bool    _codeInit;
     const string PREFS_GRUPO_KEY = "TITA.Grupo";
     string  _grupo = "";
     bool    _grupoInit;
@@ -86,54 +85,35 @@ public class RoomCodeEntryUI : MonoBehaviour
         if (!DebeMostrarse()) return;
 
         var cm = ConnectionManager.Instance;
-        if (!_codeInit)  { _code  = cm.ResolveRoomCode(); _codeInit = true; }
         if (!_grupoInit) { _grupo = PlayerPrefs.GetString(PREFS_GRUPO_KEY, ""); _grupoInit = true; }
 
         EnsureStyles();
 
-        // 1. Aumentamos el tamaño general del panel
-        const float w = 420f, h = 350f; 
+        const float w = 420f, h = 220f;
         var rect = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.45f, w, h);
         GUI.Box(rect, GUIContent.none, _box);
 
         GUILayout.BeginArea(new Rect(rect.x + 20, rect.y + 20, w - 40, h - 40));
 
-        GUILayout.Label("NOMBRE DEL GRUPO", _title);
-        GUILayout.Label("Estudiantes de esta estación.", _hint);
+        // Sin código de sala: hay UNA sola partida (el Explorador siempre se une a ella
+        // automáticamente, sin escribir nada — no tiene teclado). Este campo YA NO conecta ni
+        // desconecta a nadie: solo etiqueta las métricas de esta sesión (curso/semestre/grupo) para
+        // poder diferenciarlas después en el dashboard/Sheets.
+        GUILayout.Label("CURSO / GRUPO", _title);
+        GUILayout.Label("Ej: 'Semestre 3'. Solo ordena las métricas del dashboard — " +
+                         "no hace falta que el Explorador escriba nada, se conecta solo.", _hint);
         GUILayout.Space(5);
-        // 2. Aplicamos el nuevo estilo de input
         _grupo = GUILayout.TextField(_grupo, 40, _inputStyle, GUILayout.Height(32));
 
-        GUILayout.Space(15);
-        
-        GUILayout.Label("CÓDIGO DE SALA", _title);
-        GUILayout.Label("Cada estación usa su propio código. El Explorador debe tener este mismo código.", _hint);
-        GUILayout.Space(5);
+        GUILayout.FlexibleSpace();
 
-        GUI.SetNextControlName("RoomCodeField");
-        // Aplicamos el nuevo estilo de input
-        _code = GUILayout.TextField(_code, 24, _inputStyle, GUILayout.Height(32));
-
-        // 3. FlexibleSpace empuja los botones hacia el fondo del área
-        GUILayout.FlexibleSpace(); 
-        
-        GUILayout.BeginHorizontal();
-
-        // 4. Aplicamos el nuevo estilo de botón y aumentamos la altura
-        if (GUILayout.Button("Crear sala", _buttonStyle, GUILayout.Height(40)))
+        if (GUILayout.Button("Comenzar", _buttonStyle, GUILayout.Height(40)))
             CrearSala(cm);
 
-        GUILayout.Space(10); // Separación entre botones
-
-        if (GUILayout.Button("Aleatorio", _buttonStyle, GUILayout.Width(100), GUILayout.Height(40)))
-            _code = $"UDLA-{Random.Range(1000, 9999)}";
-
-        GUILayout.EndHorizontal();
         GUILayout.EndArea();
 
         var e = Event.current;
-        if (e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter)
-            && GUI.GetNameOfFocusedControl() == "RoomCodeField")
+        if (e.type == EventType.KeyDown && (e.keyCode == KeyCode.Return || e.keyCode == KeyCode.KeypadEnter))
         {
             CrearSala(cm);
             e.Use();
@@ -142,13 +122,6 @@ public class RoomCodeEntryUI : MonoBehaviour
 
     void CrearSala(ConnectionManager cm)
     {
-        string norm = ConnectionManager.NormalizeRoomCode(_code);
-        if (string.IsNullOrEmpty(norm))
-        {
-            Debug.LogWarning("[RoomCodeEntryUI] Código vacío o inválido — escribe algo como 'UDLA-A4'.");
-            return;
-        }
-
         string grupo = (_grupo ?? "").Trim();
         if (!string.IsNullOrEmpty(grupo))
         {
@@ -159,11 +132,21 @@ public class RoomCodeEntryUI : MonoBehaviour
             Debug.Log($"[RoomCodeEntryUI] Grupo registrado para las métricas: '{grupo}'.");
         }
 
-        Debug.Log($"[RoomCodeEntryUI] Creando sala '{norm}' como Técnico.");
-        cm.CrearSalaComoTecnico(norm);
+        // Código vacío → ConnectionManager.ResolveRoomCode() cae al valor por defecto fijo
+        // (el mismo que usa siempre el Explorador, que no tiene forma de escribir uno propio).
+        // Antes acá se mandaba lo que el Técnico hubiera tecleado — si no coincidía EXACTO con
+        // el default del Explorador, la sala nunca se encontraba (causa real de "no se conectan").
+        Debug.Log("[RoomCodeEntryUI] Creando la única sala (código por defecto) como Técnico.");
+        cm.CrearSalaComoTecnico("");
 
         _runner = cm.GetComponentInChildren<Fusion.NetworkRunner>();
         TutorialNPC.NotificarNombreGrupoListo();
+
+        // El mouse quedó liberado (Cursor.None/visible) todo el tiempo que este panel estuvo
+        // abierto para poder escribir el nombre del grupo — al crear la sala, devolverlo al modo
+        // mouselook normal del walker (mismo patrón que PauseMenu/WorkstationSeat al reanudar).
+        Cursor.lockState = CursorLockMode.Locked;
+        Cursor.visible   = false;
     }
 
     void EnsureStyles()

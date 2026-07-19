@@ -107,6 +107,11 @@ public static class MultimeterArtSetupTool
         col.center = MODEL_BOUNDS.center;
         col.size   = MODEL_BOUNDS.size;
 
+        // No empuja al jugador: en vez de collider trigger (rompía el agarre de las puntas con
+        // XRGrabInteractable en este proyecto), se ignora la colisión puntual contra el
+        // CharacterController del jugador — ver MultimeterIgnorePlayerCollision.
+        root.AddComponent<MultimeterIgnorePlayerCollision>();
+
         // ── Cuerpo visual ─────────────────────────────────────────────────────
         BuildVisualBody(root, meshes, artMat);
 
@@ -322,6 +327,7 @@ public static class MultimeterArtSetupTool
         cable.segments       = 16;
         cable.cableWidth     = 0.003f;
         cable.sagAmount      = 0.08f;
+        cable.restOffset     = new Vector3(0f, 0.02f, 0f);
 
         lr.useWorldSpace   = true;
         lr.startWidth      = cable.cableWidth;
@@ -359,14 +365,22 @@ public static class MultimeterArtSetupTool
         var probe = GameObject.CreatePrimitive(PrimitiveType.Sphere);
         probe.name = $"Probe_{colorName}_Tip";
         probe.transform.SetParent(cableGO.transform, false);
-        probe.transform.localPosition = jackPos;    // starts at anchor (kinematic)
+        // Reposo ARRIBA del jack (fuera del BoxCollider del cuerpo, ver MODEL_BOUNDS): el nub/jack
+        // visual se queda en jackPos (alineado con el modelo 3D), pero la punta AGARRABLE se levanta
+        // fuera del volumen del cuerpo — si no, su collider de agarre queda adentro del collider
+        // grande del multímetro y la mano termina agarrando el cuerpo por error al ir por la punta.
+        // Hacia ARRIBA, no abajo: abajo puede meterla dentro de la mesa donde se apoya el multímetro.
+        probe.transform.localPosition = jackPos + new Vector3(0f, 0.02f, 0f);
         probe.transform.localScale    = Vector3.one * 0.012f;
         SaveColorMat(probe, color, $"probe_{colorName.ToLower()}_tip");
 
-        // Grab collider (non-trigger) — required by XRGrabInteractable
+        // Grab collider (non-trigger) — required by XRGrabInteractable (con trigger=true el
+        // agarre de la punta dejaba de funcionar en este proyecto). El empujón contra el jugador
+        // se resuelve con MultimeterIgnorePlayerCollision (root), no con triggers. Radio subido de
+        // 0.55→0.9 (world ≈0.66cm→1.08cm): la punta original era muy chica para agarrar en VR.
         var grabCol = probe.GetComponent<SphereCollider>();
         grabCol.isTrigger = false;
-        grabCol.radius    = 0.55f;
+        grabCol.radius    = 0.9f;
 
         // Trigger collider — activates MultimeterProbe.OnTriggerEnter fallback
         var trigCol = probe.AddComponent<SphereCollider>();

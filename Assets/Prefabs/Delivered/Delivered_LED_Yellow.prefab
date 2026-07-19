@@ -313,7 +313,7 @@ MonoBehaviour:
   colorOff: {r: 0, g: 0, b: 0, a: 1}
   colorCorrect: {r: 0, g: 1, b: 0, a: 1}
   colorOverload: {r: 1, g: 0, b: 0, a: 1}
-  cristalTint: {r: 1, g: 0.28, b: 0.24, a: 1}
+  cristalTint: {r: 1, g: 0.82, b: 0.15, a: 1}
   victoryGlow: 1
   glowSpeed: 4
   glowAmount: 0.8

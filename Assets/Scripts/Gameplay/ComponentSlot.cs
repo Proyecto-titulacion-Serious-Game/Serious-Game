@@ -73,11 +73,26 @@ public class ComponentSlot : MonoBehaviour
     // ─────────────────────────────────────────────
     //  Trigger (Magnetismo Físico Infalible)
     // ─────────────────────────────────────────────
+    // Cache de 1 entrada: OnTriggerStay corre cada physics tick por cada collider superpuesto
+    // (hasta 32 slots en la protoboard del Reto 4), y antes llamaba GetComponentInParent en CADA
+    // tick sin importar que el collider fuera el mismo del tick anterior. Mientras la misma pieza
+    // siga rozando el mismo slot (el caso normal), esto evita repetir la búsqueda en la jerarquía.
+    private Collider           _cachedTriggerCollider;
+    private GrabbableComponent _cachedTriggerGC;
+
+    GrabbableComponent ResolveGrabbable(Collider other)
+    {
+        if (other == _cachedTriggerCollider) return _cachedTriggerGC;
+        _cachedTriggerCollider = other;
+        _cachedTriggerGC       = other.GetComponentInParent<GrabbableComponent>();
+        return _cachedTriggerGC;
+    }
+
     void OnTriggerEnter(Collider other)
     {
         if (_hasComponent) return;
 
-        var gc = other.GetComponentInParent<GrabbableComponent>();
+        var gc = ResolveGrabbable(other);
         if (gc == null) return;
 
         if (gc.transform.parent != null && gc.transform.parent.name.Contains("Anchor")) return;
@@ -95,7 +110,7 @@ public class ComponentSlot : MonoBehaviour
         // Si ya tiene una pieza, no hace nada
         if (_hasComponent) return;
 
-        var gc = other.GetComponentInParent<GrabbableComponent>();
+        var gc = ResolveGrabbable(other);
         if (gc == null) return;
 
         // Evitar robar componentes pegados en otros slots
@@ -118,7 +133,8 @@ public class ComponentSlot : MonoBehaviour
 
     void OnTriggerExit(Collider other)
     {
-        var gc = other.GetComponentInParent<GrabbableComponent>();
+        var gc = ResolveGrabbable(other);
+        if (other == _cachedTriggerCollider) { _cachedTriggerCollider = null; _cachedTriggerGC = null; }
         if (gc == null) return;
 
         // CASO 1: El jugador agarra y arranca un componente que ya estaba magnetizado.

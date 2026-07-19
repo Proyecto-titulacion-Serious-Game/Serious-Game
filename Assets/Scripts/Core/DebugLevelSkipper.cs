@@ -6,6 +6,10 @@ using UnityEngine.InputSystem;
 /// Salto rápido de retos con <b>F1-F4</b> en Play Mode (ayuda de prueba, dev-only).
 ///   F1 → Reto 1 · F2 → Reto 2 · F3 → Reto 3 · F4 → completar reto actual (como ganado) y avanzar
 ///
+/// El Quest standalone no siempre tiene teclado a mano, así que F4 (completar reto) tiene también
+/// un combo de control VR: mantener presionados A y X (primaryButton) en AMBOS controles a la vez.
+/// F1-F3 quedan solo por teclado (uso poco frecuente en VR — saltar a un reto puntual).
+///
 /// Auto-bootstrap: se crea solo en Editor / Development Build, en CUALQUIER escena (incluida
 /// Tecnico.unity, que no tiene GameManager local — ahí el salto viaja por red al Host). Antes el
 /// script solo existía en Explorador.unity y su Update abortaba si no había GameManager, así que
@@ -28,11 +32,31 @@ public class DebugLevelSkipper : MonoBehaviour
 
     private GameManager _gameManager;
 
+    // Combo VR para F4 (completar reto) — A+X (primaryButton) en ambos controles a la vez, sin
+    // teclado. Creadas en Awake, no en OnEnable, para no depender de que exista un XR Rig todavía.
+    private InputAction _vrPrimaryRight;
+    private InputAction _vrPrimaryLeft;
+    private bool         _vrComboHeldLastFrame;
+
     // Si el script también está colocado a mano en una escena, evita duplicar con el bootstrap.
     void Awake()
     {
         if (_instance != null && _instance != this) { Destroy(gameObject); return; }
         _instance = this;
+
+        _vrPrimaryRight = new InputAction("DebugSkipVRPrimaryRight", InputActionType.Button);
+        _vrPrimaryRight.AddBinding("<XRController>{RightHand}/primaryButton");
+        _vrPrimaryRight.Enable();
+
+        _vrPrimaryLeft = new InputAction("DebugSkipVRPrimaryLeft", InputActionType.Button);
+        _vrPrimaryLeft.AddBinding("<XRController>{LeftHand}/primaryButton");
+        _vrPrimaryLeft.Enable();
+    }
+
+    void OnDestroy()
+    {
+        _vrPrimaryRight?.Disable();
+        _vrPrimaryLeft?.Disable();
     }
 
     /// <summary>Localiza el GameManager (si lo hay en esta escena) y le fuerza _debugMode = true.</summary>
@@ -53,12 +77,23 @@ public class DebugLevelSkipper : MonoBehaviour
     void Update()
     {
         var kb = Keyboard.current;
-        if (kb == null) return;
+        if (kb != null)
+        {
+            if      (kb.f1Key.wasPressedThisFrame) JumpTo(0);
+            else if (kb.f2Key.wasPressedThisFrame) JumpTo(1);
+            else if (kb.f3Key.wasPressedThisFrame) JumpTo(2);
+            else if (kb.f4Key.wasPressedThisFrame) CompleteCurrentReto();
+        }
 
-        if      (kb.f1Key.wasPressedThisFrame) JumpTo(0);
-        else if (kb.f2Key.wasPressedThisFrame) JumpTo(1);
-        else if (kb.f3Key.wasPressedThisFrame) JumpTo(2);
-        else if (kb.f4Key.wasPressedThisFrame) CompleteCurrentReto();
+        // Combo VR (sin teclado): A+X en ambos controles a la vez → equivalente a F4.
+        bool comboHeld = _vrPrimaryRight != null && _vrPrimaryLeft != null &&
+                          _vrPrimaryRight.IsPressed() && _vrPrimaryLeft.IsPressed();
+        if (comboHeld && !_vrComboHeldLastFrame)
+        {
+            Debug.Log("[DEBUG] Combo VR (A+X ambos controles) → equivalente a F4.");
+            CompleteCurrentReto();
+        }
+        _vrComboHeldLastFrame = comboHeld;
     }
 
     /// <summary>F4: marca el reto ACTUAL como COMPLETADO (como si se hubiera ganado) — registra la

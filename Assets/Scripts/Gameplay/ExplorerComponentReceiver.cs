@@ -58,6 +58,10 @@ public class ExplorerComponentReceiver : MonoBehaviour
     private List<GameObject> _componentesRecibidos = new List<GameObject>();
     // Último componente recibido POR TIPO → para REEMPLAZAR en vez de apilar (Retos 1-3 = 1 pieza/tipo).
     private readonly Dictionary<ComponentType, GameObject> _ultimoPorTipo = new Dictionary<ComponentType, GameObject>();
+    // Variante con la que se envió ese último componente (color del LED, color del capacitor,
+    // orientación del resistor) — necesaria para distinguir un REENVÍO genuino (misma variante,
+    // p.ej. doble clic o reintento de red) de un CAMBIO deliberado (el Técnico eligió otro color).
+    private readonly Dictionary<ComponentType, ComponentVariant> _ultimaVarientePorTipo = new Dictionary<ComponentType, ComponentVariant>();
 
     // RECEPTOR PRIMARIO: en la escena pueden coexistir DOS ExplorerComponentReceiver (el standalone
     // 'ComponentReceiver_Caja' + el anidado dentro de Explorer_Player). Ambos se suscriben a
@@ -182,20 +186,57 @@ public class ExplorerComponentReceiver : MonoBehaviour
         // tipo, así que reenviar no debe apilar objetos en la mesa. (Tipos distintos coexisten.)
         // RETO 4 (sandbox): el Técnico puede enviar VARIAS unidades del mismo tipo (3 LEDs de
         // distinto color, 2 resistencias de distinto valor/orientación) → se ACUMULAN.
+        //
+        // BUG (2026-07-16): antes esto se decidía con GameManager.currentLevel, un campo LOCAL
+        // (MonoBehaviour, no [Networked]) que cada proceso (Técnico y Explorador son ejecutables
+        // separados conectados por Fusion) mantiene por su cuenta, sincronizado solo por la cadena
+        // de eventos OnRetoChanged→LoadLevel. Si esa cadena no llegó a tiempo o el GameManager local
+        // del Explorador no estaba listo, esReto4 daba false AUNQUE el reto activo fuera el 4, y
+        // reenviar un LED de otro color destruía el anterior. GameSession.RetoActual SÍ es
+        // [Networked] (replicado por Fusion), así que es la fuente de verdad correcta; el fallback a
+        // GameManager solo aplica en modo solo/offline (sin GameSession).
         if (_gm == null) _gm = FindAnyObjectByType<GameManager>();
-        bool esReto4 = _gm != null && _gm.currentLevel == LevelType.Arduino;
+        // Acepta 3 o 4 por si RetoActual es 0-based (Arduino=3, como lo pasan hoy AvanzarReto/
+        // DebugLevelSkipper) o 1-based en algún flujo — mismo criterio defensivo que ExplorerLinkOverlay.
+        bool esReto4 = GameSession.Instance != null
+            ? (GameSession.Instance.RetoActual == 3 || GameSession.Instance.RetoActual == 4)
+            : (_gm != null && _gm.currentLevel == LevelType.Arduino);
 
         if (!esReto4 && _ultimoPorTipo.TryGetValue(tipo, out var previo) && previo != null)
         {
-            if (YaFijadoEnSlot(previo))
+            bool mismaVariante = _ultimaVarientePorTipo.TryGetValue(tipo, out var varientePrevia) && varientePrevia == variante;
+
+            if (YaFijadoEnSlot(previo) && mismaVariante)
             {
                 // El anterior ya quedó "soldado" en su slot (p.ej. Reto2CircuitGuard lo cableó a la
-                // rama dañada y deshabilitó su grab). Un reenvío del Técnico (doble clic, reintento
-                // porque el diagnóstico aún no marca "completo", o una reconexión de red que repite
-                // el envío) no debe destruir la pieza que el jugador ya colocó correctamente.
-                Debug.Log($"[Receiver] {tipo} anterior ya está fijado en su slot; se ignora el reenvío duplicado.");
+                // rama dañada y deshabilitó su grab) Y es la MISMA variante — esto es un reenvío
+                // genuino (doble clic, reintento porque el diagnóstico aún no marca "completo", o una
+                // reconexión de red que repite el envío), no debe destruir la pieza que el jugador ya
+                // colocó correctamente.
+                Debug.Log($"[Receiver] {tipo} anterior ya está fijado en su slot (misma variante); se ignora el reenvío duplicado.");
                 return;
             }
+
+            // BUG (reportado): si el Técnico envía un LED de OTRO color mientras el anterior ya está
+            // fijado en la rama dañada (p.ej. mandó rojo primero y después amarillo/verde), el guard
+            // de arriba ignoraba SIEMPRE el segundo envío con "YaFijadoEnSlot" — el LED nuevo nunca
+            // llegaba a spawnear ("el LED desaparece" desde la perspectiva del jugador, que esperaba
+            // uno nuevo). Con variante distinta, si estaba fijado hay que DESHACER el cableado viejo
+            // (reactivar el LED dañado original que Reto2CircuitGuard había ocultado) antes de destruir
+            // la pieza — si no, el reto queda con el riel apuntando a un GameObject destruido.
+            if (YaFijadoEnSlot(previo) && !mismaVariante)
+                Reto2CircuitGuard.DeshacerReemplazo(previo);
+
+            // BUG REAL (jugado en VR): si 'previo' estaba puesto en un ComponentSlot (Retos 1-3,
+            // p.ej. una resistencia incorrecta en el Reto 3), destruirlo aquí sin avisarle al slot
+            // dejaba _hasComponent/_installed del slot apuntando a un objeto ya destruido para
+            // siempre — su imán (OnTriggerStay) nunca volvía a aceptar nada porque arranca con
+            // "if (_hasComponent) return;". La pieza NUEVA que el jugador intentaba encajar ahí
+            // nunca se enganchaba y quedaba a merced de la física normal contra el hueco del slot,
+            // saliendo disparada. ComponentSlot.ReleaseComponent() ya existía pero nadie lo llamaba.
+            foreach (var slotOcupado in FindObjectsByType<ComponentSlot>(FindObjectsInactive.Include))
+                if (slotOcupado != null && slotOcupado.InstalledObject == previo) { slotOcupado.ReleaseComponent(); break; }
+
             _componentesRecibidos.Remove(previo);
             Destroy(previo);
         }
@@ -214,6 +255,7 @@ public class ExplorerComponentReceiver : MonoBehaviour
         // Agregar a nuestra lista de control + registrar como el actual de su tipo.
         _componentesRecibidos.Add(nuevoComponente);
         _ultimoPorTipo[tipo] = nuevoComponente;
+        _ultimaVarientePorTipo[tipo] = variante;
 
         ConfigurarComponente(nuevoComponente, tipo, valor);
 
@@ -281,6 +323,7 @@ public class ExplorerComponentReceiver : MonoBehaviour
         // Vaciamos la lista para el nuevo reto
         _componentesRecibidos.Clear();
         _ultimoPorTipo.Clear();
+        _ultimaVarientePorTipo.Clear();
         Debug.Log("[Receiver] Mesa limpiada para el nuevo reto.");
     }
 
@@ -371,11 +414,16 @@ public class ExplorerComponentReceiver : MonoBehaviour
     void ConfigurarComponente(GameObject obj, ComponentType tipo, float valor)
     {
         // Reto 4 (modo protoboard): fijar la escala del resistor para que sus patas alcancen
-        // huecos distintos. Escala ABSOLUTA (la define el modo protoboard). Se aplica ANTES de
-        // EnsureOn para que el bounding box ya estirado defina la posición de las patas (leadA/leadB).
-        if (tipo == ComponentType.Resistor && Reto4BreadboardMode.ResistorScaleReto4.HasValue
-            && Reto4BreadboardMode.ResistorScaleReto4.Value != Vector3.zero)
-            obj.transform.localScale = Reto4BreadboardMode.ResistorScaleReto4.Value;
+        // huecos distintos. Se aplica ANTES de EnsureOn para que el bounding box ya estirado
+        // defina la posición de las patas (leadA/leadB).
+        //
+        // La escala se calcula de la GEOMETRÍA REAL de la protoboard (distancia física mínima
+        // entre 2 slots de nets distintos — cada railId es un net de varios huecos separados, no
+        // una fila contigua, así que esa distancia mínima entre-nets es la referencia correcta),
+        // en vez de un valor fijo a mano. Si por algún motivo no se puede medir (protoSim no
+        // resuelto todavía), cae al valor calibrado de Reto4BreadboardMode como respaldo.
+        if (tipo == ComponentType.Resistor)
+            AplicarEscalaResistorReto4(obj);
 
         // Reto 4: garantizar ProtoboardConnector en el componente recibido por red,
         // si no el CircuitSimulator nunca lo engancha a los nodos de la protoboard.
@@ -408,6 +456,60 @@ public class ExplorerComponentReceiver : MonoBehaviour
                 if (obj.TryGetComponent<ArduinoPin>(out var pin))
                     pin.pinNumber = (int)valor;
                 break;
+        }
+    }
+
+    /// <summary>
+    /// Escala el resistor entregado en el Reto 4 para que sus patas alcancen físicamente 2 slots de
+    /// nets distintos del bareboard REAL — mide la separación mínima real entre nets (ver
+    /// ProtoboardSimulator.SepararacionMinimaEntreNetsDistintos) y escala el eje más largo del mesh
+    /// (a escala base) para que la cubra exactamente. Los otros 2 ejes quedan a una fracción fija
+    /// del factor de largo, para un grosor visualmente razonable (no un cilindro gigante).
+    /// </summary>
+    void AplicarEscalaResistorReto4(GameObject obj)
+    {
+        if (_gm == null) _gm = FindAnyObjectByType<GameManager>();
+        float targetSpan = _gm != null && _gm.protoSim != null
+            ? _gm.protoSim.SepararacionMinimaEntreNetsDistintos()
+            : 0f;
+
+        var rend = obj.GetComponentInChildren<Renderer>();
+        if (targetSpan > 0f && rend != null)
+        {
+            Vector3 escalaActual = obj.transform.localScale;
+            Vector3 tamanoBase = new Vector3(
+                rend.bounds.size.x / Mathf.Max(escalaActual.x, 0.0001f),
+                rend.bounds.size.y / Mathf.Max(escalaActual.y, 0.0001f),
+                rend.bounds.size.z / Mathf.Max(escalaActual.z, 0.0001f));
+
+            // Mismo criterio que ProtoboardConnector.EnsureLeads() para elegir el eje de las patas:
+            // el más largo del bounding box.
+            int ejeLargo = (tamanoBase.x >= tamanoBase.y && tamanoBase.x >= tamanoBase.z) ? 0
+                          : (tamanoBase.y >= tamanoBase.z) ? 1 : 2;
+
+            float factorLargo = targetSpan / Mathf.Max(tamanoBase[ejeLargo], 0.0001f);
+            const float proporcionAncho = 0.65f; // grosor visual (0.4 se veía demasiado delgado en el protoboard)
+
+            // "Un poco más largo" que la separación entre nets (a pedido): el cuerpo sobresale de los
+            // 2 huecos —como un resistor real con las patas dobladas hacia abajo— y se lee claramente
+            // "de slot a slot". Las patas quedan ~12% más allá de cada hueco, muy dentro del
+            // snapRadius del conector (1.2 cm), así que el enganche eléctrico no cambia.
+            // La variante VERTICAL se EXCLUYE: su pose de diseño es parada, conserva la escala exacta.
+            const float estiramientoHorizontal = 1.25f;
+            bool esVertical = obj.name.ToLowerInvariant().Contains("vertical");
+
+            Vector3 nuevaEscala = Vector3.one * (factorLargo * proporcionAncho);
+            nuevaEscala[ejeLargo] = factorLargo * (esVertical ? 1f : estiramientoHorizontal);
+
+            obj.transform.localScale = nuevaEscala;
+            Debug.Log($"[Receiver] Resistor Reto4: escala calculada de la separación real entre slots " +
+                      $"({targetSpan * 100f:F1} cm, eje {(ejeLargo == 0 ? "X" : ejeLargo == 1 ? "Y" : "Z")}) = {nuevaEscala}");
+        }
+        else if (Reto4BreadboardMode.ResistorScaleReto4.HasValue && Reto4BreadboardMode.ResistorScaleReto4.Value != Vector3.zero)
+        {
+            // Respaldo: no se pudo medir la protoboard real todavía (protoSim sin resolver).
+            obj.transform.localScale = Reto4BreadboardMode.ResistorScaleReto4.Value;
+            Debug.LogWarning("[Receiver] Resistor Reto4: no until protoSim para medir — usando escala calibrada de respaldo.");
         }
     }
 }

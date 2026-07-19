@@ -192,9 +192,59 @@ public class ProtoboardSimulator : MonoBehaviour
         var points = GatherConnectionPoints();
         _cachedPoints = points;
 
+        // ProtoboardConnector.Active es una lista GLOBAL compartida por los 2 simuladores (Reto 2 y
+        // Reto 4) — sin filtrar, este bucle llamaba Bind(points) con las coordenadas de ESTE tablero
+        // sobre TODOS los conectores de la escena, incluidos los del OTRO reto. Como sus componentes
+        // están físicamente lejos, Nearest() no encontraba nada dentro de snapRadius y les ponía
+        // nodeA/nodeB en null — desconectando (de forma intermitente, según cuál simulador corriera
+        // último) un componente ya bien enganchado en su propio reto. Se filtra a solo los conectores
+        // cuyo simulador más cercano sea ESTE, así cada tablero únicamente re-engancha lo suyo.
         var connectors = ProtoboardConnector.Active;
         for (int i = 0; i < connectors.Count; i++)
-            if (connectors[i] != null) connectors[i].Bind(points);
+        {
+            var c = connectors[i];
+            if (c == null) continue;
+            if (NearestSimulator(c.transform.position) != this) continue;
+            c.Bind(points);
+        }
+    }
+
+    /// <summary>El ProtoboardSimulator de la escena más cercano a una posición dada (no el primero
+    /// que encuentre Unity) — usado para que cada tablero solo re-enganche SUS propios componentes.</summary>
+    static ProtoboardSimulator NearestSimulator(Vector3 worldPos)
+    {
+        var all = FindObjectsByType<ProtoboardSimulator>(FindObjectsSortMode.None);
+        ProtoboardSimulator best = null;
+        float bestSqr = float.MaxValue;
+        foreach (var s in all)
+        {
+            if (s == null) continue;
+            float d = (s.transform.position - worldPos).sqrMagnitude;
+            if (d < bestSqr) { bestSqr = d; best = s; }
+        }
+        return best;
+    }
+
+    /// <summary>
+    /// Separación FÍSICA real (m) entre los 2 slots más cercanos que pertenecen a NETS distintos
+    /// (railId distinto) — la distancia mínima real que debe alcanzar un componente para puentear
+    /// dos huecos utilizables. NO es "hueco vecino dentro de la misma fila": cada railId agrupa
+    /// varios slots del MISMO net eléctrico, físicamente separados entre sí (igual que el riel GND
+    /// real, documentado en el proyecto), así que esa distancia no sirve como referencia de tamaño.
+    /// Devuelve 0 si hay menos de 2 nets distintos.
+    /// </summary>
+    public float SepararacionMinimaEntreNetsDistintos()
+    {
+        var slots = todosLosSlots.Where(s => s != null).ToList();
+        float min = float.MaxValue;
+        for (int i = 0; i < slots.Count; i++)
+            for (int j = i + 1; j < slots.Count; j++)
+            {
+                if (slots[i].railId == slots[j].railId) continue;   // mismo net, no cuenta
+                float d = Vector3.Distance(slots[i].transform.position, slots[j].transform.position);
+                if (d < min) min = d;
+            }
+        return min == float.MaxValue ? 0f : min;
     }
 
     /// <summary>Reúne todos los puntos de conexión: slots de protoboard + headers de pin + GND.</summary>
@@ -206,16 +256,44 @@ public class ProtoboardSimulator : MonoBehaviour
             if (slot != null && slot.assignedNode != null)
                 pts.Add(new ConnectionPoint(slot.transform.position, slot.assignedNode));
 
+        // Hay 2 ProtoboardSimulator en la escena (Reto 2 y Reto 4). Arduino y Bareboard son HERMANOS
+        // bajo Reto4_TiltGroup (no padre-hijo), así que GetComponentInChildren no basta para Reto 4 —
+        // pero un FindAnyObjectByType global SÍ es peligroso: antes de restaurar el ArduinoCore de hoy
+        // devolvía null siempre (dormido), pero ahora el simulador del Reto 2 (que no tiene Arduino
+        // propio) también lo encontraría por búsqueda global y le "contagiaría" los pines/GND del
+        // Reto 4 como huecos enchufables. Se acota la búsqueda al padre común (Reto4_TiltGroup para
+        // Bareboard, Bareboard-del-Reto2 para el otro) — ahí el Reto 2 nunca encuentra nada.
         if (_arduino == null)
-            _arduino = GetComponentInChildren<ArduinoCore>(true) ?? FindAnyObjectByType<ArduinoCore>();
+            _arduino = GetComponentInChildren<ArduinoCore>(true)
+                    ?? (transform.parent != null ? transform.parent.GetComponentInChildren<ArduinoCore>(true) : null);
 
         if (_arduino != null)
         {
             foreach (var m in _arduino.pinNodeMap)
                 if (m.node != null)
                     pts.Add(new ConnectionPoint(m.node.transform.position, m.node));
+
+            // El modelo físico del Arduino trae VARIOS pines GND (header digital, header de poder,
+            // AREF...), todos son el mismo net eléctrico. Antes solo se registraba _arduino.nodoGND
+            // como único hueco enchufable → los otros GND del mesh (con su propio collider/mesh
+            // visibles) nunca respondían al imán de CableProbePlug. Se registran TODOS los
+            // ElectricalNode "Nodo_GND*" del modelo como huecos, todos apuntando al MISMO nodo
+            // lógico (_arduino.nodoGND) — cualquiera de ellos cierra el circuito, como en la vida real.
             if (_arduino.nodoGND != null)
-                pts.Add(new ConnectionPoint(_arduino.nodoGND.transform.position, _arduino.nodoGND));
+            {
+                foreach (var n in _arduino.GetComponentsInChildren<ElectricalNode>(true))
+                    if (n != null && n.name.StartsWith("Nodo_GND"))
+                        pts.Add(new ConnectionPoint(n.transform.position, _arduino.nodoGND));
+            }
+
+            // Cabecera analógica (Nodo_A0..A5): a diferencia de GND (un único net compartido), cada
+            // pin analógico es su PROPIO ElectricalNode físico en el modelo — solo A0 tiene lectura
+            // real en el juego (GetAnalogReadA0), pero los demás (A1-A5) deben poder ENCHUFARSE igual
+            // (el imán no distinguía "pin sin lógica" de "pin sin registrar": antes de este fix
+            // ninguno de los 6 aparecía como hueco, solo nodoA0 si estaba asignado a mano).
+            foreach (var n in _arduino.GetComponentsInChildren<ElectricalNode>(true))
+                if (n != null && n.name.StartsWith("Nodo_A") && !n.name.StartsWith("Nodo_ARDUINO"))
+                    pts.Add(new ConnectionPoint(n.transform.position, n));
         }
         return pts;
     }
@@ -226,8 +304,13 @@ public class ProtoboardSimulator : MonoBehaviour
     /// </summary>
     List<ElectricalComponent> AllSandboxComponents()
     {
+        // Mismo filtro por proximidad que BindConnectors(): sin esto, el resistor/LED del OTRO reto
+        // (con nodeA/nodeB apuntando a nodos que este simulador nunca metió en su BuildNodeMap) se
+        // colaba en el solver MNA de este tablero.
         return GetComponentsInChildren<ElectricalComponent>(true)
-            .Concat(ProtoboardConnector.Active.Select(pc => pc != null ? pc.GetComponent<ElectricalComponent>() : null))
+            .Concat(ProtoboardConnector.Active
+                .Where(pc => pc != null && NearestSimulator(pc.transform.position) == this)
+                .Select(pc => pc.GetComponent<ElectricalComponent>()))
             .Where(c => c != null)
             .Distinct()
             .ToList();
@@ -520,6 +603,9 @@ public class ProtoboardSimulator : MonoBehaviour
             {
                 // Camino CON LED: confiar en el estado ya resuelto por el MNA de este tick
                 // (evita recalcular con una fórmula cerrada que podría desincronizarse).
+                // r.hasLED se marca ANTES del chequeo de estado: el LED SÍ está en el camino
+                // aunque esté sobrecargado/apagado, así Clasificar() no lo confunde con "sin LED".
+                r.hasLED = true;
                 var badLed = leds.FirstOrDefault(l => l.state != LEDState.Correct);
                 if (badLed != null)
                 {
@@ -527,9 +613,13 @@ public class ProtoboardSimulator : MonoBehaviour
                         ? $"El LED del pin D{pin} no enciende (corriente insuficiente)."
                         : $"El LED del pin D{pin} recibe demasiada corriente ({badLed.state}). " +
                           "Aumenta la resistencia (330 Ω recomendado).";
+                    // hasProtection refleja si hay una resistencia >=100 Ω real en el camino:
+                    // si existe pero no alcanza, es CorrienteAlta; si no existe ninguna, SinResistencia.
+                    r.hasProtection    = pathFound.OfType<Resistor>().Any(res => res.resistance >= 100f);
+                    r.ledUnderCurrent  = badLed.state == LEDState.Off;
+                    r.currentMa        = Mathf.Abs(badLed.current) * 1000f;
                     continue;
                 }
-                r.hasLED           = true;
                 r.ledForwardBiased = true;
                 r.hasProtection    = true;
                 r.currentMa        = Mathf.Abs(leds[0].current) * 1000f;

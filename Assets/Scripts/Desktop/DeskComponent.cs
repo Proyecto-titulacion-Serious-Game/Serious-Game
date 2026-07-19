@@ -135,7 +135,11 @@ public class DeskComponent : MonoBehaviour, IPointerClickHandler, IPointerEnterH
 
         // Combinamos el nombre del prefab entregable Y el de este GameObject: basta con que CUALQUIERA
         // contenga la palabra clave (p.ej. prefab "LEDYellow" o GameObject "Comp_LED_Yellow").
-        string key = ((deliveredPrefab != null ? deliveredPrefab.name : "") + " " + name).ToLowerInvariant();
+        // OJO: la palabra "Delivered" contiene "red" ("delive_RED_"), así que hay que quitarla de la
+        // clave ANTES de buscar colores — sin esto, "Delivered_LED_Green" matcheaba key.Contains("red")
+        // y el LED verde viajaba SIEMPRE como variante roja (bug real: "solo funciona el LED rojo").
+        string key = ((deliveredPrefab != null ? deliveredPrefab.name : "") + " " + name)
+                     .ToLowerInvariant().Replace("delivered", "");
 
         switch (componentType)
         {

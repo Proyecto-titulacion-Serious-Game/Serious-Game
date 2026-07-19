@@ -134,6 +134,20 @@ public class SpaceshipAmbientSystem : MonoBehaviour
         {
             if (!z.active || z.circuitManager == null) continue;
 
+            // Reto2CircuitGuard (y el cutover equivalente de otros retos rediseñados a protoboard)
+            // DESHABILITA el CircuitManager viejo de la zona una vez que el ProtoboardSimulator (MNA)
+            // toma el control eléctrico real — pero z.circuitManager sigue apuntando a esa instancia.
+            // Un componente deshabilitado deja de correr su Update(), así que isShortCircuited queda
+            // CONGELADO en lo último que calculó (a veces "true", si el LED dañado inicial rendía
+            // resistencia ~0 en ESE motor obsoleto). Sin este guard, CUALQUIER OnCircuitChanged
+            // posterior de OTRA zona (evento estático, dispara para todos los CircuitManager)
+            // re-evaluaba este valor viejo y mandaba la zona a Blackout (todas las luces y partículas
+            // apagadas) en cualquier momento de la sesión — el protoboard/cables seguían ahí, solo
+            // invisibles a oscuras, mientras GameManager.currentLevel nunca se enteraba (no es un
+            // cambio de reto real). Bug reportado: "el reto2 desaparece el protoboard y los cables
+            // pero seguimos en el reto2".
+            if (!z.circuitManager.enabled) continue;
+
             var cm = z.circuitManager;
 
             if (cm.isShortCircuited)

@@ -23,6 +23,9 @@ public struct SandboxValidationResult
     public bool   ledForwardBiased;
     /// <summary>True si hay una resistencia >= 100 Ω en el camino.</summary>
     public bool   hasProtection;
+    /// <summary>True si el LED está presente pero apagado por corriente insuficiente
+    /// (resistencia excesiva) — lo opuesto de una sobrecarga, no un camino roto.</summary>
+    public bool   ledUnderCurrent;
     /// <summary>Corriente estimada en mA según resistencia total del camino.</summary>
     public float  currentMa;
     /// <summary>Mensaje legible para mostrar en el HUD o consola del IDE.</summary>

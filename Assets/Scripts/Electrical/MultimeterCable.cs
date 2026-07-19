@@ -32,6 +32,16 @@ public class MultimeterCable : MonoBehaviour
     [Range(0.001f, 0.015f)] public float cableWidth  = 0.003f;
     [Range(0f, 0.3f)]    public float sagAmount      = 0.08f;
 
+    [Header("Reposo")]
+    [Tooltip("Offset en WORLD SPACE desde anchorPoint donde descansa la punta al soltarla. " +
+             "El jack/nub visual se queda exactamente en anchorPoint (alineado con el modelo 3D); " +
+             "solo la punta AGARRABLE se aleja, para que su collider de agarre no quede pegado/adentro " +
+             "del collider del cuerpo del multímetro (causaba que la mano agarrara el cuerpo por error " +
+             "al intentar tomar la punta). Hacia ARRIBA (+Y), no hacia abajo: un offset hacia abajo puede " +
+             "meter la punta dentro de la mesa donde se apoya el multímetro — al mover el cuerpo, la " +
+             "física intenta sacarla de la geometría con un impulso fuerte que empuja al jugador.")]
+    public Vector3 restOffset = new Vector3(0f, 0.02f, 0f);
+
     LineRenderer _lr;
 
     void Awake() => _lr = GetComponent<LineRenderer>();
@@ -42,6 +52,7 @@ public class MultimeterCable : MonoBehaviour
 
         probeRigidbody.isKinematic = true;
         probeRigidbody.useGravity  = true;
+        probeRigidbody.transform.position = anchorPoint.position + restOffset;
 
         SetupSpringJoint();
 
@@ -82,7 +93,7 @@ public class MultimeterCable : MonoBehaviour
     {
         yield return null;                       // wait: let XRI finish selectExited cleanup
         probeRigidbody.isKinematic = true;
-        probeRigidbody.transform.position = anchorPoint.position;
+        probeRigidbody.transform.position = anchorPoint.position + restOffset;
     }
 
     // ── Visual cable ─────────────────────────────────────────────────────

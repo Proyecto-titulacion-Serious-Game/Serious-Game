@@ -153,9 +153,9 @@ public class InstructionSystem : MonoBehaviour
                 instructions = new[]
                 {
                     "Paso 1: Localiza el capacitor con humo — prioridad máxima.",
-                    "Paso 2: Indica al Explorador girar el capacitor 180°.",
-                    "Paso 3: Indica girar el LED invertido 180°.",
-                    "Paso 4: Calcula la resistencia correcta (220Ω) y envíala."
+                    "Paso 2: Selecciona Capacitor en tu panel, polaridad CORRECTA, y ENVÍA.",
+                    "Paso 3: Selecciona LED en tu panel, polaridad CORRECTA, y ENVÍA.",
+                    "Paso 4: Calcula la resistencia correcta (fórmula + código de colores) y envíala."
                 };
                 break;
 
@@ -262,46 +262,61 @@ public class InstructionSystem : MonoBehaviour
     // ── Reto 3 ─────────────────────────────────
 
     /// <summary>Valida los 4 pasos del Reto 3 — Circuito Mixto y Polaridad.</summary>
+    /// <summary>
+    /// Piezas FIJAS de la escena (igual que <c>GameManager.CumpleVictoriaRetos123</c>, caso Mixed) —
+    /// NO iterar 'gameManager.circuit.components': en Retos 1-3 ese circuito (slots) es SIEMPRE null
+    /// (los componentes no están en slots), así que este validador quedaba muerto desde el paso 0.
+    /// </summary>
     private void ValidateMixed()
     {
-        if (gameManager?.circuit == null) return;
-
         switch (currentStep)
         {
             // Paso 0 → Técnico detecta el capacitor humeante.
             // Auto-avanza en el primer tick: el capacitor ya está invertido al inicio.
             case 0:
-                if (gameManager.circuit.components.Count == 0) { _needsValidation = true; break; }
-                foreach (var comp in gameManager.circuit.components)
-                    if (comp is Capacitor cap && cap.polarityInverted)
-                    { NextStep(); return; }
+            {
+                bool any = false;
+                foreach (var cap in FindObjectsByType<Capacitor>(FindObjectsInactive.Exclude))
+                {
+                    if (cap == null || cap.nodeA == null || cap.nodeB == null) continue;
+                    any = true;
+                    if (cap.polarityInverted) { NextStep(); return; }
+                }
+                if (!any) _needsValidation = true;   // el circuito aún no cargó, reintentar
                 break;
+            }
 
             // Paso 1 → Explorador voltea el capacitor (prioridad: humo = riesgo crítico)
             case 1:
-                foreach (var comp in gameManager.circuit.components)
-                    if (comp is Capacitor cap && !cap.polarityInverted)
+                foreach (var cap in FindObjectsByType<Capacitor>(FindObjectsInactive.Exclude))
+                    if (cap != null && cap.nodeA != null && cap.nodeB != null && !cap.polarityInverted)
                     { NextStep(); return; }
                 break;
 
             // Paso 2 → Explorador voltea el LED invertido
             case 2:
+            {
                 bool ledCorregido = true;
-                foreach (var comp in gameManager.circuit.components)
-                    if (comp is LED led && led.polarityInverted)
+                foreach (var led in FindObjectsByType<LED>(FindObjectsInactive.Exclude))
+                    if (led != null && led.nodeA != null && led.nodeB != null && led.polarityInverted)
                     { ledCorregido = false; break; }
                 if (ledCorregido) NextStep();
                 break;
+            }
 
             // Paso 3 → Técnico envió 220Ω y Explorador instaló la resistencia
             case 3:
-                bool resCorregida = true;
-                foreach (var comp in gameManager.circuit.components)
-                    if (comp is Resistor r && (r.hasFault || !Mathf.Approximately(r.resistance, 220f)))
-                    { resCorregida = false; break; }
-                if (resCorregida && gameManager.circuit.components.Count > 0)
-                    hasAppliedFix = true;
+            {
+                bool resCorregida = true, any = false;
+                foreach (var r in FindObjectsByType<Resistor>(FindObjectsInactive.Exclude))
+                {
+                    if (r == null || r.nodeA == null || r.nodeB == null) continue;
+                    any = true;
+                    if (r.hasFault || !Mathf.Approximately(r.resistance, 220f)) { resCorregida = false; break; }
+                }
+                if (resCorregida && any) hasAppliedFix = true;
                 break;
+            }
         }
     }
 

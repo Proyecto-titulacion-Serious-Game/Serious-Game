@@ -102,6 +102,11 @@ public class ArduinoIDEUI : MonoBehaviour
     private float _readyCheckCd    = 0f;     // throttle del chequeo (no cada frame)
     private bool? _lastReadyLogged = null;   // para avisar solo al cambiar de estado
 
+    // Recuperación de foco del editor (ver Update()): cachea el GetComponent<TMP_InputField>
+    // de la selección del EventSystem, solo se recalcula cuando la selección cambia.
+    private GameObject     _lastEventSystemSelection;
+    private TMP_InputField _cachedOtherField;
+
     private readonly List<string> _console = new List<string>();
     private const string PrefKey = "TITA.Reto4.LastSketch";
 
@@ -265,11 +270,19 @@ public class ArduinoIDEUI : MonoBehaviour
         {
             var es  = UnityEngine.EventSystems.EventSystem.current;
             var sel = es != null ? es.currentSelectedGameObject : null;
+            // GetComponent solo cuando la selección del EventSystem CAMBIÓ desde el frame
+            // anterior — antes se repetía cada frame que el editor pasaba sin foco (potencialmente
+            // toda una sesión de Reto 4 con el diagnóstico o el manual abiertos encima).
+            if (sel != _lastEventSystemSelection)
+            {
+                _lastEventSystemSelection = sel;
+                _cachedOtherField = sel != null ? sel.GetComponent<TMP_InputField>() : null;
+            }
             // Solo cede el teclado si el otro campo REALMENTE está recibiendo input (activo y con
             // foco). Una selección colgada en un TMP_InputField inactivo o desenfocado (p.ej. el
             // campo de ohms de la bandeja tras cambiar de componente) se traga las teclas: nadie
             // las recibe y "no se puede escribir" — en ese caso recuperamos el editor.
-            var otroField  = sel != null ? sel.GetComponent<TMP_InputField>() : null;
+            var otroField  = _cachedOtherField;
             bool otroCampo = otroField != null && sel.activeInHierarchy && otroField.isFocused;
             if (!otroCampo) codeEditor.ActivateInputField();
         }
@@ -448,14 +461,24 @@ public class ArduinoIDEUI : MonoBehaviour
     /// La placa está lista para recibir el sketch si:
     ///   • hay un ArduinoNetworkBridge local (escena única / IntegratedDemo), o
     ///   • el Explorador reportó su Arduino vivo por red (<see cref="GameSession.ExploradorListo"/>), o
-    ///   • existe un ArduinoCore local (modo offline / escena única).
-    /// En el setup asimétrico el bridge NO llega al PC del Técnico, de ahí la vía de red.
+    ///   • existe un ArduinoCore local (modo offline / escena única), o
+    ///   • hay una sesión de red viva (GameSession spawneado y válido).
+    ///
+    /// BUG REAL (jugado en VR): ExploradorListo SOLO se pone en true cuando
+    /// ArduinoNetworkBridge.OnBridgeReady dispara — pero ese componente no existe en
+    /// Explorador.unity (confirmado), así que ExploradorListo nunca pasaba a true y el botón
+    /// "Subir" quedaba deshabilitado PARA SIEMPRE en una partida online real, aunque la entrega
+    /// del sketch (GameSession.RPC_SubirSketchChunk → ArduinoCore) sí funciona de por sí — ya
+    /// verificado con pruebas reales esta sesión. El último check (sesión de red viva) es el
+    /// respaldo correcto: si hay un GameSession spawneado y válido, hay un Explorador conectado
+    /// del otro lado, sin depender del bridge ausente.
     /// </summary>
     bool IsBoardReady()
     {
         if (bridge != null) return true;
         if (GameSession.Instance != null && GameSession.Instance.ExploradorListo) return true;
-        return FindAnyObjectByType<ArduinoCore>() != null;
+        if (FindAnyObjectByType<ArduinoCore>() != null) return true;
+        return GameSession.Instance != null && GameSession.Instance.Object != null && GameSession.Instance.Object.IsValid;
     }
 
     /// <summary>Refresca el estado interactable del botón "Subir" y avisa solo al cambiar de estado.</summary>

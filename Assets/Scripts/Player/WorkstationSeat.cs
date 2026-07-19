@@ -146,10 +146,22 @@ public class WorkstationSeat : MonoBehaviour
         if (pressed) Rise();
     }
 
+    // Cachea el GetComponent<TMP_InputField> de la selección del EventSystem — antes se repetía
+    // cada Update() mientras el jugador está sentado (casi toda la sesión del Técnico); ahora
+    // solo se recalcula cuando la selección realmente cambia. Estático porque la selección del
+    // EventSystem es un estado global de la escena, no por instancia de WorkstationSeat.
+    private static GameObject _lastSelChecked;
+    private static bool       _lastSelHasInputField;
+
     static bool IsAnyInputFieldFocused()
     {
         var sel = EventSystem.current?.currentSelectedGameObject;
-        return sel != null && sel.GetComponent<TMP_InputField>() != null;
+        if (sel != _lastSelChecked)
+        {
+            _lastSelChecked       = sel;
+            _lastSelHasInputField = sel != null && sel.GetComponent<TMP_InputField>() != null;
+        }
+        return _lastSelHasInputField;
     }
 
     public void Rise()

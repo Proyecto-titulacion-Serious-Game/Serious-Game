@@ -269,7 +269,10 @@ MonoBehaviour:
   useKatVR: 1
   katOnly: 0
   walkSpeed: 2
-  enableSnapTurn: 0
+  enableSnapTurn: 1
+  turnSpeed: 90
+  turnDeadzone: 0.15
+  giroJoystickIzquierdo: 0
   snapTurnAngle: 45
   snapTurnThreshold: 0.5
   katSerialNumber: 

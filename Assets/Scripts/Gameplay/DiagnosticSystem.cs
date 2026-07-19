@@ -39,10 +39,10 @@ public class DiagnosticSystem
                           $"{(!resistor.hasFault ? "[OK]" : "[!] INCORRECTA")}");
             if (resistor.hasFault)
             {
-                sb.AppendLine($"   Valor correcto: {resistor.correctResistance:F0} Ohm");
                 sb.AppendLine(resistor.resistance < resistor.correctResistance
                     ? "   Muy BAJA -> pasa demasiada corriente, el LED se sobrecarga."
                     : "   Muy ALTA -> pasa muy poca corriente, el LED no enciende.");
+                sb.AppendLine("   Calculá el valor correcto con la fórmula del manual.");
             }
         }
 
@@ -70,7 +70,8 @@ public class DiagnosticSystem
         var resistor = FindFirstConnected<Resistor>();
         if (resistor != null && resistor.hasFault)
             return $"Resistencia incorrecta ({resistor.resistance:F0} Ohm).\n" +
-                   $"Escribe {resistor.correctResistance:F0} en el campo y pulsa ENVIAR.";
+                   "Calculá el valor correcto con la fórmula (Ley de Ohm\n" +
+                   "+ voltaje medido) y envialo.";
 
         var led = FindFirstConnected<LED>();
         if (led == null)
@@ -205,7 +206,7 @@ public class DiagnosticSystem
             if (r == null || r.nodeA == null || r.nodeB == null) continue;
             any = true;
             sb.AppendLine($"Resistencia '{r.name}': {r.resistance:F0} Ohm  " +
-                          (r.hasFault ? $"[!] INCORRECTA (correcto: {r.correctResistance:F0} Ohm)" : "[OK]"));
+                          (r.hasFault ? "[!] INCORRECTA (calculá el valor con la fórmula/código de colores)" : "[OK]"));
         }
         foreach (var led in UnityEngine.Object.FindObjectsByType<LED>(FindObjectsInactive.Exclude))
         {
@@ -233,11 +234,11 @@ public class DiagnosticSystem
     {
         foreach (var cap in UnityEngine.Object.FindObjectsByType<Capacitor>(FindObjectsInactive.Exclude))
             if (cap != null && cap.nodeA != null && cap.polarityInverted)
-                return $"[!!] URGENTE: di al Explorador que gire el capacitor '{cap.name}' 180 grados.";
+                return $"[!!] URGENTE: selecciona Capacitor en tu panel, polaridad CORRECTA, y ENVÍA (corrige '{cap.name}').";
 
         foreach (var led in UnityEngine.Object.FindObjectsByType<LED>(FindObjectsInactive.Exclude))
             if (led != null && led.nodeA != null && led.polarityInverted)
-                return $"Di al Explorador que gire el LED '{led.name}' 180 grados (polaridad).";
+                return $"Selecciona LED en tu panel, polaridad CORRECTA, y ENVÍA (corrige '{led.name}').";
 
         foreach (var led in UnityEngine.Object.FindObjectsByType<LED>(FindObjectsInactive.Exclude))
             if (led != null && led.nodeA != null && led.state == LEDState.Overload)
@@ -245,7 +246,8 @@ public class DiagnosticSystem
 
         foreach (var r in UnityEngine.Object.FindObjectsByType<Resistor>(FindObjectsInactive.Exclude))
             if (r != null && r.nodeA != null && r.hasFault)
-                return $"Resistencia '{r.name}' incorrecta ({r.resistance:F0} Ohm). Correcto: {r.correctResistance:F0} Ohm.";
+                return $"Resistencia '{r.name}' incorrecta ({r.resistance:F0} Ohm). " +
+                       "Calculá el valor correcto (fórmula + código de colores) y envialo.";
 
         return "OK Todos los componentes tienen la polaridad y valores correctos.";
     }

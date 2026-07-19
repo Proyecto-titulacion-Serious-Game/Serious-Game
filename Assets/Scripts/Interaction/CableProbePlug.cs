@@ -92,7 +92,12 @@ public class CableProbePlug : MonoBehaviour
     /// <summary>Al soltar, enchufa la punta al hueco más cercano dentro de plugRadius (si lo hay).</summary>
     void TrySnap()
     {
-        if (_sim == null) _sim = FindAnyObjectByType<ProtoboardSimulator>();
+        // Hay 2 ProtoboardSimulator en la escena (Reto 2 y Reto 4). FindAnyObjectByType devuelve
+        // el primero que encuentre según orden interno de Unity, NO el más cercano — un cable del
+        // Reto 4 podía terminar enganchado al simulador del Reto 2 (o viceversa) y entonces el imán
+        // nunca encontraba huecos dentro de plugRadius (los tableros están lejos entre sí), pareciendo
+        // "el cable no conecta". Se resuelve por PROXIMIDAD real a la posición de esta punta.
+        if (_sim == null) _sim = NearestSimulator();
         if (_sim == null) return;
 
         var pts = _sim.ConnectionPoints;
@@ -122,5 +127,20 @@ public class CableProbePlug : MonoBehaviour
         {
             _plugged = false;   // soltada lejos de todo hueco → queda libre
         }
+    }
+
+    /// <summary>ProtoboardSimulator más cercano a esta punta (no el primero que encuentre Unity).</summary>
+    ProtoboardSimulator NearestSimulator()
+    {
+        var all = FindObjectsByType<ProtoboardSimulator>(FindObjectsSortMode.None);
+        ProtoboardSimulator best = null;
+        float bestSqr = float.MaxValue;
+        foreach (var s in all)
+        {
+            if (s == null) continue;
+            float d = (s.transform.position - transform.position).sqrMagnitude;
+            if (d < bestSqr) { bestSqr = d; best = s; }
+        }
+        return best;
     }
 }

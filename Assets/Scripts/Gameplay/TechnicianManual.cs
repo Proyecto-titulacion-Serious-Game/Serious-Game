@@ -44,19 +44,22 @@ public class TechnicianManual : MonoBehaviour
                     "resistencia tiene el valor incorrecto.\n\n" +
                     "1. Pide al Explorador que mida V en nodo_A y nodo_B\n" +
                     "2. Calcula: R = (9V - V_LED) / I_objetivo\n" +
-                    "3. El valor correcto es 850 Ohm\n" +
-                    "4. Escribe 850 en el campo y pulsa ENVIAR",
+                    "   (usa el voltaje medido; I_objetivo está en la fórmula)\n" +
+                    "3. Escribe TU resultado en el campo y pulsa ENVIAR\n" +
+                    "   Si el LED no cambia a verde, revisa el cálculo.",
 
         tablaValores =
-                    "CÓDIGO DE COLORES — Resistencia 850 Ohm 5%\n" +
+                    "CÓDIGO DE COLORES DE RESISTENCIAS (4 bandas)\n" +
                     "-------------------------\n" +
-                    "Banda 1: Gris    (8)\n" +
-                    "Banda 2: Verde   (5)\n" +
-                    "Banda 3: Marrón  (x10)\n" +
-                    "Banda 4: Oro     (±5%)\n" +
+                    "0 Negro    1 Marrón   2 Rojo     3 Naranja  4 Amarillo\n" +
+                    "5 Verde    6 Azul     7 Violeta  8 Gris     9 Blanco\n" +
+                    "Banda 3 (multiplicador): mismo color = x10^dígito\n" +
+                    "Banda 4 (tolerancia): Oro=±5%  Plata=±10%\n" +
                     "-------------------------\n" +
-                    "Resistencia INCORRECTA en nave: 10 Ohm\n" +
-                    "-> Bandas: Marrón-Negro-Negro-Oro"
+                    "Resistencia con falla en la nave: 10 Ohm\n" +
+                    "-> Bandas: Marrón-Negro-Negro-Oro\n\n" +
+                    "Usá esta tabla para leer o escribir cualquier valor\n" +
+                    "que calcules (acá y en otros retos)."
     };
 
     // ─────────────────────────────────────────────
@@ -121,25 +124,28 @@ public class TechnicianManual : MonoBehaviour
                     "POLARIDAD CAPACITOR electrolítico:\n" +
                     "  (+) banda blanca / pata larga -> positivo\n" +
                     "  (-) banda negra / pata corta -> tierra\n\n" +
-                    "CÓDIGO COLORES — R=220 Ohm:\n" +
-                    "  Rojo-Rojo-Marrón-Oro",
+                    "RESISTENCIA: no viene dada — calculala con la\n" +
+                    "Ley de Ohm (ver Reto 1) y el código de colores\n" +
+                    "(tabla abajo).",
 
-        objetivo  = "Corregir las 3 fallas EN ORDEN DE PRIORIDAD:\n\n" +
+        objetivo  = "Corregir las 3 fallas EN ORDEN DE PRIORIDAD, igual que en Retos 1 y 2:\n" +
+                    "selecciona la pieza en tu panel y pulsa ENVIAR con la polaridad/valor correcto.\n\n" +
                     "PRIORIDAD 1 -> Capacitor (humo = riesgo crítico)\n" +
-                    "  Indica al Explorador: girar el capacitor 180 grados\n\n" +
+                    "  Selecciona Capacitor, polaridad CORRECTA, y ENVÍA\n\n" +
                     "PRIORIDAD 2 -> LED invertido\n" +
-                    "  Indica: girar el LED para invertir polaridad\n\n" +
-                    "PRIORIDAD 3 -> Resistencia incorrecta (470 Ohm)\n" +
-                    "  Valor correcto: 220 Ohm -> Enviar componente",
+                    "  Selecciona LED, polaridad CORRECTA, y ENVÍA\n\n" +
+                    "PRIORIDAD 3 -> Resistencia incorrecta\n" +
+                    "  Calculá el valor correcto (Ley de Ohm + código\n" +
+                    "  de colores) y ENVIALO",
 
         tablaValores =
-                    "RESISTENCIA INCORRECTA vs CORRECTA\n" +
+                    "RESISTENCIA CON FALLA EN LA NAVE\n" +
                     "-------------------------\n" +
-                    "INCORRECTA (nave): 470 Ohm\n" +
-                    "  Amarillo-Violeta-Marrón-Oro\n\n" +
-                    "CORRECTA:         220 Ohm\n" +
-                    "  Rojo-Rojo-Marrón-Oro\n" +
+                    "Medida: 470 Ohm\n" +
+                    "  Amarillo-Violeta-Marrón-Oro\n" +
                     "-------------------------\n" +
+                    "Usá la tabla de código de colores del Reto 1 y la\n" +
+                    "Ley de Ohm para calcular el valor correcto.\n\n" +
                     "Indicador de humo en capacitor:\n" +
                     "  -> corregir ANTES que el LED"
     };

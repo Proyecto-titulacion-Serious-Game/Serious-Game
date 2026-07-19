@@ -14,6 +14,15 @@ using UnityEngine;
 /// Se apaga tanto si el reto previo se GANA como si se le ACABA EL TIEMPO (derrota): en
 /// ambos casos GameManager dispara <see cref="GameManager.OnLevelCompleted"/> con el reto
 /// terminado — la barrera no debe dejar al grupo atascado solo porque no llegaron a tiempo.
+///
+/// BUG real corregido: F4 (DebugLevelSkipper) SIEMPRE completa el reto en el GameManager del
+/// HOST/Técnico (directo si el Host lo presiona, o vía RPC_SolicitarCompletarReto si lo presiona
+/// el Explorador) — nunca en el GameManager del Explorador. OnLevelCompleted es un evento C#
+/// LOCAL (no viaja por red), así que la barrera —que vive en Explorador.unity— nunca se enteraba:
+/// F4 avanzaba el reto (el índice SÍ se replica por RPC_CambiarReto) pero el muro de fuego seguía
+/// encendido. Fix: también escuchar GameManager.OnLevelLoaded (que SÍ corre en el Explorador cada
+/// vez que RPC_CambiarReto llega, sea por F4 o por victoria real) y apagar si el nuevo reto ya
+/// superó al que bloqueaba esta barrera — cubre ambos caminos con una sola fuente de verdad.
 /// </summary>
 public class RetoFireBarrier : MonoBehaviour
 {
@@ -33,8 +42,16 @@ public class RetoFireBarrier : MonoBehaviour
 
     private bool _apagada;
 
-    void OnEnable()  { GameManager.OnLevelCompleted += OnLevelCompleted; }
-    void OnDisable() { GameManager.OnLevelCompleted -= OnLevelCompleted; }
+    void OnEnable()
+    {
+        GameManager.OnLevelCompleted += OnLevelCompleted;
+        GameManager.OnLevelLoaded    += OnLevelLoaded;
+    }
+    void OnDisable()
+    {
+        GameManager.OnLevelCompleted -= OnLevelCompleted;
+        GameManager.OnLevelLoaded    -= OnLevelLoaded;
+    }
 
     void Start()
     {
@@ -53,6 +70,15 @@ public class RetoFireBarrier : MonoBehaviour
     {
         // Se apaga tanto en éxito como en timeout — ver comentario de clase.
         if (reto == retoPrevioACompletar)
+            Apagar();
+    }
+
+    /// <summary>Red de seguridad para F4 (ver comentario de clase): OnLevelLoaded SÍ corre en el
+    /// Explorador cada vez que el reto avanza por red, sin importar si el avance vino de una
+    /// victoria real (que ya dispara OnLevelCompleted arriba) o del atajo de debug F4 (que no).</summary>
+    void OnLevelLoaded(LevelType nuevoReto)
+    {
+        if (!_apagada && (int)nuevoReto > (int)retoPrevioACompletar)
             Apagar();
     }
 

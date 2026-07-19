@@ -54,10 +54,20 @@ public class MultimeterModeButton : MonoBehaviour
     void OnPressed(SelectEnterEventArgs _)
     {
         if (multimeter == null) return;
-        int next = ((int)multimeter.mode + 1) % 3;
-        multimeter.SetMode((MultimeterMode)next);
+        multimeter.CiclarModo();
         UpdateColor();
         Debug.Log($"[ModeButton] Modo → {multimeter.mode}");
+    }
+
+    // El modo también cambia SIN pasar por este botón (click del joystick de la mano que
+    // sostiene, tecla M en PCVR) — refrescar el color al detectar el cambio.
+    private MultimeterMode _lastMode;
+
+    void Update()
+    {
+        if (multimeter == null || multimeter.mode == _lastMode) return;
+        _lastMode = multimeter.mode;
+        UpdateColor();
     }
 
     void UpdateColor()

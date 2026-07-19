@@ -14,7 +14,9 @@ public enum Reto4Diagnostico
     SinLED         = 4, // hay camino al pin pero sin LED
     SinResistencia = 5, // falta resistencia de protección (el LED se quemará)
     CorrienteAlta  = 6, // corriente sobre el límite seguro del LED
-    Generico       = 7
+    Generico       = 7,
+    ResistenciaExcesiva = 8, // LED presente pero apagado por corriente insuficiente (R demasiado alta)
+    ResistenciaSinMedir = 9, // circuito correcto, pero el Explorador aun no midio el resistor en modo OHMS
 }
 
 /// <summary>
@@ -44,8 +46,13 @@ public static class Reto4Feedback
                 return Reto4Diagnostico.LEDInvertido;
             return Reto4Diagnostico.SinCamino;
         }
-        if (!r.hasLED)        return Reto4Diagnostico.SinLED;
-        if (!r.hasProtection) return Reto4Diagnostico.SinResistencia;
+        // Camino SIN LED que llegó a GND y aun así falló: el sandbox acepta circuitos de corriente
+        // continua sin LED (código del Técnico que no lo necesita), así que la única falla posible
+        // aquí es sobrecarga/corto — clasificarla como "SinLED" hacía que el diagnóstico PIDIERA
+        // un LED que el circuito no requiere (bug reportado).
+        if (!r.hasLED)          return Reto4Diagnostico.CorrienteAlta;
+        if (r.ledUnderCurrent)  return Reto4Diagnostico.ResistenciaExcesiva; // LED presente pero apagado: R demasiado alta, no le falta protección
+        if (!r.hasProtection)   return Reto4Diagnostico.SinResistencia;
         return Reto4Diagnostico.CorrienteAlta;                    // pasó todo menos la corriente segura
     }
 
@@ -69,11 +76,13 @@ public static class Reto4Feedback
             string p = motivo switch
             {
                 Reto4Diagnostico.SinBlink       => "el circuito podria estar bien, pero revisa TU codigo: ¿algun pin OUTPUT tiene una salida activa ahora (HIGH fijo, PWM, o parpadeo)?",
-                Reto4Diagnostico.SinCamino      => "la corriente no completa el circuito. ¿El pin que programaste es el mismo donde el Explorador conecto el LED?",
+                Reto4Diagnostico.SinCamino      => "la corriente no completa el circuito. ¿El pin que programaste es el mismo donde el Explorador conecto el circuito?",
                 Reto4Diagnostico.LEDInvertido   => "algo bloquea el paso de corriente. ¿El LED podria estar al reves?",
                 Reto4Diagnostico.SinLED         => "hay conexion hasta el pin, pero no se detecta el LED. ¿Esta bien insertado en la protoboard?",
                 Reto4Diagnostico.SinResistencia => "¡cuidado! parece faltar la resistencia de proteccion antes del LED.",
-                Reto4Diagnostico.CorrienteAlta  => "pasa demasiada corriente. ¿La resistencia es suficiente para proteger el LED?",
+                Reto4Diagnostico.CorrienteAlta  => "pasa demasiada corriente. ¿La resistencia es suficiente para proteger el circuito?",
+                Reto4Diagnostico.ResistenciaExcesiva => "el LED esta ahi pero no enciende. ¿Y si la resistencia es demasiado grande para dejar pasar corriente?",
+                Reto4Diagnostico.ResistenciaSinMedir => "el circuito ya esta bien conectado. ¿El Explorador ya midio el resistor con el multimetro en modo OHMS?",
                 _                               => "el circuito aun no valida. Usen el multimetro para ubicar donde se corta.",
             };
             return $"<color=#FFD27F>> PISTA: {p}</color>";
@@ -83,12 +92,14 @@ public static class Reto4Feedback
         string d = motivo switch
         {
             Reto4Diagnostico.SinBlink       => $"ningun pin OUTPUT esta activo ahora mismo. Revisa que loop() escriba HIGH o PWM en el pin D{pin} (parpadeo, PWM, o HIGH fijo son validos).",
-            Reto4Diagnostico.SinCamino      => $"tu codigo activa el pin D{pin}, pero no hay circuito completo desde D{pin} hasta GND. Confirma con el Explorador que el LED + resistencia esten en el pin D{pin}.",
+            Reto4Diagnostico.SinCamino      => $"tu codigo activa el pin D{pin}, pero no hay circuito completo desde D{pin} hasta GND. Confirma con el Explorador que el circuito (resistencia, con o sin LED segun tu codigo) salga del pin D{pin} y cierre en GND.",
             Reto4Diagnostico.LEDInvertido   => $"el LED del pin D{pin} esta con la polaridad invertida. La pata larga (anodo) va del lado del pin.",
             Reto4Diagnostico.SinLED         => $"el pin D{pin} si llega a GND, pero sin LED en el camino. Pide al Explorador insertar el LED entre el pin y GND.",
             Reto4Diagnostico.SinResistencia => $"falta resistencia de proteccion (>=100 ohm) en el pin D{pin}. Sin ella el LED se quema. Pide una resistencia en serie.",
-            Reto4Diagnostico.CorrienteAlta  => $"la corriente en el pin D{pin} supera el limite seguro del LED. Pide una resistencia mayor (330 ohm recomendado).",
-            _                               => $"el circuito del pin D{pin} aun no cumple el objetivo. Revisen LED, resistencia y polaridad.",
+            Reto4Diagnostico.CorrienteAlta  => $"la corriente en el pin D{pin} supera el limite seguro. Pide una resistencia mayor (330 ohm recomendado).",
+            Reto4Diagnostico.ResistenciaExcesiva => $"el LED del pin D{pin} esta bien conectado pero la resistencia es demasiado alta: casi no pasa corriente y no enciende. Pide una resistencia menor (330 ohm recomendado).",
+            Reto4Diagnostico.ResistenciaSinMedir => $"el circuito del pin D{pin} esta electricamente correcto. Falta que el Explorador ponga el multimetro en modo OHMS y mida el resistor antes de volver a Comprobar (el modo se cambia APRETANDO EL JOYSTICK de la mano que sostiene el multimetro).",
+            _                               => $"el circuito del pin D{pin} aun no cumple el objetivo. Revisen las conexiones (resistencia, y LED/polaridad si lo hay).",
         };
         return $"<color=#FF8888>> DIAGNOSTICO: {d}</color>";
     }

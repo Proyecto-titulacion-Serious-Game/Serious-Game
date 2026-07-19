@@ -44,6 +44,12 @@ public class GameManager : MonoBehaviour
     [Tooltip("Tiempo límite en segundos para cada reto (0 = sin límite).")]
     public float[] timeLimits = { 600f, 600f, 600f, 900f };
 
+    [Tooltip("Reto 4: exigir ADEMÁS medir el resistor con el multímetro en modo OHMS antes de " +
+             "aceptar la validación. Apagado por defecto: el reto se completa apenas el circuito " +
+             "cumple el código del Técnico (pedido de diseño 2026-07-18); la medición queda como " +
+             "práctica recomendada del manual, no como candado.")]
+    public bool exigirMedicionOhmsReto4 = false;
+
     // ─────────────────────────────────────────────
     //  Estado
     // ─────────────────────────────────────────────
@@ -60,6 +66,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int       _wrongAttempts   = 0;
     [SerializeField] private float     _remainingTime   = 0f;
     [SerializeField] private bool      _timerActive     = false;
+    private int   _lastTimerTickSecond = -1; // throttle de OnTimerTick a 1 vez por segundo, ver Update()
     private float _tiempoInicioReto = 0f;
 
     public LevelType currentLevel     => _currentLevel;
@@ -97,7 +104,23 @@ public class GameManager : MonoBehaviour
     // Resultado de la última validación sandbox — actualizado por OnSandboxValidated
     private SandboxValidationResult _lastSandboxResult;
 
-    void OnSandboxResult(SandboxValidationResult result) => _lastSandboxResult = result;
+    void OnSandboxResult(SandboxValidationResult result)
+    {
+        _lastSandboxResult = result;
+
+        // AUTO-COMPLETAR Reto 4 (igual que la auto-evaluación de los Retos 1-3): apenas el
+        // circuito CUMPLE el código del Técnico (validación del sandbox en éxito), el reto se
+        // completa solo — sin exigir el botón físico. El botón sigue existiendo como chequeo
+        // manual con feedback. La ventana de 2 s evita un auto-éxito espurio al cargar el reto.
+        if (result.success && _currentLevel == LevelType.Arduino && !_levelCompleted
+            && Time.time - _tiempoInicioReto > 2f
+            && (!exigirMedicionOhmsReto4 || multimeter == null || multimeter.wasUsedInResistanceMode))
+        {
+            Debug.Log("[GameManager] ✅ Reto 4 auto-completado: el circuito cumple el código del Técnico.");
+            PublicarDiagnosticoReto4(exito: true, nivel: 0, result);
+            CompleteLevel(true);
+        }
+    }
 
     void Start()
     {
@@ -134,7 +157,16 @@ public class GameManager : MonoBehaviour
     {
         // Solo actuar si el índice difiere del estado local (evitar bucle Host→RPC→Host)
         if (retoIndex != _currentIndex)
+        {
+            // El reto saliente terminó en el OTRO proceso (la victoria se evaluó allá y aquí solo
+            // llega el cambio de reto). Sin esto, este cliente nunca dispara OnLevelCompleted para
+            // ese reto → su PerformanceTracker queda SIN registro → el desglose por reto se corría
+            // de fila (el Reto 4 se mostraba como "Reto 3 — Mixto"). Solo para el avance natural
+            // +1 (no saltos F1-F3 de debug) y solo si aquí no se completó ya.
+            if (!_levelCompleted && retoIndex == _currentIndex + 1)
+                OnLevelCompleted?.Invoke(_currentLevel, true);
             LoadLevel(retoIndex);
+        }
     }
 
     /// <summary>
@@ -178,8 +210,30 @@ public class GameManager : MonoBehaviour
     {
         if (!_timerActive || _levelCompleted) return;
 
-        _remainingTime -= Time.deltaTime;
-        OnTimerTick?.Invoke(_remainingTime);
+        // TIMER EN RED: si hay sesión Fusion, AMBOS roles leen el tiempo restante del MISMO
+        // timer de red (GameSession.RetoTimer, publicado por el Host). Antes cada GameManager
+        // contaba su propio _remainingTime local, arrancado en momentos distintos en cada
+        // proceso → al Explorador se le acababa el tiempo antes que al Técnico. El Host además
+        // publica el timer aquí (lazy) por si GameSession spawneó después del LoadLevel inicial.
+        var gsTimer = GameSession.Instance;
+        bool enRed = gsTimer != null && gsTimer.Object != null && gsTimer.Object.IsValid;
+        if (enRed && gsTimer.Object.HasStateAuthority && gsTimer.TiempoRestanteReto() == null)
+            gsTimer.IniciarTimerReto(_remainingTime);
+
+        float? restanteRed = enRed ? gsTimer.TiempoRestanteReto() : null;
+        if (restanteRed != null) _remainingTime  = restanteRed.Value;
+        else                     _remainingTime -= Time.deltaTime;
+
+        // OnTimerTick solo alimenta HUDs de texto "min:seg" (TechnicianHUDController,
+        // ExplorerTaskClipboard) — no necesitan más de 1 actualización por segundo, pero se
+        // invocaba cada Update() (decenas de veces por segundo en el Técnico sin vsync),
+        // reconstruyendo texto TMP en ambos roles todo el tiempo que corre un timer de reto.
+        int currentSecond = Mathf.CeilToInt(Mathf.Max(_remainingTime, 0f));
+        if (currentSecond != _lastTimerTickSecond)
+        {
+            _lastTimerTickSecond = currentSecond;
+            OnTimerTick?.Invoke(_remainingTime);
+        }
 
         if (_remainingTime <= 0f)
         {
@@ -217,6 +271,14 @@ public class GameManager : MonoBehaviour
         _wrongAttempts++;
         string categoria = ClasificarError();
         performance?.AddError(categoria);
+
+        // Si este proceso es un CLIENTE (Explorador), reenviar el error al Host: su tracker es el
+        // que alimenta el dashboard localhost y la subida a Sheets — sin esto, el docente veía
+        // "0 errores" aunque el Explorador se hubiera equivocado (p.ej. LED con polaridad invertida).
+        var gsErr = GameSession.Instance;
+        if (gsErr != null && gsErr.Object != null && gsErr.Object.IsValid && !gsErr.Object.HasStateAuthority)
+            gsErr.RPC_RegistrarErrorRemoto(categoria);
+
         Debug.Log($"[GameManager] Intento incorrecto #{_wrongAttempts} [{categoria}]: {reason}");
 
         // CHOQUE ELÉCTRICO: El jugador se equivocó al validar el circuito
@@ -475,22 +537,41 @@ public class GameManager : MonoBehaviour
         if (protoSim == null) protoSim = FindProtoSim();
         protoSim?.ForzarValidacion();
 
-        if (_lastSandboxResult.success)
+        // Circuito eléctricamente correcto Y (si el docente activó el candado) el Explorador ya
+        // midió la resistencia con el multímetro en modo OHMS. Por defecto el candado está
+        // apagado: cumplir el código basta para completar (ver exigirMedicionOhmsReto4).
+        bool resistenciaMedida = !exigirMedicionOhmsReto4
+                              || multimeter == null || multimeter.wasUsedInResistanceMode;
+
+        if (_lastSandboxResult.success && resistenciaMedida)
         {
             PublicarDiagnosticoReto4(exito: true, nivel: 0, _lastSandboxResult);
             CompleteLevel(true);
             return true;
         }
 
-        string motivo = string.IsNullOrEmpty(_lastSandboxResult.message)
-            ? "Circuito incompleto. Revisa que el LED, la resistencia y el pin esten conectados."
-            : _lastSandboxResult.message;
+        string motivo;
+        if (_lastSandboxResult.success && !resistenciaMedida)
+        {
+            motivo = "Circuito correcto, pero falta medir la resistencia del resistor con el " +
+                     "multimetro en modo OHMS antes de validar. (Sosten el multimetro y APRIETA " +
+                     "EL JOYSTICK de esa mano para cambiar de modo.)";
+        }
+        else
+        {
+            motivo = string.IsNullOrEmpty(_lastSandboxResult.message)
+                ? "Circuito incompleto. Revisa que el circuito salga del pin programado y cierre en GND."
+                : _lastSandboxResult.message;
+        }
 
         RegisterWrongAttempt("Reto 4 — " + motivo);
 
         // Feedback graduado al Técnico (síntoma → pista → diagnóstico) según intentos fallidos.
         int nivel = Reto4Feedback.NivelPorIntentos(_wrongAttempts);
-        PublicarDiagnosticoReto4(exito: false, nivel: nivel, _lastSandboxResult);
+        if (_lastSandboxResult.success && !resistenciaMedida)
+            PublicarDiagnosticoReto4(exito: false, nivel: nivel, _lastSandboxResult, Reto4Diagnostico.ResistenciaSinMedir);
+        else
+            PublicarDiagnosticoReto4(exito: false, nivel: nivel, _lastSandboxResult);
         return false;
     }
 
@@ -498,11 +579,13 @@ public class GameManager : MonoBehaviour
     /// Envía el resultado de validar el circuito del Reto 4 al Técnico vía GameSession
     /// (mismo canal que la telemetría). El Técnico lo muestra en la consola del IDE.
     /// En modo offline sin red (GameSession null) no hace nada.
+    /// <paramref name="motivoOverride"/> permite forzar un diagnóstico que no se deriva de
+    /// <paramref name="r"/> (p.ej. "falta medir en modo OHMS", que no es un fallo de simulación).
     /// </summary>
-    void PublicarDiagnosticoReto4(bool exito, int nivel, SandboxValidationResult r)
+    void PublicarDiagnosticoReto4(bool exito, int nivel, SandboxValidationResult r, Reto4Diagnostico? motivoOverride = null)
     {
         if (GameSession.Instance == null) return;
-        var motivo = Reto4Feedback.Clasificar(r);
+        var motivo = motivoOverride ?? Reto4Feedback.Clasificar(r);
         GameSession.Instance.RPC_PublicarDiagnostico(exito, nivel, r.activatedPin, (int)motivo);
 
         // También al clipboard del Técnico: éxito, o el mismo feedback GRADUADO (síntoma→pista→causa).
@@ -531,9 +614,15 @@ public class GameManager : MonoBehaviour
         float limit = (index < timeLimits.Length) ? timeLimits[index] : 0f;
         _remainingTime = limit;
         _timerActive   = limit > 0f;
+        _lastTimerTickSecond = -1; // fuerza que el primer OnTimerTick del reto dispare de inmediato
+
+        // Host: publicar el deadline del reto en el reloj de RED para que el Explorador cuente
+        // con el mismo timer (ver Update). En el cliente esto es no-op (sin StateAuthority).
+        GameSession.Instance?.IniciarTimerReto(_timerActive ? limit : 0f);
         
         performance?.ResetTracker();
         multimeter?.ResetProbes();
+        multimeter?.ResetResistanceModeTracking();
         instructionSystem?.ResetInstructions();
         instructionSystem?.BuildInstructions();
 
@@ -645,9 +734,12 @@ public class GameManager : MonoBehaviour
             case LevelType.Arduino:
                 OnFaultDetected?.Invoke(
                     "Reto 4: Sandbox Arduino + Protoboard.\n" +
-                    "  TECNICO: Escribe el sketch en el IDE y elige cualquier pin digital (D2-D13).\n" +
-                    "  EXPLORADOR: Conecta LED + resistencia desde ese pin hasta GND en la protoboard.\n" +
-                    "Objetivo: Haz que un LED parpadee de forma segura. Valida con el boton fisico.");
+                    "  TECNICO: Escribe el sketch en el IDE (digitalWrite, analogWrite/PWM, blink, " +
+                    "varios pines D2-D13 — lo que tu codigo pida).\n" +
+                    "  EXPLORADOR: Arma el circuito que ese codigo necesita, desde el/los pines " +
+                    "hasta GND (con LED o solo resistencia, segun el codigo).\n" +
+                    "El reto se completa SOLO cuando el circuito cumple el codigo. El boton fisico " +
+                    "sirve para comprobar y recibir diagnostico.");
                 break;
         }
     }

@@ -49,8 +49,11 @@ public class ExplorerOnboarding : MonoBehaviour
     [Header("Posición")]
     [Tooltip("Distancia frente a la cámara al aparece el panel.")]
     public float distanceFromCamera = 1.3f;
-    [Range(-0.4f, 0.4f)]
-    public float verticalOffset = -0.06f;
+    [Range(0f, 1.8f)]
+    [Tooltip("Altura del CENTRO del panel sobre el piso real (VRRig.pisoReferencia si existe en la " +
+             "escena, si no el plano y=0 del mundo — mismo fallback que VRRig), en metros. " +
+             "Ajustado iterativamente probando en VR: 0.23 (pies) -> 0.35 -> 1.1 (valor actual).")]
+    public float alturaSobrePiso = 1.1f;
 
     [Header("Colores")]
     public Color backgroundColor = new Color(0.04f, 0.04f, 0.15f, 0.95f);
@@ -191,8 +194,21 @@ public class ExplorerOnboarding : MonoBehaviour
         Vector3 fwd   = new Vector3(cam.forward.x, 0f, cam.forward.z).normalized;
         if (fwd == Vector3.zero) fwd = Vector3.forward;
 
-        _canvasGO.transform.position = cam.position + fwd * distanceFromCamera + Vector3.up * verticalOffset;
+        Vector3 pos = cam.position + fwd * distanceFromCamera;
+        pos.y = FindFloorY() + alturaSobrePiso;
+
+        _canvasGO.transform.position = pos;
         _canvasGO.transform.rotation = Quaternion.LookRotation(fwd, Vector3.up);
+    }
+
+    /// <summary>Y del piso real del Explorador (mismo piso que usa VRRig para calibrar la altura
+    /// del avatar) — NO Camera.main.position.y, que es la altura de los OJOS, no la del piso.</summary>
+    float FindFloorY()
+    {
+        var vrRig = FindAnyObjectByType<VRRig>();
+        if (vrRig != null && vrRig.pisoReferencia != null)
+            return vrRig.pisoReferencia.position.y;
+        return 0f; // mismo fallback que VRRig.pisoReferencia vacío: plano y=0 del mundo
     }
 
     // ─────────────────────────────────────────────

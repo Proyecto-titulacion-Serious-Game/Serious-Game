@@ -88,20 +88,38 @@ public class SoloTechnicianDebug : MonoBehaviour
         var kb = Keyboard.current;
         if (kb == null) return;
 
-        if (kb.f8Key.wasPressedThisFrame) ResolverRetoActual();
+        // BUG real (verificado): esta clase es "ayuda de PRUEBA SOLO (offline)" según su propia
+        // documentación, pero su F8 nunca chequeó online/offline ni el modificador Ctrl — disparaba
+        // SIEMPRE, incluso en una sesión de red real junto con TecnicoValidarPrecaucion.F8 (que sí
+        // es la función de producción) y junto con Ctrl+F8 de SessionDataExporter (fila de prueba a
+        // Sheets). Resultado: un Técnico presionando F8 online para "re-verificar" (el uso normal)
+        // TAMBIÉN disparaba ResolverRetoActual(), que fuerza-repara el reto actual con el valor
+        // perfecto — un "auto-win" silencioso e inesperado en clase. Con Development activado en el
+        // build actual del Quest (para las teclas F1-F4), este código SÍ corre fuera del Editor.
+        // Mismo gate para F8-F11: son "ayuda de PRUEBA SOLO (offline)" — ninguna debe dispararse en
+        // una sesión de red real ni con Ctrl (que en F8 está reservado para SessionDataExporter).
+        // Ver el bug real corregido arriba para F8; F9/F10/F11 tenían el mismo hueco (fuerzan
+        // reparaciones/entregas simuladas que podrían "auto-ganar" un reto en clase si alguien las
+        // toca sin querer durante una partida real, ahora que Development está activo en el APK).
+        bool ctrlHeld = kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed;
+        var gsF8 = GameSession.Instance;
+        bool enRedF8 = gsF8 != null && gsF8.Object != null && gsF8.Object.IsValid;
+        bool soloDebugPermitido = !ctrlHeld && !enRedF8;
+
+        if (kb.f8Key.wasPressedThisFrame && soloDebugPermitido) ResolverRetoActual();
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         // F9 = simular la ENTREGA correcta del Técnico por la RUTA REAL (valida el fix de
         // BuscarResistorDelReto/ValidateValueForRepair, que F8 se salta al llamar Repair() directo).
-        if (kb.f9Key.wasPressedThisFrame) SimularEntregaCorrecta();
+        if (kb.f9Key.wasPressedThisFrame && soloDebugPermitido) SimularEntregaCorrecta();
 
         // F10 = valor en el BORDE de la tolerancia nueva (correctResistance × 1.10): cae fuera del
         //       ±8.5% viejo pero dentro del ±12% nuevo → debe COMPLETAR. Prueba el piso de tolerancia.
-        if (kb.f10Key.wasPressedThisFrame) SimularEntregaConFactor(1.10f, "borde tolerancia (debe REPARAR)");
+        if (kb.f10Key.wasPressedThisFrame && soloDebugPermitido) SimularEntregaConFactor(1.10f, "borde tolerancia (debe REPARAR)");
 
         // F11 = valor claramente incorrecto (correctResistance × 1.30): fuera del ±12% → debe ser
         //       RECHAZADO y el circuito quedar VISIBLEMENTE roto (resistance = faultyResistance), no
         //       "verse bien" en el panel. Prueba el fix de honestidad del panel.
-        if (kb.f11Key.wasPressedThisFrame) SimularEntregaConFactor(1.30f, "fuera de tolerancia (debe RECHAZAR y verse roto)");
+        if (kb.f11Key.wasPressedThisFrame && soloDebugPermitido) SimularEntregaConFactor(1.30f, "fuera de tolerancia (debe RECHAZAR y verse roto)");
 #endif
     }
 

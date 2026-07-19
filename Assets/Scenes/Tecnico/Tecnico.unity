@@ -458,143 +458,6 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.03
   m_Center: {x: 0, y: 0, z: 0}
---- !u!1 &37497907
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 37497908}
-  - component: {fileID: 37497910}
-  - component: {fileID: 37497909}
-  m_Layer: 0
-  m_Name: Diagnostico_Text
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &37497908
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 37497907}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: -0.000057044}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 422062466}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -9, y: -0}
-  m_SizeDelta: {x: -18, y: -36}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &37497909
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 37497907}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
-  m_Material: {fileID: 0}
-  m_Color: {r: 1, g: 1, b: 1, a: 1}
-  m_RaycastTarget: 1
-  m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
-  m_Maskable: 1
-  m_OnCullStateChanged:
-    m_PersistentCalls:
-      m_Calls: []
-  m_text: "Esperando estado del circuito\u2026"
-  m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_sharedMaterial: {fileID: 2180264, guid: 8f586378b4e144a9851e7b34d9b748ee, type: 2}
-  m_fontSharedMaterials: []
-  m_fontMaterial: {fileID: 0}
-  m_fontMaterials: []
-  m_fontColor32:
-    serializedVersion: 2
-    rgba: 4278190080
-  m_fontColor: {r: 0, g: 0, b: 0, a: 1}
-  m_enableVertexGradient: 0
-  m_colorMode: 3
-  m_fontColorGradient:
-    topLeft: {r: 1, g: 1, b: 1, a: 1}
-    topRight: {r: 1, g: 1, b: 1, a: 1}
-    bottomLeft: {r: 1, g: 1, b: 1, a: 1}
-    bottomRight: {r: 1, g: 1, b: 1, a: 1}
-  m_fontColorGradientPreset: {fileID: 0}
-  m_spriteAsset: {fileID: 0}
-  m_tintAllSprites: 0
-  m_StyleSheet: {fileID: 0}
-  m_TextStyleHashCode: -1183493901
-  m_overrideHtmlColors: 0
-  m_faceColor:
-    serializedVersion: 2
-    rgba: 4294967295
-  m_fontSize: 18
-  m_fontSizeBase: 18
-  m_fontWeight: 400
-  m_enableAutoSizing: 0
-  m_fontSizeMin: 18
-  m_fontSizeMax: 72
-  m_fontStyle: 0
-  m_HorizontalAlignment: 1
-  m_VerticalAlignment: 256
-  m_textAlignment: 65535
-  m_characterSpacing: 0
-  m_characterHorizontalScale: 1
-  m_wordSpacing: 0
-  m_lineSpacing: 0
-  m_lineSpacingMax: 0
-  m_paragraphSpacing: 0
-  m_charWidthMaxAdj: 0
-  m_TextWrappingMode: 1
-  m_wordWrappingRatios: 0.4
-  m_overflowMode: 0
-  m_linkedTextComponent: {fileID: 0}
-  parentLinkedComponent: {fileID: 0}
-  m_enableKerning: 0
-  m_ActiveFontFeatures: 6e72656b
-  m_enableExtraPadding: 0
-  checkPaddingRequired: 0
-  m_isRichText: 1
-  m_EmojiFallbackSupport: 1
-  m_parseCtrlCharacters: 1
-  m_isOrthographic: 1
-  m_isCullingEnabled: 0
-  m_horizontalMapping: 0
-  m_verticalMapping: 0
-  m_uvLineOffset: 0
-  m_geometrySortingOrder: 0
-  m_IsTextObjectScaleStatic: 0
-  m_VertexBufferAutoSizeReduction: 0
-  m_useMaxVisibleDescender: 1
-  m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -15.191498, w: -14.781158}
-  m_isUsingLegacyAnimationComponent: 0
-  m_isVolumetricText: 0
-  m_hasFontAssetChanged: 0
-  m_baseMaterial: {fileID: 0}
-  m_maskOffset: {x: 0, y: 0, z: 0, w: 0}
---- !u!222 &37497910
-CanvasRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 37497907}
-  m_CullTransparentMesh: 1
 --- !u!1 &41812260
 GameObject:
   m_ObjectHideFlags: 0
@@ -4937,8 +4800,8 @@ MonoBehaviour:
   - nombre: Saludo
     texto: "\xA1Hola! Tu debes ser el nuevo. Yo soy el asistente de la corporacion"
     animacion: {fileID: 7400000, guid: 8bb937f0fbb6027498efc2b352da8c09, type: 2}
-    velocidadAnimacion: 0.24
-    autoAvanzarSegundos: 25
+    velocidadAnimacion: 0.32
+    autoAvanzarSegundos: 15
   - nombre: Historia
     texto: Ahora mismo estamos en un problema varias naves nuestras se estrellaron
       con meteoritos y tenemos que solucionar el problema antes de que exploten esas
@@ -4964,7 +4827,7 @@ MonoBehaviour:
     texto: "\xA1Listo! Ve a tu oficina y ayuda al Explorador \u2014 ya est\xE1 entrando
       al laboratorio. Yo te ir\xE9 recordando la gu\xEDa de cada reto."
     animacion: {fileID: 7400000, guid: d7e55e5276c15ff4486223da8cf768ae, type: 2}
-    velocidadAnimacion: 0.18
+    velocidadAnimacion: 0.2
     autoAvanzarSegundos: 30
   posicionGlobo: {x: 0, y: 1.85, z: 0}
   mirarACamara: 1
@@ -5942,37 +5805,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 251700897}
   m_Mesh: {fileID: 4300000, guid: 5d00ea8f08d469243a5f050cb309aa92, type: 3}
---- !u!1 &260744955 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 3137119250954886450, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
-  m_PrefabInstance: {fileID: 1468512748}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &260744956 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 328352651667572848, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
-  m_PrefabInstance: {fileID: 1468512748}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 260744955}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f4688fdb7df04437aeb418b961361dc5, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Unity.TextMeshPro::TMPro.TextMeshProUGUI
---- !u!114 &260744957
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 260744955}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f765500026b6c1d439964e605162a4e9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TecnicoDiagnosticoUI
-  texto: {fileID: 260744956}
-  encabezado: "DIAGN\xD3STICO DEL CIRCUITO"
-  textoEspera: "Esperando estado del circuito\u2026"
 --- !u!1001 &264537579
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -9275,107 +9107,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 419765355}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!1 &422062465
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 422062466}
-  - component: {fileID: 422062469}
-  - component: {fileID: 422062468}
-  - component: {fileID: 422062467}
-  m_Layer: 0
-  m_Name: Diagnostico_Canvas
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &422062466
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 422062465}
-  m_LocalRotation: {x: 0, y: -1, z: 0, w: 0}
-  m_LocalPosition: {x: 0, y: 0, z: 0.0138}
-  m_LocalScale: {x: 0.0009, y: 0.0009, z: 0.0009}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 37497908}
-  m_Father: {fileID: 1665907059}
-  m_LocalEulerAnglesHint: {x: 0, y: -180, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -0.00107, y: 0.02501}
-  m_SizeDelta: {x: 199.67386, y: 182.63776}
-  m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &422062467
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 422062465}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f765500026b6c1d439964e605162a4e9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TecnicoDiagnosticoUI
-  texto: {fileID: 37497909}
-  encabezado: "DIAGN\xD3STICO DEL CIRCUITO"
-  textoEspera: "Esperando estado del circuito\u2026"
---- !u!114 &422062468
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 422062465}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.CanvasScaler
-  m_UiScaleMode: 0
-  m_ReferencePixelsPerUnit: 100
-  m_ScaleFactor: 1
-  m_ReferenceResolution: {x: 800, y: 600}
-  m_ScreenMatchMode: 0
-  m_MatchWidthOrHeight: 0
-  m_PhysicalUnit: 3
-  m_FallbackScreenDPI: 96
-  m_DefaultSpriteDPI: 96
-  m_DynamicPixelsPerUnit: 1
-  m_PresetInfoIsWorld: 1
---- !u!223 &422062469
-Canvas:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 422062465}
-  m_Enabled: 1
-  serializedVersion: 3
-  m_RenderMode: 2
-  m_Camera: {fileID: 0}
-  m_PlaneDistance: 100
-  m_PixelPerfect: 0
-  m_ReceivesEvents: 1
-  m_OverrideSorting: 0
-  m_OverridePixelPerfect: 0
-  m_SortingBucketNormalizedSize: 0
-  m_VertexColorAlwaysGammaSpace: 0
-  m_UseReflectionProbes: 0
-  m_AdditionalShaderChannelsFlag: 25
-  m_UpdateRectTransformForStandalone: 0
-  m_SortingLayerID: 0
-  m_SortingOrder: 0
-  m_TargetDisplay: 0
 --- !u!1 &422225036
 GameObject:
   m_ObjectHideFlags: 0
@@ -18937,7 +18668,7 @@ Transform:
   m_GameObject: {fileID: 1282638875}
   serializedVersion: 2
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.277, y: 0.0005, z: -0.001}
+  m_LocalPosition: {x: -0.277, y: 0.0005, z: -0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -20829,6 +20560,10 @@ PrefabInstance:
       propertyPath: m_PresetInfoIsWorld
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 455751420277242665, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 496858960155042970, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
@@ -21044,6 +20779,30 @@ PrefabInstance:
       value: -1183493901
       objectReference: {fileID: 0}
     - target: {fileID: 900000000000000218, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
+    - target: {fileID: 900000000000000301, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 900000000000000302, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_SizeDelta.x
+      value: 168.15
+      objectReference: {fileID: 0}
+    - target: {fileID: 900000000000000302, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -0
+      objectReference: {fileID: 0}
+    - target: {fileID: 900000000000000302, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_AnchoredPosition.x
+      value: 332.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 900000000000000309, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_text
+      value: Siguiente pagina >>
+      objectReference: {fileID: 0}
+    - target: {fileID: 900000000000000309, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: m_TextStyleHashCode
       value: -1183493901
       objectReference: {fileID: 0}
@@ -21857,6 +21616,10 @@ PrefabInstance:
       propertyPath: m_LocalPosition.z
       value: -0.109
       objectReference: {fileID: 0}
+    - target: {fileID: 4325396092695314439, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 4334899582206609915, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: m_IsActive
       value: 0
@@ -22065,10 +21828,18 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.y
       value: 180
       objectReference: {fileID: 0}
+    - target: {fileID: 5188411634832753403, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 5399788034644964307, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: 'm_Materials.Array.data[0]'
       value: 
       objectReference: {fileID: 2100000, guid: d312903da62432a4da7625083953df14, type: 2}
+    - target: {fileID: 5491784919041699656, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_TextStyleHashCode
+      value: -1183493901
+      objectReference: {fileID: 0}
     - target: {fileID: 5551090546605341585, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: m_SizeDelta.y
       value: 317.3
@@ -22683,7 +22454,19 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 8692750449500337559, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: m_IsActive
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8722139239244183083, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_LocalRotation.w
       value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8722139239244183083, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 8722139239244183083, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 180
       objectReference: {fileID: 0}
     - target: {fileID: 8747242040501701978, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       propertyPath: m_LocalScale.x
@@ -22841,9 +22624,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 8524190033879468399, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       insertIndex: 3
       addedObject: {fileID: 582091436}
-    - targetCorrespondingSourceObject: {fileID: 6982266797849706791, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 422062466}
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 2099415079812975789, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       insertIndex: -1
@@ -22854,9 +22634,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 983137059961901193, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       insertIndex: -1
       addedObject: {fileID: 105862087}
-    - targetCorrespondingSourceObject: {fileID: 3137119250954886450, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 260744957}
     - targetCorrespondingSourceObject: {fileID: 822758737815323694, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1086402094}
@@ -25559,11 +25336,6 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1662813832}
   m_Mesh: {fileID: 10206, guid: 0000000000000000e000000000000000, type: 0}
---- !u!4 &1665907059 stripped
-Transform:
-  m_CorrespondingSourceObject: {fileID: 6982266797849706791, guid: bd30ccc878ceffa468aaa86d1410e88d, type: 3}
-  m_PrefabInstance: {fileID: 1468512748}
-  m_PrefabAsset: {fileID: 0}
 --- !u!1 &1678387321
 GameObject:
   m_ObjectHideFlags: 0

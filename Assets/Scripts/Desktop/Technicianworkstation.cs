@@ -126,6 +126,16 @@ public class TechnicianWorkstation : MonoBehaviour
     // obsoletos.
     void RefreshDiagnosticPanel()
     {
+        // Asimétrico en red: el Técnico NO tiene acceso al circuito 3D real (eso es exclusivo
+        // del Explorador — regla inquebrantable del diseño, ver CLAUDE.md). gameManager.circuit/
+        // protoSim en el cliente del Técnico son su copia LOCAL de la escena — nunca reflejan lo
+        // que el Explorador realmente conectó, así que este panel quedaba pintando un diagnóstico
+        // desactualizado (el estado inicial de falla) que competía visualmente con el diagnóstico
+        // real que llega por red (ver TecnicoDiagnosticoUI, ahora en el mismo Clipboard_Canvas).
+        // Con sesión de red activa, dejamos estos campos en manos de TecnicoDiagnosticoUI; el
+        // cálculo local solo aplica offline (IntegratedDemo.unity, un solo cliente sin Fusion).
+        if (GameSession.Instance != null) return;
+
         if (gameManager != null) circuit = gameManager.circuit != null ? gameManager.circuit.GetCompanionCircuitManager() : null;
         if (gameManager == null) return;
 
