@@ -134,6 +134,33 @@ void loop() {
 Tu trabajo es **conectar físicamente** el LED al Arduino, con tus manos, en el pin que te diga
 el Técnico.
 
+### 4.0 Cómo funciona la protoboard (léelo antes de conectar)
+
+La protoboard **no es un solo hueco genérico**: son agujeros agrupados en **filas/rieles**, y
+cada agrupación es como un cable interno ya soldado — pero **ningún riel llega solo hasta el
+Arduino**. Esto confunde mucho la primera vez, así que va la regla completa:
+
+- **Cada fila (`ROW_A`, `ROW_B`, … `ROW_F`) es su propio riel interno.** Si metes dos patitas en
+  agujeros de la **misma fila**, quedan unidas eléctricamente entre sí — como si ya hubiera un
+  cable soldado ahí. Filas **distintas** NO están unidas entre sí: si necesitas pasar de una fila
+  a otra, hace falta un cable.
+- **El riel rotulado `GND` (los agujeros `GND_D`) funciona exactamente igual que una fila
+  cualquiera:** todos sus agujeros están unidos entre sí, **pero ese riel NO está pre-cableado al
+  Arduino**. Verlo rotulado "GND" no significa que ya esté conectado a tierra — significa
+  únicamente "estos agujeros están unidos entre ellos", igual que `ROW_B` o cualquier otra fila.
+- **Por eso SIEMPRE hace falta un último cable físico**: uno que vaya desde donde termina tu
+  circuito (la fila que estés usando, o el riel `GND`) hasta **uno de los pines GND que tiene el
+  propio Arduino** (el Arduino trae varios marcados `GND`; sirve cualquiera). Sin ese cable final,
+  el circuito queda "flotando" — nunca cierra, así que el LED no enciende aunque todo lo demás
+  esté bien puesto.
+- **Ventaja de usar el riel `GND` en vez de ir directo:** si tu circuito necesita cerrar en varios
+  puntos, únelos todos al riel `GND` (fila `GND_D`) y luego basta **un solo cable** de ese riel al
+  Arduino para cerrarlos todos a la vez — en vez de un cable por cada punto.
+
+**Resumen en una frase:** todo riel (fila normal o el riel `GND`) es solo un punto de unión local;
+el circuito no llega al Arduino hasta que un cable físico toca uno de los pines `GND` **del propio
+Arduino**.
+
 ### 4.1 Pasos
 1. **Escucha al Técnico:** te dirá qué pin programó (ej. "D7").
 2. **Mira el Arduino** en 3D: los pines están **rotulados** (`D2`…`D13`). Ubica **el pin que te
@@ -148,12 +175,16 @@ el Técnico.
 ### 4.2 Orden correcto de conexión
 
 ```
-[Pin D7] → [LED +]  [LED −] → [Resistencia 330Ω] → [GND]
+[Pin D7] → [LED +]  [LED −] → [Resistencia 330Ω] → [riel GND] → [cable a un pin GND del Arduino]
 ```
+
+El último tramo (riel `GND` → pin `GND` del Arduino) es un **cable aparte** — no viene incluido
+por estar en el riel rotulado "GND". Es el paso que más se olvida.
 
 ### 4.3 Cómo saber si va bien
 - Si el Técnico ve **CORTOCIRCUITO** en su HUD → te falta la **resistencia** o está mal puesta.
-- Si ve **CIRCUITO ABIERTO (0 mA)** → un **cable está suelto** o no cerraste a **GND**.
+- Si ve **CIRCUITO ABIERTO (0 mA)** → un **cable está suelto**, o falta el cable final desde el
+  riel `GND` hasta un pin `GND` **del Arduino** (ver 4.0 — el riel por sí solo no llega al Arduino).
 - Cuando todo está bien y el código está subido, al pulsar el botón de validación:
   **botón VR se pone verde + vibración (háptica) = ¡RETO COMPLETADO!**
 
@@ -198,5 +229,6 @@ el Técnico.
 **Explorador**
 - [ ] El LED está en el **pin correcto**, con la **pata larga al +**.
 - [ ] Hay una **resistencia ≥100 Ω (330 Ω)** en serie.
-- [ ] El circuito **cierra a GND**.
+- [ ] El circuito **cierra a GND** — incluyendo el **cable final** desde la fila/riel que estés
+      usando (aunque se llame "GND") hasta **un pin GND físico del Arduino** (ver sección 4.0).
 - [ ] Presioné el **botón físico de validación**.

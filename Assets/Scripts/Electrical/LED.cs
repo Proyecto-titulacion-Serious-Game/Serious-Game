@@ -57,6 +57,9 @@ public class LED : ElectricalComponent
     public float glowSpeed   = 4f;
     [Tooltip("Cuánto sube/baja el brillo en el pulso.")]
     public float glowAmount  = 0.8f;
+    [Tooltip("Multiplicador de brillo del LED encendido. Súbelo si quieres que el glow se note más " +
+             "(aprovecha el Bloom del post-processing si está activo).")]
+    public float glowIntensity = 2.5f;
 
     [Header("Render de victoria (al COMPLETAR el reto)")]
     [Tooltip("Material que se aplica al LED cuando el reto se completa (asigna el verde 'led_Green' / " +
@@ -167,20 +170,31 @@ public class LED : ElectricalComponent
     /// encendidos laten con luz intensa unos segundos — "¡esto funcionó!".</summary>
     public static float BoostVictoria = 1f;
 
+    /// <summary>Brillo mínimo (0-1) que recibe un LED APAGADO durante el flash de victoria, para
+    /// que se note que "algo encendió" incluso si ese LED en concreto nunca tuvo corriente real —
+    /// deliberadamente bajo: un LED con corriente real siempre se ve claramente más brillante.</summary>
+    const float VICTORY_MIN_LIT = 0.18f;
+
     // Brillo pulsante cuando el LED está CORRECTO (todo el circuito bien). Refuerzo visual de éxito.
     void Update()
     {
         if (_victoryRender) return;   // render de victoria fijo: no pulsar
-        // Durante el flash de victoria brillan TODOS los LEDs encendidos (incluye NearOverload,
-        // p.ej. el Reto 3 opera a 33 mA); fuera de la victoria, solo el estado Correct pulsa.
-        bool flashVictoria = BoostVictoria > 1.01f && isOn;
+
+        // El flash de victoria ahora enciende TODOS los LEDs de la escena, no solo los que ya
+        // tenían corriente real — así el jugador ve claramente "esto se puso bonito al ganar" en
+        // vez de que algunos LEDs se queden negros durante la celebración. La diferencia entre un
+        // LED sin corriente real y uno con corriente real se conserva vía _lit01 (ver abajo): el
+        // apagado sube solo a VICTORY_MIN_LIT, el que sí tiene corriente sube a su brillo pleno.
+        bool flashVictoria = BoostVictoria > 1.01f;
         if ((state != LEDState.Correct && !flashVictoria) || IsHeld) return;
         if (_matInst == null) return;
 
         // Brillo base proporcional a la corriente (fade de PWM/analogWrite) + pulso de victoria
-        // que solo se nota cuando el LED está cerca de su brillo pleno.
-        float baseI = Mathf.Lerp(0.35f, 1.5f, _lit01);
-        float pulse = victoryGlow ? Mathf.Sin(Time.time * glowSpeed) * glowAmount * 0.25f * _lit01 : 0f;
+        // que solo se nota cuando el LED está cerca de su brillo pleno. Durante el flash, un LED
+        // sin corriente real (_lit01=0) se levanta a VICTORY_MIN_LIT en vez de quedar a oscuras.
+        float lit    = flashVictoria ? Mathf.Max(_lit01, VICTORY_MIN_LIT) : _lit01;
+        float baseI  = Mathf.Lerp(0.35f, 1.5f, lit) * glowIntensity;
+        float pulse  = victoryGlow ? Mathf.Sin(Time.time * glowSpeed) * glowAmount * 0.25f * lit * glowIntensity : 0f;
         _matInst.SetColor(_emissionID, cristalTint * (Mathf.Max(0.1f, baseI + pulse) * BoostVictoria));
     }
 
@@ -196,7 +210,7 @@ public class LED : ElectricalComponent
         // Mientras se sostiene el LED, no parpadear: estado estable apagado.
         if (IsHeld)
         {
-            current = 0f; voltageDrop = 0f; isOn = false;
+            current = 0f; voltageDrop = 0f; isOn = false; _lit01 = 0f;
             SetState(LEDState.Off);
             return;
         }
@@ -206,6 +220,7 @@ public class LED : ElectricalComponent
             current     = 0f;
             voltageDrop = 0f;
             isOn        = false;
+            _lit01      = 0f;
             SetState(LEDState.Off);
             return;
         }
@@ -221,6 +236,7 @@ public class LED : ElectricalComponent
             current     = 0f;
             voltageDrop = 0f;
             isOn        = false;
+            _lit01      = 0f;
             SetState(LEDState.Off);
             return;
         }
@@ -229,10 +245,17 @@ public class LED : ElectricalComponent
         current     = voltageDiff / resistance;
         voltageDrop = voltageDiff;
 
+        // Brillo continuo 0..1 (igual fórmula que ApplyResolvedCurrent, usada por el Reto 4) —
+        // antes SOLO se actualizaba ahí, así que un LED "Correcto" de los Retos 1-3 pulsaba
+        // siempre al mínimo (_lit01 nunca subía de 0) sin importar la corriente real: nunca se
+        // veía la diferencia entre un LED recién encendido y uno a corriente plena.
+        _lit01 = Mathf.Clamp01(Mathf.Abs(current) / Mathf.Max(1e-4f, maxSafeCurrent));
+
         // Clasificar estado educativo
         if (current < minOperatingCurrent)
         {
             isOn = false;
+            _lit01 = 0f;
             SetState(LEDState.Off);
         }
         else if (current <= maxSafeCurrent)

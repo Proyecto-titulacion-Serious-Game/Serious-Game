@@ -1984,6 +1984,10 @@
       <HintPath>Library\ScriptAssemblies\Meta.XR.Editor.BuildingBlocks.AIBlocks.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Unity.Toolchain.Win-x86_64-Linux">
+      <HintPath>Library\ScriptAssemblies\Unity.Toolchain.Win-x86_64-Linux.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.SurfaceCache.Runtime">
       <HintPath>Library\ScriptAssemblies\Unity.SurfaceCache.Runtime.dll</HintPath>
       <Private>False</Private>

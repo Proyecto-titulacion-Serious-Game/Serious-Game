@@ -222,6 +222,13 @@ public class TechnicianManual : MonoBehaviour
             "  8. Insertar anodo (+) en el pin indicado\n" +
             "  9. Conectar resistencia 330 Ohm en serie\n" +
             " 10. Cerrar circuito al GND del Arduino\n" +
+            "     OJO: el riel rotulado GND de la\n" +
+            "     protoboard NO esta pre-cableado al\n" +
+            "     Arduino, solo une sus propios agujeros\n" +
+            "     entre si (igual que cualquier fila). SI\n" +
+            "     O SI hace falta un cable aparte desde\n" +
+            "     ese riel (o donde termine el circuito)\n" +
+            "     hasta un pin GND fisico del Arduino.\n" +
             " 11. Presionar el boton fisico de validacion\n\n" +
             "VALIDACION EXITOSA:\n" +
             "  El DFS detecta: BLINK + LED + R>=100 + GND\n" +
@@ -251,7 +258,9 @@ public class TechnicianManual : MonoBehaviour
             "         suelto o no cierra a GND\n\n" +
             "COMO GUIAR AL EXPLORADOR CON EL HUD:\n" +
             "  Ves ROJO    -> 'revisa/agrega la resistencia'\n" +
-            "  Ves 0 mA    -> 'revisa el cable a GND'\n" +
+            "  Ves 0 mA    -> 'revisa el cable a GND' (el mas\n" +
+            "                comun: falta el cable del riel\n" +
+            "                GND hacia un pin GND del Arduino)\n" +
             "  Ves VERDE   -> 'cierra y valida'",
 
         programaReferencia =

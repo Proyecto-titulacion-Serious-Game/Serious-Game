@@ -56,17 +56,27 @@ public class Reto2CircuitGuard : MonoBehaviour
         GameManager.OnLevelCompleted -= OnLevelCompletedHandler;
     }
 
-    /// <summary>Al completar el Reto 2 con éxito, el LED de reemplazo ya cumplió su función
-    /// (queda encendido de forma segura) — lo hacemos desaparecer junto con el resto de la
-    /// celebración, en vez de dejarlo "soldado" a la vista una vez resuelto el reto.</summary>
+    /// <summary>Cuánto esperar tras completar el reto antes de destruir el LED de reemplazo —
+    /// debe ser al menos lo que dura la celebración (CircuitVictoryEffect: flash de 3s; GameManager
+    /// .zoneTransitionDelay: 3s por defecto). Antes se destruía EN EL INSTANTE de OnLevelCompleted,
+    /// que es el arranque de esa celebración, no el final — el jugador nunca llegaba a ver el LED
+    /// del Reto 2 brillar con el resto de la celebración (bug real reportado).</summary>
+    const float DestruirLedTrasCelebrar = 3.5f;
+
+    /// <summary>Al completar el Reto 2 con éxito, deja el LED de reemplazo encendido durante la
+    /// celebración (para que se vea brillar junto al resto de LEDs) y recién después lo destruye,
+    /// en vez de dejarlo "soldado" a la vista indefinidamente una vez resuelto el reto.</summary>
     void OnLevelCompletedHandler(LevelType reto, bool success)
     {
         if (reto != LevelType.Parallel || !success) return;
         if (_ledReemplazoActual != null)
-        {
-            Destroy(_ledReemplazoActual);
-            _ledReemplazoActual = null;
-        }
+            Invoke(nameof(DestruirLedReemplazo), DestruirLedTrasCelebrar);
+    }
+
+    void DestruirLedReemplazo()
+    {
+        if (_ledReemplazoActual != null) Destroy(_ledReemplazoActual);
+        _ledReemplazoActual = null;
     }
 
     void Start()
@@ -91,6 +101,10 @@ public class Reto2CircuitGuard : MonoBehaviour
 
         // Al (re)entrar al reto, ExplorerComponentReceiver ya destruyó cualquier LED de reemplazo
         // de la vez anterior (HandleRetoChanged) — no dejar referencias colgantes a esos GameObjects.
+        // Cancelar también la destrucción diferida pendiente (ver OnLevelCompletedHandler): si no,
+        // un reingreso rápido (F4/debug) dentro de esos 3.5s podía destruir el LED de la partida
+        // NUEVA en vez de dejarlo tranquilo.
+        CancelInvoke(nameof(DestruirLedReemplazo));
         _ledReemplazoActual = null;
         _ledDanadoOculto    = null;
 

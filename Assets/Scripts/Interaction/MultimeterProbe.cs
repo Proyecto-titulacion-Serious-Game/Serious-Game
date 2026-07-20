@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.XR;
+using UnityEngine.XR.Interaction.Toolkit.Interactables;
 
 /// Punta del multímetro (Probe_Red_Tip / Probe_Black_Tip).
 ///
@@ -58,6 +59,18 @@ public class MultimeterProbe : MonoBehaviour
         _xrNode        = controllerNode;
         _probeRenderer = GetComponent<Renderer>() ?? GetComponentInChildren<Renderer>();
         _mpb           = new MaterialPropertyBlock();
+
+        // Mismo bug ya corregido en Multimeter.Awake() para el cuerpo: un XRGrabInteractable con
+        // 'colliders' VACÍO auto-recolecta TODOS los colliders del GO (incluido el isTrigger de
+        // contacto, además de cualquiera en hijos). Esta punta tiene 2 colliders propios (uno para
+        // agarrar, otro isTrigger para el contacto físico) — acotar el grab al NO-trigger evita que
+        // el agarre quede indeciso entre ambos y deja el isTrigger libre para OnTriggerEnter.
+        var grab = GetComponent<XRGrabInteractable>();
+        if (grab != null && grab.colliders.Count == 0)
+        {
+            foreach (var col in GetComponents<Collider>())
+                if (!col.isTrigger) grab.colliders.Add(col);
+        }
     }
 
     void Update()

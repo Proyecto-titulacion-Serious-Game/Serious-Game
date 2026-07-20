@@ -82,25 +82,35 @@ public class MultimeterUI : MonoBehaviour
             return;
         }
 
-        float v = multimeter.measuredVoltage;
+        // Formato según el modo ACTIVO del multímetro (antes esto asumía Voltaje siempre, así que
+        // una lectura real en Ohms —p.ej. 330Ω del Reto 4— se mostraba como "330.00 V").
+        // En modo Resistencia, Multimeter ya deja el valor R=V/I resuelto en measuredVoltage.
+        float valorPrincipal = multimeter.mode == MultimeterMode.DCCurrent
+                             ? multimeter.measuredCurrent
+                             : multimeter.measuredVoltage;
 
-        // Voltaje con formato limpio
-        SetTMP(txtVoltaje, $"{v:F2} V");
+        SetTMP(txtVoltaje, multimeter.mode switch
+        {
+            MultimeterMode.DCCurrent  => Multimeter.FormatCurrent(valorPrincipal),
+            MultimeterMode.Resistance => Multimeter.FormatResistance(valorPrincipal),
+            _                         => Multimeter.FormatVoltage(valorPrincipal),
+        });
 
-        // Estado y color según la lectura
-        if (v > 8.5f)
+        // "Voltaje alto" solo tiene sentido midiendo Voltaje; en Corriente/Resistencia solo
+        // distinguimos "hay lectura" de "sin lectura".
+        if (multimeter.mode == MultimeterMode.DCVoltage && valorPrincipal > 8.5f)
         {
             SetTMP(txtEstado, "Voltaje alto");
             SetFondo(colorAlerta);
         }
-        else if (v > 0.1f)
+        else if (Mathf.Abs(valorPrincipal) > 0.1f)
         {
             SetTMP(txtEstado, "Midiendo");
             SetFondo(colorMidiendo);
         }
         else
         {
-            SetTMP(txtEstado, "Sin voltaje");
+            SetTMP(txtEstado, multimeter.mode == MultimeterMode.DCVoltage ? "Sin voltaje" : "Sin lectura");
             SetFondo(colorSinConexion);
         }
     }

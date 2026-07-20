@@ -99,6 +99,7 @@ public class Multimeter : MonoBehaviour
     // ─────────────────────────────────────────────
     private XRGrabInteractable _grab;
     private UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor _currentInteractor;
+    private Collider _bodyCollider;
 
     // ─────────────────────────────────────────────
     //  Unity Lifecycle
@@ -119,11 +120,11 @@ public class Multimeter : MonoBehaviour
         // poder agarrarse por separado (el reporte: "solo la punta negra se puede agarrar"). Acotar
         // la lista al collider propio del cuerpo evita la ambigüedad, sin tocar las puntas (que ya
         // tienen su propio XRGrabInteractable independiente vía MultimeterProbe).
-        var bodyCollider = GetComponent<Collider>();
-        if (bodyCollider != null)
+        _bodyCollider = GetComponent<Collider>();
+        if (_bodyCollider != null)
         {
             _grab.colliders.Clear();
-            _grab.colliders.Add(bodyCollider);
+            _grab.colliders.Add(_bodyCollider);
         }
     }
 
@@ -151,16 +152,25 @@ public class Multimeter : MonoBehaviour
     //  JOYSTICK (click del stick) de esa misma mano cicla Voltaje → Corriente → Resistencia.
     //  (El stick de esa mano no compite con nada: mover/girar usa el stick de la otra o queda
     //  consumido por la rotación de objeto en mano, que ignora el click.)
+    //  Segundo atajo (más fácil de encontrar que el stick): el GATILLO de la misma mano que
+    //  sostiene el cuerpo también cicla el modo. El agarre del cuerpo usa Grip/Select (no
+    //  Trigger) — igual que MultimeterProbe ya lee el gatillo crudo sin soltar el objeto — así
+    //  que sostener y apretar el gatillo no lo suelta.
     //  En PCVR/editor también funciona la tecla M como atajo de prueba.
 
+    [Header("Cambio de modo sosteniendo el cuerpo")]
+    [Range(0.1f, 0.95f)] public float triggerModeThreshold = 0.6f;
+
     private bool _stickClickPrev;
+    private bool _triggerModePrev;
 
     void AtenderCambioDeModoPorStick()
     {
         bool kb = UnityEngine.InputSystem.Keyboard.current != null &&
                   UnityEngine.InputSystem.Keyboard.current.mKey.wasPressedThisFrame;
 
-        bool click = false;
+        bool click   = false;
+        bool trigger = false;
         if (_currentInteractor != null)   // solo mientras alguien lo sostiene
         {
             XRNode nodo = XRNode.RightHand;
@@ -170,10 +180,14 @@ public class Multimeter : MonoBehaviour
 
             var dev = InputDevices.GetDeviceAtXRNode(nodo);
             dev.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out click);
+
+            dev.TryGetFeatureValue(CommonUsages.trigger, out float triggerValue);
+            trigger = triggerValue > triggerModeThreshold;
         }
 
-        if ((click && !_stickClickPrev) || kb) CiclarModo();
-        _stickClickPrev = click;
+        if ((click && !_stickClickPrev) || (trigger && !_triggerModePrev) || kb) CiclarModo();
+        _stickClickPrev  = click;
+        _triggerModePrev = trigger;
     }
 
     /// <summary>Cicla Voltaje → Corriente → Resistencia (usado por el stick-click y el botón físico).</summary>
@@ -453,8 +467,22 @@ public class Multimeter : MonoBehaviour
     //  XR — grab
     // ─────────────────────────────────────────────
 
-    void OnGrabbed(SelectEnterEventArgs args)  => _currentInteractor = args.interactorObject;
-    void OnReleased(SelectExitEventArgs args)  => _currentInteractor = null;
+    void OnGrabbed(SelectEnterEventArgs args)
+    {
+        _currentInteractor = args.interactorObject;
+
+        // Mientras se sostiene, el collider del cuerpo pasa a trigger: sostenido cerca del pecho/
+        // cara (como se hace con uno real para leer la pantalla) no puede empujar físicamente al
+        // jugador, sin depender de Physics.IgnoreCollision. Vuelve a sólido al soltar para poder
+        // agarrarlo de nuevo (XRI necesita un collider no-trigger para el agarre por toque).
+        if (_bodyCollider != null) _bodyCollider.isTrigger = true;
+    }
+
+    void OnReleased(SelectExitEventArgs args)
+    {
+        _currentInteractor = null;
+        if (_bodyCollider != null) _bodyCollider.isTrigger = false;
+    }
 
     void SendHaptic()
     {
@@ -488,14 +516,15 @@ public class Multimeter : MonoBehaviour
     //  Formateo
     // ─────────────────────────────────────────────
 
-    static string FormatVoltage(float v)
+    /// <summary>Público para que otras UI (ej. MultimeterUI, HUD del casco) formateen igual que la pantalla del dispositivo.</summary>
+    public static string FormatVoltage(float v)
     {
         return Mathf.Abs(v) >= 1f
              ? $"{v:F2} V"
              : $"{v * 1000f:F1} mV";
     }
 
-    static string FormatCurrent(float i)
+    public static string FormatCurrent(float i)
     {
         float mA = i * 1000f;
         return Mathf.Abs(mA) >= 1f
@@ -503,7 +532,7 @@ public class Multimeter : MonoBehaviour
              : $"{i * 1_000_000f:F0} µA";
     }
 
-    static string FormatResistance(float r)
+    public static string FormatResistance(float r)
     {
         return r >= 1000f
              ? $"{r / 1000f:F2} kΩ"

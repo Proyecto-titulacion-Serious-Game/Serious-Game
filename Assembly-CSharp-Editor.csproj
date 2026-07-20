@@ -117,6 +117,7 @@
     <Compile Include="Assets\Scripts\Editor\ComponentReceiverSetupTool.cs" />
     <Compile Include="Assets\Scripts\Editor\KenneyRoomSetupTool.cs" />
     <Compile Include="Assets\Editor\QuestLinkSetup.cs" />
+    <Compile Include="Assets\Scripts\Editor\BuildTecnicoLinux.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4SketchMatrixTest.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto3VictoriaDiagTest.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4DeliveryPipelineTest.cs" />
@@ -131,6 +132,7 @@
     <Compile Include="Assets\Scripts\Editor\AssignClipboardToZonesTool.cs" />
     <Compile Include="Assets\Editor\VRValidator.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto5PruebasTest.cs" />
+    <Compile Include="Assets\Scripts\Editor\LEDGlowPostProcessingFix.cs" />
     <Compile Include="Assets\Editor\CameraFixBatch.cs" />
     <Compile Include="Assets\Scripts\Editor\ExplorerXRSetup.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4CableBoxVerify.cs" />
@@ -255,6 +257,7 @@
     <Compile Include="Assets\Scripts\Editor\TutorialNPCSetupTool.cs" />
     <Compile Include="Assets\Editor\Reto4HUDResetTool.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto3SlotConnectionRealTest.cs" />
+    <Compile Include="Assets\Scripts\Editor\MultimeterProbeRedMirrorFix.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4SlotsGndAudit.cs" />
     <Compile Include="Assets\Editor\GameSceneGenerator.cs" />
     <Compile Include="Assets\Scripts\Editor\Reto4SlotInspector.cs" />
@@ -833,6 +836,10 @@
     </Reference>
     <Reference Include="UnityEditor.Android.Extensions">
       <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.3f1\Editor\Data\PlaybackEngines\AndroidPlayer\UnityEditor.Android.Extensions.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEditor.LinuxStandalone.Extensions">
+      <HintPath>C:\Program Files\Unity\Hub\Editor\6000.4.3f1\Editor\Data\PlaybackEngines\LinuxStandaloneSupport\UnityEditor.LinuxStandalone.Extensions.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="TextMateSharpPlastic">
@@ -1933,6 +1940,10 @@
     </Reference>
     <Reference Include="Meta.XR.Editor.BuildingBlocks.AIBlocks">
       <HintPath>Library\ScriptAssemblies\Meta.XR.Editor.BuildingBlocks.AIBlocks.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.Toolchain.Win-x86_64-Linux">
+      <HintPath>Library\ScriptAssemblies\Unity.Toolchain.Win-x86_64-Linux.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.SurfaceCache.Runtime">

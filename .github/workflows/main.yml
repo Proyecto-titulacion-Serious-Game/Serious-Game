@@ -47,6 +47,11 @@ jobs:
       - name: Generar README dinámico
         run: python generate_readme.py
 
+      - name: Copiar Dashboard Docente
+        run: |
+          mkdir -p docs/html/dashboard
+          cp Docs/dashboard/index.html docs/html/dashboard/index.html
+
       - name: Actualizar Repositorio
         run: |
           git config --global user.name "Mauro Runner Bot"

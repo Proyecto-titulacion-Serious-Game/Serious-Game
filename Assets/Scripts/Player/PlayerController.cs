@@ -852,6 +852,10 @@ public class PlayerController : MonoBehaviour
             if (sel is XRGrabInteractable g) { grab = g; break; }
         if (grab == null) { RestaurarAttachRotado(); return false; }
 
+        // El multímetro se sostiene para LEER la pantalla, no para orientarlo: se mantiene fijo en
+        // la mano y el stick derecho sigue girando al jugador normalmente, como si no sostuviera nada.
+        if (grab.GetComponentInParent<Multimeter>() != null) { RestaurarAttachRotado(); return false; }
+
         Transform attach = interactor.GetAttachTransform(grab);
         if (attach == null) return true;   // sostiene algo: consumir el stick igual
 
