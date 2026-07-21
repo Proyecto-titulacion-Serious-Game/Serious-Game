@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TITA — Dashboard Docente (Nube)</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page-plane:     #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:       #e1e0d9;
+    --baseline:       #c3c2b7;
+    --border:         rgba(11,11,11,0.10);
+    --series-1:       #2a78d6;
+    --series-2:       #008300;
+    --series-3:       #e87ba4;
+    --series-4:       #eda100;
+    --status-good:     #0ca30c;
+    --status-warning:  #fab219;
+    --status-critical: #d03b3b;
+    --success-text:    #006300;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page-plane:     #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:       #2c2c2a;
+      --baseline:       #383835;
+      --border:         rgba(255,255,255,0.10);
+      --series-1:       #3987e5;
+      --series-2:       #008300;
+      --series-3:       #d55181;
+      --series-4:       #c98500;
+      --status-good:     #0ca30c;
+      --status-warning:  #fab219;
+      --status-critical: #e66767;
+      --success-text:    #0ca30c;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--page-plane);
+    color: var(--text-primary);
+    padding: 24px;
+    max-width: 1120px;
+    margin: 0 auto;
+  }
+  h1 { font-size: 1.6em; margin-bottom: 4px; }
+  .sub { color: var(--text-secondary); font-size: .85em; margin-bottom: 20px; }
+  .card {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+  }
+  .card h2 {
+    font-size: .8em;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+  }
+  .conn-indicator { display: inline-flex; align-items: center; font-size: .78em; color: var(--text-muted); white-space: nowrap; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; flex: none; }
+  .dot.on   { background: var(--status-good); }
+  .dot.off  { background: var(--status-critical); }
+  .dot.wait { background: var(--text-muted); }
+
+  .tiles { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
+  @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2,1fr); } }
+  .tile { background: var(--page-plane); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+  .tile .label { font-size: .72em; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
+  .tile .value { font-size: 1.5em; font-weight: 600; margin-top: 4px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: .78em; font-weight: 600; }
+  .badge-ok   { background: color-mix(in srgb, var(--status-good) 16%, transparent);   color: var(--status-good); }
+  .badge-fail { background: color-mix(in srgb, var(--status-critical) 16%, transparent); color: var(--status-critical); }
+  .badge-wait { background: color-mix(in srgb, var(--text-muted) 20%, transparent);    color: var(--text-muted); }
+
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+  .stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--gridline); font-size: .9em; }
+  .stat-val { font-weight: 600; }
+
+  table { width: 100%; border-collapse: collapse; font-size: .87em; }
+  th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 8px; border-bottom: 1px solid var(--gridline); }
+  td { padding: 8px; border-bottom: 1px solid var(--gridline); font-variant-numeric: tabular-nums; }
+  .ok   { color: var(--status-good); }
+  .fail { color: var(--status-critical); }
+  .empty { color: var(--text-muted); padding: 12px 0; font-size: .9em; }
+
+  .chart-wrap { position: relative; }
+  svg text { fill: var(--text-muted); font-size: 11px; }
+  .bar-label { fill: var(--text-primary); font-size: 11px; font-weight: 600; }
+  .tooltip {
+    position: absolute; pointer-events: none; z-index: 5;
+    background: var(--text-primary); color: var(--surface-1);
+    font-size: .78em; padding: 6px 9px; border-radius: 6px;
+    transform: translate(-50%, -115%); white-space: nowrap;
+    opacity: 0; transition: opacity .1s;
+  }
+  .tooltip.show { opacity: 1; }
+  .card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .note { font-size: .75em; color: var(--text-muted); text-align: right; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+  <h1>TITA — Dashboard Docente (Historial Nube)</h1>
+  <p class="sub">Serious Game — Circuitos Eléctricos VR &nbsp;|&nbsp; Sincronizado con Google Cloud &nbsp;|&nbsp; <span id="clock"></span></p>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 style="margin-bottom:0">Estado del Sistema</h2>
+      <span class="conn-indicator"><span id="conn-dot" class="dot wait"></span><span id="conn-label">Cargando datos…</span></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Dificultad por reto (todas las sesiones)</h2>
+    <p class="sub" style="margin-bottom:14px">Errores acumulados en el historial de Google Sheets.</p>
+    <div class="chart-wrap" id="chart-dificultad"><div class="empty">Cargando gráficos…</div></div>
+  </div>
+
+  <div class="card">
+    <h2>Puntaje por sesión (%)</h2>
+    <div class="chart-wrap" id="chart-score"><div class="empty">Cargando gráficos…</div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <h2 style="margin-bottom:0">Historial de sesiones guardadas</h2>
+    </div>
+    <div id="sessions" class="empty" style="margin-top:12px">Buscando sesiones…</div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  // AQUÍ ESTÁ TU URL DE APPS SCRIPT:
+  var GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycbz09uUB8JyrnBlQjF9AVglLiqfpHvzUSVMrmjtTonaK4eNhUt86uoQWmldeFHnX3jeoLg/exec';
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  function clock() { $('clock').textContent = new Date().toLocaleTimeString('es-EC'); }
+  setInterval(clock, 1000); clock();
+
+  function setConn(state, text) {
+    var dot = $('conn-dot');
+    dot.className = 'dot ' + state;
+    $('conn-label').textContent = text;
+  }
+
+  // ── Fetcher desde Google Sheets ──────────────────────
+  async function fetchSessionsFromCloud() {
+    try {
+      setConn('wait', 'Conectando con Google Cloud…');
+      var res = await fetch(GOOGLE_API_URL);
+      var d = await res.json();
+      
+      if (d.sessions && d.sessions.length) {
+        setConn('on', 'Historial Nube Activo');
+        renderSessionsTable(d.sessions);
+        renderDificultadChart(d.sessions);
+        renderScoreChart(d.sessions);
+      } else {
+        setConn('off', 'Sin datos en la hoja');
+        $('sessions').textContent = 'No hay partidas registradas en Google Sheets.';
+      }
+    } catch (e) {
+      setConn('off', 'Error de conexión con la Nube');
+      $('sessions').textContent = 'No se pudo leer el historial desde Google Sheets.';
+    }
+  }
+
+  function renderSessionsTable(sessions) {
+    var el = $('sessions');
+    if (!sessions.length) { el.className = 'empty'; el.textContent = 'Sin sesiones registradas.'; return; }
+    el.className = '';
+    var table = document.createElement('table');
+    table.innerHTML = '<thead><tr><th>#</th><th>Fecha</th><th>Grupo / Código</th><th>Score</th><th>Tiempo</th><th>Errores</th><th>Evaluación</th></tr></thead>';
+    var tbody = document.createElement('tbody');
+    
+    for (var i = sessions.length - 1; i >= 0; i--) {
+      var s = sessions[i];
+      var pct = Math.round((s.scorePercent || 0) * 100);
+      var tr = document.createElement('tr');
+      tr.appendChild(tdText(String(i + 1)));
+      tr.appendChild(tdText(s.timestamp || '-'));
+      tr.appendChild(tdText((s.grupo || 'G') + ' (' + (s.accessCode || '----') + ')'));
+      tr.appendChild(tdText(s.totalScore + '/' + s.maxScore + ' (' + pct + '%)'));
+      tr.appendChild(tdText(fmt(s.totalTimeSeconds)));
+      var tdErr = document.createElement('td'); tdErr.className = 'fail'; tdErr.textContent = s.totalErrors; tr.appendChild(tdErr);
+      tr.appendChild(tdText(s.evaluation || '-'));
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    el.innerHTML = '';
+    el.appendChild(table);
+  }
+
+  function renderDificultadChart(sessions) {
+    var host = $('chart-dificultad');
+    var agg = {};
+    sessions.forEach(function (s) {
+      (s.records || []).forEach(function (r) {
+        var k = r.levelName || '?';
+        if (!agg[k]) agg[k] = { err: 0, fail: 0, n: 0 };
+        agg[k].err += (r.errors || 0);
+        agg[k].n++;
+        if (!r.success) agg[k].fail++;
+      });
+    });
+    var keys = Object.keys(agg).sort();
+    if (!keys.length) { host.innerHTML = '<div class="empty">Sin registros por reto todavía.</div>'; return; }
+
+    var peor = keys[0], maxDif = 0;
+    keys.forEach(function (k) {
+      agg[k].dif = agg[k].err + agg[k].fail * 3;
+      if (agg[k].dif > maxDif) { maxDif = agg[k].dif; peor = k; }
+    });
+    maxDif = Math.max(maxDif, 1);
+
+    var W = Math.max(420, host.clientWidth || 420), H = 220;
+    var padL = 34, padB = 26, padT = 12, padR = 12;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var bw = Math.min(48, plotW / keys.length * 0.5);
+    var step = plotW / keys.length;
+
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', H);
+
+    for (var g = 0; g <= 4; g++) {
+      var gy = padT + plotH - (plotH * g / 4);
+      var line = document.createElementNS(svgNS, 'line');
+      line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
+      line.setAttribute('y1', gy); line.setAttribute('y2', gy);
+      line.setAttribute('stroke', 'var(--gridline)'); line.setAttribute('stroke-width', '1');
+      svg.appendChild(line);
+    }
+
+    var tooltip = ensureTooltip(host);
+
+    keys.forEach(function (k, i) {
+      var a = agg[k];
+      var h = Math.max(3, (a.dif / maxDif) * plotH);
+      var x = padL + step * i + (step - bw) / 2;
+      var y = padT + plotH - h;
+      var isWorst = k === peor && a.dif > 0;
+      var color = isWorst ? 'var(--status-critical)' : 'var(--series-1)';
+
+      var rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttribute('x', x); rect.setAttribute('y', y);
+      rect.setAttribute('width', bw); rect.setAttribute('height', h);
+      rect.setAttribute('rx', 4); rect.setAttribute('ry', 4);
+      rect.setAttribute('fill', color);
+      svg.appendChild(rect);
+
+      var label = document.createElementNS(svgNS, 'text');
+      label.setAttribute('x', x + bw / 2); label.setAttribute('y', H - 8);
+      label.setAttribute('text-anchor', 'middle');
+      label.textContent = k;
+      svg.appendChild(label);
+    });
+
+    host.innerHTML = '';
+    host.appendChild(svg);
+  }
+
+  function renderScoreChart(sessions) {
+    var host = $('chart-score');
+    if (!sessions.length) { host.innerHTML = '<div class="empty">Sin sesiones todavía.</div>'; return; }
+
+    var pts = sessions.map(function (s, i) {
+      return { x: i, y: Math.round((s.scorePercent || 0) * 100), s: s };
+    });
+
+    var W = Math.max(420, host.clientWidth || 420), H = 220;
+    var padL = 34, padB = 24, padT = 16, padR = 16;
+    var plotW = W - padL - padR, plotH = H - padT - padB;
+    var n = pts.length;
+    var xAt = function (i) { return n <= 1 ? padL + plotW / 2 : padL + (plotW * i / (n - 1)); };
+    var yAt = function (v) { return padT + plotH - (plotH * v / 100); };
+
+    var svgNS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+    svg.setAttribute('width', '100%');
+    svg.setAttribute('height', H);
+
+    var linePath = pts.map(function (p, i) { return (i === 0 ? 'M ' : 'L ') + xAt(p.x) + ' ' + yAt(p.y); }).join(' ');
+    var path = document.createElementNS(svgNS, 'path');
+    path.setAttribute('d', linePath);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'var(--series-1)');
+    path.setAttribute('stroke-width', '2');
+    svg.appendChild(path);
+
+    pts.forEach(function (p, i) {
+      var dot = document.createElementNS(svgNS, 'circle');
+      dot.setAttribute('cx', xAt(p.x)); dot.setAttribute('cy', yAt(p.y));
+      dot.setAttribute('r', 4);
+      dot.setAttribute('fill', 'var(--series-1)');
+      svg.appendChild(dot);
+    });
+
+    host.innerHTML = '';
+    host.appendChild(svg);
+  }
+
+  function ensureTooltip(host) {
+    var t = document.createElement('div');
+    t.className = 'tooltip';
+    return t;
+  }
+
+  function tdText(s) { var td = document.createElement('td'); td.textContent = s; return td; }
+  function fmt(s) { if (!s) return '0:00'; var m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
+
+  // Inicializa la consulta a la nube
+  fetchSessionsFromCloud();
+  setInterval(fetchSessionsFromCloud, 15000); // Actualiza cada 15 segundos
+})();
+</script>
+</body>
+</html>
