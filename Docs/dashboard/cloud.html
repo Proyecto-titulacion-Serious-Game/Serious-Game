@@ -2,6 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://script.google.com https://script.googleusercontent.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>TITA — Dashboard Docente (Nube)</title>
 <style>
@@ -150,7 +151,6 @@
 (function () {
   'use strict';
 
-  // AQUÍ ESTÁ TU URL DE APPS SCRIPT:
   var GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycbz09uUB8JyrnBlQjF9AVglLiqfpHvzUSVMrmjtTonaK4eNhUt86uoQWmldeFHnX3jeoLg/exec';
 
   var $ = function (id) { return document.getElementById(id); };
@@ -168,7 +168,13 @@
   async function fetchSessionsFromCloud() {
     try {
       setConn('wait', 'Conectando con Google Cloud…');
-      var res = await fetch(GOOGLE_API_URL);
+      
+      var res = await fetch(GOOGLE_API_URL + '?t=' + Date.now(), {
+        method: 'GET',
+        redirect: 'follow'
+      });
+      
+      if (!res.ok) throw new Error('HTTP ' + res.status);
       var d = await res.json();
       
       if (d.sessions && d.sessions.length) {
@@ -181,6 +187,7 @@
         $('sessions').textContent = 'No hay partidas registradas en Google Sheets.';
       }
     } catch (e) {
+      console.error("Error al consultar la nube:", e);
       setConn('off', 'Error de conexión con la Nube');
       $('sessions').textContent = 'No se pudo leer el historial desde Google Sheets.';
     }
@@ -333,9 +340,8 @@
   function tdText(s) { var td = document.createElement('td'); td.textContent = s; return td; }
   function fmt(s) { if (!s) return '0:00'; var m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
 
-  // Inicializa la consulta a la nube
   fetchSessionsFromCloud();
-  setInterval(fetchSessionsFromCloud, 15000); // Actualiza cada 15 segundos
+  setInterval(fetchSessionsFromCloud, 15000);
 })();
 </script>
 </body>
