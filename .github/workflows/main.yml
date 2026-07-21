@@ -43,13 +43,23 @@ jobs:
       - name: Generar README dinámico
         run: python generate_readme.py
 
-      - name: Copiar Dashboard Docente y Desactivar Jekyll
+      - name: Copiar Dashboard Docente
         run: |
           mkdir -p docs/html/dashboard
-          cp Docs/dashboard/index.html docs/html/dashboard/index.html
-          cp Docs/dashboard/cloud.html docs/html/dashboard/cloud.html
-          # Evita que GitHub Pages use Jekyll y rompa las rutas de Doxygen/HTML
+          
+          # Copia asegurando origen (sea Docs o docs en minúsculas)
+          if [ -d "Docs/dashboard" ]; then
+            cp -r Docs/dashboard/* docs/html/dashboard/
+          elif [ -d "docs/dashboard" ]; then
+            cp -r docs/dashboard/* docs/html/dashboard/
+          fi
+
+          # Crea el archivo para que GitHub Pages no use Jekyll
           touch docs/html/.nojekyll
+
+          # Esto imprimirá en los logs de GitHub la lista de archivos copiados
+          echo "=== ARCHIVOS EN DASHBOARD ==="
+          ls -la docs/html/dashboard/
 
       # --- Pasos de Publicación en Web (Pages Primero) ---
       - name: Configurar Pages
