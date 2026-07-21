@@ -49,8 +49,9 @@ jobs:
 
       - name: Copiar Dashboard Docente
         run: |
-            mkdir -p docs/html/dashboard
-            cp -r Docs/dashboard/* docs/html/dashboard/
+          mkdir -p docs/html/dashboard
+          cp Docs/dashboard/index.html docs/html/dashboard/index.html
+          cp Docs/dashboard/cloud.html docs/html/dashboard/cloud.html
 
       - name: Actualizar Repositorio
         run: |
