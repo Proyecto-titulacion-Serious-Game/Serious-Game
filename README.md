@@ -39,5 +39,6 @@ Simulador asimétrico en Realidad Virtual para la enseñanza de circuitos eléct
 ---
 > [!IMPORTANT]
 > Se debe abrir primero el ejecutable del tecnico y despues el ejecutable del explorador
+> 
 > Este archivo se auto-genera en cada Push. Sincronizado con el código fuente y el estado del proyecto.
 > **Última actualización:** 20/07/2026 23:16:16 (Quito, EC)
