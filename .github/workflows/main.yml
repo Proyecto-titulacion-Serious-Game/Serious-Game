@@ -15,31 +15,27 @@ jobs:
   build-and-docs:
     runs-on: self-hosted
     env:
-      # Actualizar UNITY_EDITOR al cambiar de versión o runner.
-      # También se puede sobreescribir como variable de repositorio:
-      # Settings → Secrets and variables → Variables → UNITY_EDITOR_PATH
       UNITY_EDITOR: ${{ vars.UNITY_EDITOR_PATH || '/home/mauros/Unity/Hub/Editor/6000.4.5f1/Editor/Unity' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-
-      - name: Build Unity (Windows)
-        run: |
-          "$UNITY_EDITOR" \
-            -batchmode \
-            -nographics \
-            -silent-crashes \
-            -quit \
-            -projectPath . \
-            -buildWindows64Player "build/SeriousGame.exe" \
-            -logFile /dev/stdout
+#
+#      - name: Build Unity (Windows)
+#        run: |
+#          "$UNITY_EDITOR" \
+#            -batchmode \
+#            -nographics \
+#            -silent-crashes \
+#            -quit \
+#            -projectPath . \
+#            -buildWindows64Player "build/SeriousGame.exe" \
+#            -logFile /dev/stdout
 
       - name: Generar Doxygen
         run: |
           mkdir -p docs
           doxygen Doxyfile
 
-      # --- PASO CRUCIAL: Convertir HTML a Texto Plano para el script de Python ---
       - name: Extraer Texto de Documentación
         run: |
           find docs/html/ -name "*.html" -exec lynx -dump -nolist {} \; > documentacion_plana_tesis.txt
@@ -47,28 +43,15 @@ jobs:
       - name: Generar README dinámico
         run: python generate_readme.py
 
-      - name: Copiar Dashboard Docente
+      - name: Copiar Dashboard Docente y Desactivar Jekyll
         run: |
           mkdir -p docs/html/dashboard
           cp Docs/dashboard/index.html docs/html/dashboard/index.html
           cp Docs/dashboard/cloud.html docs/html/dashboard/cloud.html
+          # Evita que GitHub Pages use Jekyll y rompa las rutas de Doxygen/HTML
+          touch docs/html/.nojekyll
 
-      - name: Actualizar Repositorio
-        run: |
-          git config --global user.name "Mauro Runner Bot"
-          git config --global user.email "mauro-bot@users.noreply.github.com"
-          # Añadimos progreso.txt por si lo editaste localmente
-          git add README.md progreso.txt
-          git commit -m "docs: auto-update architecture and progress [skip ci]" || echo "No changes"
-          git push
-
-      # --- Pasos de Publicación en Web ---
-      - name: Upload Artifact (Juego)
-        uses: actions/upload-artifact@v4
-        with:
-          name: SeriousGame-Build-Windows
-          path: build/
-
+      # --- Pasos de Publicación en Web (Pages Primero) ---
       - name: Configurar Pages
         uses: actions/configure-pages@v4
 
@@ -80,3 +63,18 @@ jobs:
       - name: Desplegar Documentación
         id: deployment
         uses: actions/deploy-pages@v4
+
+      # --- Pasos Secundarios (Artifacts y Git Push al FINAL) ---
+      - name: Upload Artifact (Juego)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeriousGame-Build-Windows
+          path: build/
+
+      - name: Actualizar Repositorio
+        run: |
+          git config --global user.name "Mauro Runner Bot"
+          git config --global user.email "mauro-bot@users.noreply.github.com"
+          git add README.md progreso.txt
+          git commit -m "docs: auto-update architecture and progress [skip ci]" || echo "No changes"
+          git push
