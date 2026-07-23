@@ -1,348 +1,389 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="es" class="h-full bg-slate-950">
 <head>
-<meta charset="UTF-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://script.google.com https://script.googleusercontent.com; connect-src 'self' https://script.google.com https://script.googleusercontent.com;">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>TITA — Dashboard Docente (Nube)</title>
-<style>
-  :root {
-    color-scheme: light;
-    --surface-1:      #fcfcfb;
-    --page-plane:     #f9f9f7;
-    --text-primary:   #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted:     #898781;
-    --gridline:       #e1e0d9;
-    --baseline:       #c3c2b7;
-    --border:         rgba(11,11,11,0.10);
-    --series-1:       #2a78d6;
-    --series-2:       #008300;
-    --series-3:       #e87ba4;
-    --series-4:       #eda100;
-    --status-good:     #0ca30c;
-    --status-warning:  #fab219;
-    --status-critical: #d03b3b;
-    --success-text:    #006300;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root:where(:not([data-theme="light"])) {
-      color-scheme: dark;
-      --surface-1:      #1a1a19;
-      --page-plane:     #0d0d0d;
-      --text-primary:   #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted:     #898781;
-      --gridline:       #2c2c2a;
-      --baseline:       #383835;
-      --border:         rgba(255,255,255,0.10);
-      --series-1:       #3987e5;
-      --series-2:       #008300;
-      --series-3:       #d55181;
-      --series-4:       #c98500;
-      --status-good:     #0ca30c;
-      --status-warning:  #fab219;
-      --status-critical: #e66767;
-      --success-text:    #0ca30c;
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TITA Analytics & Auto-Grader - Panel Docente</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
     }
-  }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    background: var(--page-plane);
-    color: var(--text-primary);
-    padding: 24px;
-    max-width: 1120px;
-    margin: 0 auto;
-  }
-  h1 { font-size: 1.6em; margin-bottom: 4px; }
-  .sub { color: var(--text-secondary); font-size: .85em; margin-bottom: 20px; }
-  .card {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
-    margin-bottom: 16px;
-    overflow-x: auto;
-  }
-  .card h2 {
-    font-size: .8em;
-    text-transform: uppercase;
-    letter-spacing: .05em;
-    color: var(--text-secondary);
-    margin-bottom: 14px;
-  }
-  .conn-indicator { display: inline-flex; align-items: center; font-size: .78em; color: var(--text-muted); white-space: nowrap; }
-  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; flex: none; }
-  .dot.on   { background: var(--status-good); }
-  .dot.off  { background: var(--status-critical); }
-  .dot.wait { background: var(--text-muted); }
-
-  .tiles { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; }
-  @media (max-width: 720px) { .tiles { grid-template-columns: repeat(2,1fr); } }
-  .tile { background: var(--page-plane); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
-  .tile .label { font-size: .72em; color: var(--text-muted); text-transform: uppercase; letter-spacing: .04em; }
-  .tile .value { font-size: 1.5em; font-weight: 600; margin-top: 4px; }
-
-  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: .78em; font-weight: 600; }
-  .badge-ok   { background: color-mix(in srgb, var(--status-good) 16%, transparent);   color: var(--status-good); }
-  .badge-fail { background: color-mix(in srgb, var(--status-critical) 16%, transparent); color: var(--status-critical); }
-  .badge-wait { background: color-mix(in srgb, var(--text-muted) 20%, transparent);    color: var(--text-muted); }
-
-  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
-  .stat { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--gridline); font-size: .9em; }
-  .stat-val { font-weight: 600; }
-
-  table { width: 100%; border-collapse: collapse; font-size: .87em; }
-  th { text-align: left; font-weight: 600; color: var(--text-muted); padding: 8px; border-bottom: 1px solid var(--gridline); }
-  td { padding: 8px; border-bottom: 1px solid var(--gridline); font-variant-numeric: tabular-nums; }
-  .ok   { color: var(--status-good); }
-  .fail { color: var(--status-critical); }
-  .empty { color: var(--text-muted); padding: 12px 0; font-size: .9em; }
-
-  .chart-wrap { position: relative; }
-  svg text { fill: var(--text-muted); font-size: 11px; }
-  .bar-label { fill: var(--text-primary); font-size: 11px; font-weight: 600; }
-  .tooltip {
-    position: absolute; pointer-events: none; z-index: 5;
-    background: var(--text-primary); color: var(--surface-1);
-    font-size: .78em; padding: 6px 9px; border-radius: 6px;
-    transform: translate(-50%, -115%); white-space: nowrap;
-    opacity: 0; transition: opacity .1s;
-  }
-  .tooltip.show { opacity: 1; }
-  .card-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
-  .note { font-size: .75em; color: var(--text-muted); text-align: right; margin-top: 8px; }
-</style>
+  </style>
 </head>
-<body>
+<body class="h-full bg-slate-950 text-slate-100 flex flex-col">
 
-  <h1>TITA — Dashboard Docente (Historial Nube)</h1>
-  <p class="sub">Serious Game — Circuitos Eléctricos VR &nbsp;|&nbsp; Sincronizado con Google Cloud &nbsp;|&nbsp; <span id="clock"></span></p>
+  <!-- Header / Top Bar -->
+  <header class="glass-card sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-6 py-4">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div class="flex items-center gap-3">
+        <div class="p-2.5 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-400">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        </div>
+        <div>
+          <h1 class="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
+            TITA <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30">Analytics & Auto-Grader</span>
+          </h1>
+          <p class="text-xs text-slate-400">Telemetría Educativa y Diagnóstico de Circuitos VR</p>
+        </div>
+      </div>
 
-  <div class="card">
-    <div class="card-header">
-      <h2 style="margin-bottom:0">Estado del Sistema</h2>
-      <span class="conn-indicator"><span id="conn-dot" class="dot wait"></span><span id="conn-label">Cargando datos…</span></span>
+      <!-- Controls & Status -->
+      <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+        <!-- Class Filter Dropdown -->
+        <div class="relative w-full sm:w-64">
+          <select id="classFilter" class="w-full bg-slate-900 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 px-3 py-2 focus:outline-none focus:border-sky-500 transition-colors cursor-pointer">
+            <option value="ALL">📍 Todas las Clases / Secciones</option>
+          </select>
+        </div>
+
+        <button onclick="fetchData()" class="p-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-700 transition-colors text-xs font-medium flex items-center gap-1.5">
+          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Actualizar
+        </button>
+
+        <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-xs font-medium">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          PostgreSQL Cloud
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl w-full mx-auto p-6 space-y-6 flex-1">
+
+    <!-- KPI Summary Cards -->
+    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
+        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Total Evaluaciones</p>
+        <h3 id="kpiTotal" class="text-3xl font-black text-white mt-2">0</h3>
+        <p class="text-xs text-slate-500 mt-1">Sesiones de laboratorio registradas</p>
+      </div>
+
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-rose-500/20">
+        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Cortocircuitos (MNA)</p>
+        <h3 id="kpiCortos" class="text-3xl font-black text-rose-400 mt-2">0</h3>
+        <p class="text-xs text-rose-400/70 mt-1 font-medium">Errores críticos VCC-GND</p>
+      </div>
+
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-amber-500/20">
+        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Errores IDE / Arduino</p>
+        <h3 id="kpiIde" class="text-3xl font-black text-amber-400 mt-2">0</h3>
+        <p class="text-xs text-amber-400/70 mt-1 font-medium">Sintaxis C++ / Pinout mismatch</p>
+      </div>
+
+      <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-emerald-500/20">
+        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Promedio General</p>
+        <h3 id="kpiNota" class="text-3xl font-black text-emerald-400 mt-2">0.0 <span class="text-sm font-normal text-slate-400">/ 10</span></h3>
+        <p class="text-xs text-emerald-400/70 mt-1 font-medium">Calificación Auto-Grader promedio</p>
+      </div>
+    </section>
+
+    <!-- Charts Section -->
+    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div class="glass-card p-5 rounded-2xl lg:col-span-2">
+        <h3 class="text-sm font-bold text-white mb-4">Distribución de Errores por Categoría Teórica</h3>
+        <div class="h-64 relative">
+          <canvas id="errorsChart"></canvas>
+        </div>
+      </div>
+
+      <div class="glass-card p-5 rounded-2xl">
+        <h3 class="text-sm font-bold text-white mb-4">Tasa de Aprobación por Reto</h3>
+        <div class="h-64 relative flex items-center justify-center">
+          <canvas id="retosChart"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Table -->
+    <section class="glass-card rounded-2xl overflow-hidden">
+      <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+        <div>
+          <h2 class="text-lg font-bold text-white">Reporte de Desempeño por Grupo</h2>
+          <p class="text-xs text-slate-400">Haz clic en cualquier fila para abrir la ficha diagnóstica del estudiante</p>
+        </div>
+        <div class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
+          Registros: <span id="tableCount" class="font-bold text-sky-400">0</span>
+        </div>
+      </div>
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-300">
+          <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
+            <tr>
+              <th class="p-4 font-semibold">Materia / Clase</th>
+              <th class="p-4 font-semibold">Grupo / Estudiantes</th>
+              <th class="p-4 font-semibold">Reto</th>
+              <th class="p-4 font-semibold">Tiempo</th>
+              <th class="p-4 font-semibold">Errores Teóricos</th>
+              <th class="p-4 font-semibold text-center">Asimetría (Rechazos)</th>
+              <th class="p-4 font-semibold text-center">Nota Auto-Grader</th>
+              <th class="p-4 font-semibold text-right">Acción</th>
+            </tr>
+          </thead>
+          <tbody id="telemetryTable" class="divide-y divide-slate-800/60">
+            <!-- Dynamic rows -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Desglose por Alumno -->
+  <div id="studentModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-2xl w-full rounded-2xl border border-slate-700 p-6 space-y-6 shadow-2xl relative">
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2">✕</button>
+
+      <div class="border-b border-slate-800 pb-4">
+        <span id="modalClase" class="text-xs uppercase tracking-wider font-bold text-sky-400"></span>
+        <h2 id="modalGrupo" class="text-2xl font-black text-white mt-1"></h2>
+        <p class="text-xs text-slate-400 mt-1">Diagnóstico Automático del Simulador TITA</p>
+      </div>
+
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+          <p class="text-[10px] text-slate-400 uppercase font-semibold">Reto</p>
+          <p id="modalReto" class="text-lg font-bold text-white mt-0.5"></p>
+        </div>
+        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+          <p class="text-[10px] text-slate-400 uppercase font-semibold">Tiempo</p>
+          <p id="modalTiempo" class="text-lg font-bold text-sky-400 mt-0.5"></p>
+        </div>
+        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+          <p class="text-[10px] text-slate-400 uppercase font-semibold">Rechazos VR-PC</p>
+          <p id="modalRechazos" class="text-lg font-bold text-amber-400 mt-0.5"></p>
+        </div>
+        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
+          <p class="text-[10px] text-slate-400 uppercase font-semibold">Nota</p>
+          <p id="modalNota" class="text-lg font-extrabold mt-0.5"></p>
+        </div>
+      </div>
+
+      <div class="space-y-3">
+        <h3 class="text-xs font-bold uppercase text-slate-300 tracking-wider">Desglose de Errores</h3>
+        <div class="space-y-2 text-xs">
+          <div class="flex justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-800">
+            <span class="text-slate-300">Cortocircuitos MNA (VCC - GND):</span>
+            <span id="modalCortos" class="font-mono font-bold text-rose-400"></span>
+          </div>
+          <div class="flex justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-800">
+            <span class="text-slate-300">Sobrecorriente / Ley de Watt:</span>
+            <span id="modalSobrecorriente" class="font-mono font-bold text-amber-400"></span>
+          </div>
+          <div class="flex justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-800">
+            <span class="text-slate-300">Polaridad Invertida:</span>
+            <span id="modalPolaridad" class="font-mono font-bold text-indigo-400"></span>
+          </div>
+          <div id="modalArduinoBox" class="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl space-y-1.5 hidden">
+            <p class="font-bold text-purple-300 uppercase text-[10px]">Sandbox Arduino (Reto 4)</p>
+            <div class="flex justify-between">
+              <span class="text-slate-300">Fallos compilación IDE C++:</span>
+              <span id="modalIde" class="font-mono font-bold text-purple-400"></span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-300">Pinout Mismatch (Lógica vs Física):</span>
+              <span id="modalPinout" class="font-mono font-bold text-purple-400"></span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-4 bg-sky-500/10 border border-sky-500/20 rounded-xl">
+        <h4 class="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">💡 Diagnóstico Pedagógico Sugerido</h4>
+        <p id="modalRecomendacion" class="text-xs text-slate-300 leading-relaxed"></p>
+      </div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Dificultad por reto (todas las sesiones)</h2>
-    <p class="sub" style="margin-bottom:14px">Errores acumulados en el historial de Google Sheets.</p>
-    <div class="chart-wrap" id="chart-dificultad"><div class="empty">Cargando gráficos…</div></div>
-  </div>
+  <script>
+    const SUPABASE_URL = "https://duigabepvjpzmqllryiw.supabase.co/rest/v1/";
+    const SUPABASE_ANON_KEY = "sb_publishable_HHNr73IdlS1Ew5IVA6yDRg_lR35ZmT_"; // COLOCA TU KEY AQUÍ
 
-  <div class="card">
-    <h2>Puntaje por sesión (%)</h2>
-    <div class="chart-wrap" id="chart-score"><div class="empty">Cargando gráficos…</div></div>
-  </div>
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  <div class="card">
-    <div class="card-header">
-      <h2 style="margin-bottom:0">Historial de sesiones guardadas</h2>
-    </div>
-    <div id="sessions" class="empty" style="margin-top:12px">Buscando sesiones…</div>
-  </div>
+    let allData = [];
+    let errorsChartObj = null;
+    let retosChartObj = null;
 
-<script>
-(function () {
-  'use strict';
+    async function fetchData() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('telemetria_estudiantes')
+          .select('*')
+          .order('timestamp', { ascending: false });
 
-  var GOOGLE_API_URL = 'https://script.google.com/macros/s/AKfycbz09uUB8JyrnBlQjF9AVglLiqfpHvzUSVMrmjtTonaK4eNhUt86uoQWmldeFHnX3jeoLg/exec';
-
-  var $ = function (id) { return document.getElementById(id); };
-
-  function clock() { $('clock').textContent = new Date().toLocaleTimeString('es-EC'); }
-  setInterval(clock, 1000); clock();
-
-  function setConn(state, text) {
-    var dot = $('conn-dot');
-    dot.className = 'dot ' + state;
-    $('conn-label').textContent = text;
-  }
-
-  // ── Fetcher desde Google Sheets ──────────────────────
-  async function fetchSessionsFromCloud() {
-    try {
-      setConn('wait', 'Conectando con Google Cloud…');
-      
-      var res = await fetch(GOOGLE_API_URL + '?t=' + Date.now(), {
-        method: 'GET',
-        redirect: 'follow'
-      });
-      
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      var d = await res.json();
-      
-      if (d.sessions && d.sessions.length) {
-        setConn('on', 'Historial Nube Activo');
-        renderSessionsTable(d.sessions);
-        renderDificultadChart(d.sessions);
-        renderScoreChart(d.sessions);
-      } else {
-        setConn('off', 'Sin datos en la hoja');
-        $('sessions').textContent = 'No hay partidas registradas en Google Sheets.';
+        if (!error && data) {
+          allData = data;
+        }
+      } catch (e) {
+        console.error("Error al conectar con Supabase:", e);
       }
-    } catch (e) {
-      console.error("Error al consultar la nube:", e);
-      setConn('off', 'Error de conexión con la Nube');
-      $('sessions').textContent = 'No se pudo leer el historial desde Google Sheets.';
-    }
-  }
 
-  function renderSessionsTable(sessions) {
-    var el = $('sessions');
-    if (!sessions.length) { el.className = 'empty'; el.textContent = 'Sin sesiones registradas.'; return; }
-    el.className = '';
-    var table = document.createElement('table');
-    table.innerHTML = '<thead><tr><th>#</th><th>Fecha</th><th>Grupo / Código</th><th>Score</th><th>Tiempo</th><th>Errores</th><th>Evaluación</th></tr></thead>';
-    var tbody = document.createElement('tbody');
-    
-    for (var i = sessions.length - 1; i >= 0; i--) {
-      var s = sessions[i];
-      var pct = Math.round((s.scorePercent || 0) * 100);
-      var tr = document.createElement('tr');
-      tr.appendChild(tdText(String(i + 1)));
-      tr.appendChild(tdText(s.timestamp || '-'));
-      tr.appendChild(tdText((s.grupo || 'G') + ' (' + (s.accessCode || '----') + ')'));
-      tr.appendChild(tdText(s.totalScore + '/' + s.maxScore + ' (' + pct + '%)'));
-      tr.appendChild(tdText(fmt(s.totalTimeSeconds)));
-      var tdErr = document.createElement('td'); tdErr.className = 'fail'; tdErr.textContent = s.totalErrors; tr.appendChild(tdErr);
-      tr.appendChild(tdText(s.evaluation || '-'));
-      tbody.appendChild(tr);
+      populateClassFilter();
+      renderDashboard();
     }
-    table.appendChild(tbody);
-    el.innerHTML = '';
-    el.appendChild(table);
-  }
 
-  function renderDificultadChart(sessions) {
-    var host = $('chart-dificultad');
-    var agg = {};
-    sessions.forEach(function (s) {
-      (s.records || []).forEach(function (r) {
-        var k = r.levelName || '?';
-        if (!agg[k]) agg[k] = { err: 0, fail: 0, n: 0 };
-        agg[k].err += (r.errors || 0);
-        agg[k].n++;
-        if (!r.success) agg[k].fail++;
+    function populateClassFilter() {
+      const select = document.getElementById("classFilter");
+      const currentVal = select.value;
+      const classes = [...new Set(allData.map(d => d.nombre_clase))];
+
+      select.innerHTML = '<option value="ALL">📍 Todas las Clases / Secciones</option>';
+      classes.forEach(c => {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = `📚 ${c}`;
+        select.appendChild(opt);
       });
-    });
-    var keys = Object.keys(agg).sort();
-    if (!keys.length) { host.innerHTML = '<div class="empty">Sin registros por reto todavía.</div>'; return; }
 
-    var peor = keys[0], maxDif = 0;
-    keys.forEach(function (k) {
-      agg[k].dif = agg[k].err + agg[k].fail * 3;
-      if (agg[k].dif > maxDif) { maxDif = agg[k].dif; peor = k; }
-    });
-    maxDif = Math.max(maxDif, 1);
-
-    var W = Math.max(420, host.clientWidth || 420), H = 220;
-    var padL = 34, padB = 26, padT = 12, padR = 12;
-    var plotW = W - padL - padR, plotH = H - padT - padB;
-    var bw = Math.min(48, plotW / keys.length * 0.5);
-    var step = plotW / keys.length;
-
-    var svgNS = 'http://www.w3.org/2000/svg';
-    var svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', H);
-
-    for (var g = 0; g <= 4; g++) {
-      var gy = padT + plotH - (plotH * g / 4);
-      var line = document.createElementNS(svgNS, 'line');
-      line.setAttribute('x1', padL); line.setAttribute('x2', W - padR);
-      line.setAttribute('y1', gy); line.setAttribute('y2', gy);
-      line.setAttribute('stroke', 'var(--gridline)'); line.setAttribute('stroke-width', '1');
-      svg.appendChild(line);
+      if (classes.includes(currentVal)) select.value = currentVal;
     }
 
-    var tooltip = ensureTooltip(host);
+    function getFilteredData() {
+      const selectedClass = document.getElementById("classFilter").value;
+      if (selectedClass === "ALL") return allData;
+      return allData.filter(d => d.nombre_clase === selectedClass);
+    }
 
-    keys.forEach(function (k, i) {
-      var a = agg[k];
-      var h = Math.max(3, (a.dif / maxDif) * plotH);
-      var x = padL + step * i + (step - bw) / 2;
-      var y = padT + plotH - h;
-      var isWorst = k === peor && a.dif > 0;
-      var color = isWorst ? 'var(--status-critical)' : 'var(--series-1)';
+    function renderDashboard() {
+      const data = getFilteredData();
 
-      var rect = document.createElementNS(svgNS, 'rect');
-      rect.setAttribute('x', x); rect.setAttribute('y', y);
-      rect.setAttribute('width', bw); rect.setAttribute('height', h);
-      rect.setAttribute('rx', 4); rect.setAttribute('ry', 4);
-      rect.setAttribute('fill', color);
-      svg.appendChild(rect);
+      document.getElementById("kpiTotal").textContent = data.length;
+      document.getElementById("kpiCortos").textContent = data.reduce((acc, i) => acc + (i.cant_cortocircuitos || 0), 0);
+      document.getElementById("kpiIde").textContent = data.reduce((acc, i) => acc + (i.fallos_compilacion_ide || 0) + (i.desconexiones_logica_fisica || 0), 0);
+      
+      const avgNota = data.length > 0 ? (data.reduce((acc, i) => acc + parseFloat(i.nota_autograder || 0), 0) / data.length).toFixed(1) : "0.0";
+      document.getElementById("kpiNota").textContent = avgNota;
 
-      var label = document.createElementNS(svgNS, 'text');
-      label.setAttribute('x', x + bw / 2); label.setAttribute('y', H - 8);
-      label.setAttribute('text-anchor', 'middle');
-      label.textContent = k;
-      svg.appendChild(label);
-    });
+      const tableBody = document.getElementById("telemetryTable");
+      tableBody.innerHTML = "";
+      document.getElementById("tableCount").textContent = data.length;
 
-    host.innerHTML = '';
-    host.appendChild(svg);
-  }
+      data.forEach(row => {
+        const tr = document.createElement("tr");
+        tr.className = "hover:bg-slate-800/50 transition-colors cursor-pointer border-b border-slate-800/40";
+        tr.onclick = () => openModal(row);
 
-  function renderScoreChart(sessions) {
-    var host = $('chart-score');
-    if (!sessions.length) { host.innerHTML = '<div class="empty">Sin sesiones todavía.</div>'; return; }
+        const mins = Math.floor(row.tiempo_resolucion_seg / 60);
+        const secs = row.tiempo_resolucion_seg % 60;
+        const nota = parseFloat(row.nota_autograder || 0).toFixed(1);
 
-    var pts = sessions.map(function (s, i) {
-      return { x: i, y: Math.round((s.scorePercent || 0) * 100), s: s };
-    });
+        tr.innerHTML = `
+          <td class="p-4 font-semibold text-sky-400">${row.nombre_clase}</td>
+          <td class="p-4 font-bold text-white">${row.grupo_estudiantes}</td>
+          <td class="p-4"><span class="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-semibold">Reto ${row.reto_id}</span></td>
+          <td class="p-4 font-mono text-xs">${mins}m ${secs}s</td>
+          <td class="p-4 text-xs">
+            <span class="text-rose-400">Cortos: ${row.cant_cortocircuitos || 0}</span> | 
+            <span class="text-amber-400">Sobrecorriente: ${row.cant_sobrecorriente || 0}</span>
+          </td>
+          <td class="p-4 text-center font-mono">${row.rechazos_componentes || 0}</td>
+          <td class="p-4 text-center">
+            <span class="px-3 py-1 rounded-full text-xs font-extrabold ${nota >= 7.0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}">
+              ${nota} / 10.0
+            </span>
+          </td>
+          <td class="p-4 text-right">
+            <button class="text-xs text-sky-400 hover:underline">Ver Ficha</button>
+          </td>
+        `;
+        tableBody.appendChild(tr);
+      });
 
-    var W = Math.max(420, host.clientWidth || 420), H = 220;
-    var padL = 34, padB = 24, padT = 16, padR = 16;
-    var plotW = W - padL - padR, plotH = H - padT - padB;
-    var n = pts.length;
-    var xAt = function (i) { return n <= 1 ? padL + plotW / 2 : padL + (plotW * i / (n - 1)); };
-    var yAt = function (v) { return padT + plotH - (plotH * v / 100); };
+      renderCharts(data);
+    }
 
-    var svgNS = 'http://www.w3.org/2000/svg';
-    var svg = document.createElementNS(svgNS, 'svg');
-    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-    svg.setAttribute('width', '100%');
-    svg.setAttribute('height', H);
+    function renderCharts(data) {
+      const cortos = data.reduce((acc, i) => acc + (i.cant_cortocircuitos || 0), 0);
+      const sobre = data.reduce((acc, i) => acc + (i.cant_sobrecorriente || 0), 0);
+      const polaridad = data.reduce((acc, i) => acc + (i.cant_polaridad_invertida || 0), 0);
+      const ide = data.reduce((acc, i) => acc + (i.fallos_compilacion_ide || 0), 0);
 
-    var linePath = pts.map(function (p, i) { return (i === 0 ? 'M ' : 'L ') + xAt(p.x) + ' ' + yAt(p.y); }).join(' ');
-    var path = document.createElementNS(svgNS, 'path');
-    path.setAttribute('d', linePath);
-    path.setAttribute('fill', 'none');
-    path.setAttribute('stroke', 'var(--series-1)');
-    path.setAttribute('stroke-width', '2');
-    svg.appendChild(path);
+      const ctx1 = document.getElementById("errorsChart").getContext("2d");
+      if (errorsChartObj) errorsChartObj.destroy();
+      errorsChartObj = new Chart(ctx1, {
+        type: 'bar',
+        data: {
+          labels: ['Cortocircuitos MNA', 'Sobrecorriente', 'Polaridad Invertida', 'IDE C++'],
+          datasets: [{
+            data: [cortos, sobre, polaridad, ide],
+            backgroundColor: ['#f43f5e', '#f59e0b', '#6366f1', '#a855f7'],
+            borderRadius: 6
+          }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      });
 
-    pts.forEach(function (p, i) {
-      var dot = document.createElementNS(svgNS, 'circle');
-      dot.setAttribute('cx', xAt(p.x)); dot.setAttribute('cy', yAt(p.y));
-      dot.setAttribute('r', 4);
-      dot.setAttribute('fill', 'var(--series-1)');
-      svg.appendChild(dot);
-    });
+      const ctx2 = document.getElementById("retosChart").getContext("2d");
+      if (retosChartObj) retosChartObj.destroy();
+      const aprobados = data.filter(d => (d.nota_autograder || 0) >= 7.0).length;
+      const reprobados = data.length - aprobados;
 
-    host.innerHTML = '';
-    host.appendChild(svg);
-  }
+      retosChartObj = new Chart(ctx2, {
+        type: 'doughnut',
+        data: {
+          labels: ['Aprobados', 'Requieren Refuerzo'],
+          datasets: [{ data: [aprobados, reprobados], backgroundColor: ['#10b981', '#f43f5e'] }]
+        },
+        options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+      });
+    }
 
-  function ensureTooltip(host) {
-    var t = document.createElement('div');
-    t.className = 'tooltip';
-    return t;
-  }
+    function openModal(row) {
+      document.getElementById("modalClase").textContent = row.nombre_clase;
+      document.getElementById("modalGrupo").textContent = row.grupo_estudiantes;
+      document.getElementById("modalReto").textContent = `Reto ${row.reto_id}`;
+      document.getElementById("modalTiempo").textContent = `${Math.floor(row.tiempo_resolucion_seg / 60)}m ${row.tiempo_resolucion_seg % 60}s`;
+      document.getElementById("modalRechazos").textContent = row.rechazos_componentes || 0;
+      
+      const notaEl = document.getElementById("modalNota");
+      const notaVal = parseFloat(row.nota_autograder || 0).toFixed(1);
+      notaEl.textContent = `${notaVal} / 10`;
+      notaEl.className = `text-lg font-extrabold mt-0.5 ${notaVal >= 7.0 ? 'text-emerald-400' : 'text-rose-400'}`;
 
-  function tdText(s) { var td = document.createElement('td'); td.textContent = s; return td; }
-  function fmt(s) { if (!s) return '0:00'; var m = Math.floor(s / 60); return m + ':' + String(Math.floor(s % 60)).padStart(2, '0'); }
+      document.getElementById("modalCortos").textContent = row.cant_cortocircuitos || 0;
+      document.getElementById("modalSobrecorriente").textContent = row.cant_sobrecorriente || 0;
+      document.getElementById("modalPolaridad").textContent = row.cant_polaridad_invertida || 0;
 
-  fetchSessionsFromCloud();
-  setInterval(fetchSessionsFromCloud, 15000);
-})();
-</script>
+      const arduinoBox = document.getElementById("modalArduinoBox");
+      if (row.reto_id === 4) {
+        arduinoBox.classList.remove("hidden");
+        document.getElementById("modalIde").textContent = row.fallos_compilacion_ide || 0;
+        document.getElementById("modalPinout").textContent = row.desconexiones_logica_fisica || 0;
+      } else {
+        arduinoBox.classList.add("hidden");
+      }
+
+      const recEl = document.getElementById("modalRecomendacion");
+      if (row.cant_cortocircuitos > 1) {
+        recEl.textContent = "El grupo presenta deficiencias en el análisis previo de mallas (Ley de Kirchhoff). Se sugiere reforzar la verificación analítica antes del montaje físico.";
+      } else if (row.fallos_compilacion_ide > 3) {
+        recEl.textContent = "Alta tasa de fallos sintácticos en C++. El alumno requiere nivelación en estructuras básicas de control (`void setup` / `pinMode`).";
+      } else {
+        recEl.textContent = "Desempeño satisfactorio. El grupo demostró comprensión teórica y buen trabajo colaborativo en el entorno inmersivo.";
+      }
+
+      document.getElementById("studentModal").classList.remove("hidden");
+    }
+
+    function closeModal() {
+      document.getElementById("studentModal").classList.add("hidden");
+    }
+
+    document.getElementById("classFilter").addEventListener("change", renderDashboard);
+    fetchData();
+  </script>
 </body>
 </html>
