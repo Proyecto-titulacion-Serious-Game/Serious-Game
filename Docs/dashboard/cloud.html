@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TITA Analytics - LMS & Auto-Grader Docente</title>
+  <title>LMS Analytics & Auto-Grader Docente</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -28,7 +28,7 @@
         <div class="inline-flex p-3 bg-sky-500/10 border border-sky-500/30 rounded-2xl text-sky-400 mb-2">
           <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
         </div>
-        <h1 class="text-2xl font-black text-white">TITA LMS Docente</h1>
+        <h1 class="text-2xl font-black text-white">LMS Analytics Docente</h1>
         <p class="text-xs text-slate-400">Ingresa con tus credenciales para gestionar tus clases y telemetría de laboratorio</p>
       </div>
 
@@ -49,23 +49,35 @@
     </div>
   </div>
 
-  <!-- DASHBOARD PRINCIPAL (OCULTO HASTA AUTENTICARSE) -->
+  <!-- DASHBOARD PRINCIPAL -->
   <div id="mainDashboard" class="hidden flex-col min-h-screen">
     <!-- Top Header -->
     <header class="glass-card sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-6 py-4">
       <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 class="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
-            TITA <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30">Analytics & Auto-Grader</span>
+            Analytics & Auto-Grader <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30">Panel Docente</span>
           </h1>
           <p class="text-xs text-slate-400">Bienvenido, <span id="docenteEmail" class="text-sky-300 font-semibold"></span></p>
         </div>
 
         <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <!-- Desplegable Filtro Clases -->
           <select id="classFilter" class="bg-slate-900 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 px-3 py-2.5 focus:outline-none focus:border-sky-500 cursor-pointer">
             <option value="ALL">📍 Todas mis Clases</option>
           </select>
 
+          <!-- Botón Glosario -->
+          <button onclick="openGlossaryModal()" class="px-3 py-2 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 border border-purple-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
+            <span>📖</span> Glosario
+          </button>
+
+          <!-- Botón Ver Mis Clases Creadas -->
+          <button onclick="openMyClassesModal()" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
+            <span>📚</span> Mis Clases
+          </button>
+
+          <!-- Botón Nueva Clase -->
           <button onclick="openCreateClassModal()" class="px-3 py-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
             <span>➕</span> Nueva Clase
           </button>
@@ -102,7 +114,7 @@
         </div>
       </section>
 
-      <!-- Tabla Consolidada por Grupo -->
+      <!-- Tabla Consolidada -->
       <section class="glass-card rounded-2xl overflow-hidden">
         <div class="p-5 border-b border-slate-800 flex justify-between items-center">
           <div>
@@ -126,13 +138,119 @@
                 <th class="p-4 font-semibold text-right">Acción</th>
               </tr>
             </thead>
-            <tbody id="telemetryTable" class="divide-y divide-slate-800/60">
-              <!-- Render de filas agrupadas -->
-            </tbody>
+            <tbody id="telemetryTable" class="divide-y divide-slate-800/60"></tbody>
           </table>
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- MODAL: GLOSARIO DE ERRORES Y MÉTRICAS -->
+  <div id="glossaryModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-3xl w-full rounded-2xl border border-slate-700 p-6 space-y-5 shadow-2xl relative max-h-[85vh] overflow-y-auto">
+      <button onclick="closeGlossaryModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+      
+      <div class="border-b border-slate-800 pb-3">
+        <h2 class="text-xl font-black text-white flex items-center gap-2">
+          <span>📖</span> Glosario de Métricas y Diagnóstico Teórico
+        </h2>
+        <p class="text-xs text-slate-400">Definición pedagógica de los eventos capturados en el simulador por el Auto-Grader.</p>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+        <!-- Cortocircuito MNA -->
+        <div class="p-4 bg-slate-900/80 border border-rose-500/30 rounded-xl space-y-1.5">
+          <h3 class="font-bold text-rose-400 uppercase text-sm flex items-center gap-1.5">
+            ⚡ Cortocircuito MNA (VCC - GND)
+          </h3>
+          <p class="text-slate-300">
+            <strong>¿Qué evalúa?</strong> Ley de Kirchhoff de Voltajes y Análisis Nodal Modificado.
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Se activa cuando el algoritmo MNA detecta una trayectoria de resistencia despreciable ($<0.1\,\Omega$) entre la fuente activa y la referencia a tierra, generando un evento térmico o disparo de protección virtual.
+          </p>
+        </div>
+
+        <!-- Sobrecorriente / Watt -->
+        <div class="p-4 bg-slate-900/80 border border-amber-500/30 rounded-xl space-y-1.5">
+          <h3 class="font-bold text-amber-400 uppercase text-sm flex items-center gap-1.5">
+            🔥 Sobrecorriente / Ley de Watt
+          </h3>
+          <p class="text-slate-300">
+            <strong>¿Qué evalúa?</strong> Potencia disipada ($P = I^2 R$) y límites nominales.
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Ocurre cuando la corriente calculada en una rama supera la tolerancia máxima del componente (ej. conectar un LED sin resistencia limitadora en una línea de 5V), provocando la falla del dispositivo.
+          </p>
+        </div>
+
+        <!-- Polaridad Invertida -->
+        <div class="p-4 bg-slate-900/80 border border-indigo-500/30 rounded-xl space-y-1.5">
+          <h3 class="font-bold text-indigo-400 uppercase text-sm flex items-center gap-1.5">
+            🔄 Polaridad Invertida
+          </h3>
+          <p class="text-slate-300">
+            <strong>¿Qué evalúa?</strong> Orientación de componentes semiconductoras (Diodos, LEDs, Capacitadores electróliticos).
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Registra cuando el estudiante conecta el ánodo/cátodo al revés en la protoboard. Aunque no siempre quema el circuito, bloquea el flujo de corriente en la malla.
+          </p>
+        </div>
+
+        <!-- Sintaxis IDE Arduino -->
+        <div class="p-4 bg-slate-900/80 border border-purple-500/30 rounded-xl space-y-1.5">
+          <h3 class="font-bold text-purple-300 uppercase text-sm flex items-center gap-1.5">
+            💻 Fallo de Sintaxis C++ (IDE Sandbox)
+          </h3>
+          <p class="text-slate-300">
+            <strong>¿Qué evalúa?</strong> Estructura sintáctica y lógica de programación en C++.
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Sede cuando el código escrito en el entorno de PC contiene errores de compilación (falta de punto y coma, variables no declaradas o mala sintaxis en `void setup` / `loop`).
+          </p>
+        </div>
+
+        <!-- Pinout Mismatch -->
+        <div class="p-4 bg-slate-900/80 border border-sky-500/30 rounded-xl space-y-1.5">
+          <h3 class="font-bold text-sky-400 uppercase text-sm flex items-center gap-1.5">
+            🔌 Pinout Mismatch (Lógica vs. Física)
+          </h3>
+          <p class="text-slate-300">
+            <strong>¿Qué evalúa?</strong> Coherencia entre el código C++ y el cableado físico.
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Ocurre cuando el programa en Arduino usa un pin digital (ej. `digitalWrite(13, HIGH)`), pero el cable físico en la protoboard inmersiva está conectado a otro pin (ej. Pin 7).
+          </p>
+        </div>
+
+        <!-- Rechazos VR-PC -->
+        <div class="p-4 bg-slate-900/80 border border-slate-700 rounded-xl space-y-1.5">
+          <h3 class="font-bold text-slate-200 uppercase text-sm flex items-center gap-1.5">
+            🤝 Rechazo de Componentes (Asimetría)
+          </h3>
+          <p class="text-slate-300">
+            <strong>¿Qué evalúa?</strong> Comunicación y trabajo colaborativo asimétrico.
+          </p>
+          <p class="text-slate-400 leading-relaxed">
+            Mide cuántas veces el usuario Técnico en PC rechazó una solicitud de componente enviada por el Explorador en VR debido a inconsistencias con el diagrama esquemático.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: GESTIÓN DE MIS CLASES CREADAS -->
+  <div id="myClassesModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-2xl w-full rounded-2xl border border-slate-700 p-6 space-y-4 shadow-2xl relative max-h-[85vh] overflow-y-auto">
+      <button onclick="closeMyClassesModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+      
+      <div class="border-b border-slate-800 pb-3">
+        <h2 class="text-xl font-black text-white">📚 Mis Clases y Secciones Creadas</h2>
+        <p class="text-xs text-slate-400">Listado completo de tus materias. Copia el código único para tus alumnos.</p>
+      </div>
+
+      <div id="myClassesContainer" class="space-y-3"></div>
+    </div>
   </div>
 
   <!-- MODAL: CREAR NUEVA CLASE -->
@@ -146,28 +264,25 @@
           <input type="text" id="newClassName" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white" placeholder="Ej: Circuitos I - Paralelo B">
         </div>
         <div>
-          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Código de Sesión (Generado automáticamente)</label>
+          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Código Único de Sesión</label>
           <input type="text" id="newClassCode" readonly class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-4 py-2.5 text-sm text-sky-400 font-mono font-bold tracking-wider cursor-not-allowed">
+          <p class="text-[10px] text-slate-500 mt-1">Este código irrepetible debe ser ingresado por los alumnos en el simulador.</p>
         </div>
         <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Guardar Clase</button>
       </form>
     </div>
   </div>
 
-  <!-- MODAL: DESGLOSE COMPLETO POR RETOS DEL GRUPO -->
+  <!-- MODAL: DESGLOSE POR RETO -->
   <div id="studentModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="glass-card max-w-3xl w-full rounded-2xl border border-slate-700 p-6 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2">✕</button>
-
       <div class="border-b border-slate-800 pb-4">
         <span id="modalClase" class="text-xs uppercase tracking-wider font-bold text-sky-400"></span>
         <h2 id="modalGrupo" class="text-2xl font-black text-white mt-1"></h2>
         <p class="text-xs text-slate-400 mt-1">Ficha Diagnóstica e Historial Evaluativo por Reto</p>
       </div>
-
-      <div id="modalRetosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Render dinámico de cada reto -->
-      </div>
+      <div id="modalRetosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
     </div>
   </div>
 
@@ -180,6 +295,7 @@
     let authMode = 'login';
     let rawTelemetry = [];
     let groupedData = [];
+    let myClassesList = [];
 
     // AUTENTICACIÓN
     async function handleAuth(e) {
@@ -214,7 +330,11 @@
       location.reload();
     }
 
-    // CLASES (Filtradas por el docente autenticado)
+    // GLOSARIO MODAL
+    function openGlossaryModal() { document.getElementById("glossaryModal").classList.remove("hidden"); }
+    function closeGlossaryModal() { document.getElementById("glossaryModal").classList.add("hidden"); }
+
+    // CARGAR TODAS LAS CLASES CREADAS POR EL USUARIO
     async function loadClasses() {
       const { data, error } = await supabaseClient
         .from('sesiones_config')
@@ -223,7 +343,9 @@
 
       const select = document.getElementById("classFilter");
       select.innerHTML = '<option value="ALL">📍 Todas mis Clases</option>';
+      
       if (data && !error) {
+        myClassesList = data;
         data.forEach(c => {
           const opt = document.createElement("option");
           opt.value = c.nombre_clase;
@@ -233,9 +355,51 @@
       }
     }
 
+    // MODAL MIS CLASES
+    function openMyClassesModal() {
+      const container = document.getElementById("myClassesContainer");
+      container.innerHTML = "";
+
+      if (myClassesList.length === 0) {
+        container.innerHTML = '<p class="text-xs text-slate-400 py-4 text-center">Aún no has creado ninguna clase. Haz clic en "Nueva Clase".</p>';
+      } else {
+        myClassesList.forEach(c => {
+          const card = document.createElement("div");
+          card.className = "p-4 bg-slate-900 border border-slate-800 rounded-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3";
+          card.innerHTML = `
+            <div>
+              <h4 class="text-sm font-bold text-white">${c.nombre_clase}</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Creada el: ${new Date(c.creado_el || Date.now()).toLocaleDateString()}</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="px-3 py-1 bg-slate-950 border border-sky-500/40 text-sky-400 font-mono text-xs font-bold rounded-lg">
+                ${c.codigo_sesion}
+              </span>
+              <button onclick="copyCode('${c.codigo_sesion}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">
+                📋 Copiar
+              </button>
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      }
+
+      document.getElementById("myClassesModal").classList.remove("hidden");
+    }
+
+    function closeMyClassesModal() {
+      document.getElementById("myClassesModal").classList.add("hidden");
+    }
+
+    function copyCode(code) {
+      navigator.clipboard.writeText(code);
+      alert(`Código ${code} copiado al portapapeles.`);
+    }
+
+    // GENERADOR CÓDIGO ÚNICO (Formato: SEC-8F3A)
     function generateUniqueCode() {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-      let code = "TITA-";
+      let code = "SEC-";
       for (let i = 0; i < 4; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
@@ -261,7 +425,7 @@
       ]);
 
       if (!error) {
-        alert("¡Clase creada exitosamente!");
+        alert(`¡Clase creada! Código asignado: ${codigo}`);
         closeCreateClassModal();
         await loadClasses();
       } else {
@@ -269,20 +433,15 @@
       }
     }
 
-    // OBTENER Y AGRUPAR DATOS (Exclusivo para las clases del usuario activo)
+    // OBTENER Y AGRUPAR DATOS DE TELEMETRÍA
     async function fetchData() {
-      const { data: misClases } = await supabaseClient
-        .from('sesiones_config')
-        .select('id')
-        .eq('docente_id', currentUser.id);
-
-      if (!misClases || misClases.length === 0) {
+      if (myClassesList.length === 0) {
         rawTelemetry = [];
         renderDashboard();
         return;
       }
 
-      const misSesionesIds = misClases.map(c => c.id);
+      const misSesionesIds = myClassesList.map(c => c.id);
 
       const { data, error } = await supabaseClient
         .from('telemetria_estudiantes')
