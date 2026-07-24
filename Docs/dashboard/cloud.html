@@ -146,8 +146,8 @@
           <input type="text" id="newClassName" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white" placeholder="Ej: Circuitos I - Paralelo B">
         </div>
         <div>
-          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Código de Sesión (Para alumnos)</label>
-          <input type="text" id="newClassCode" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono uppercase" placeholder="Ej: ELEK-101-B">
+          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Código de Sesión (Generado automáticamente)</label>
+          <input type="text" id="newClassCode" readonly class="w-full bg-slate-950 border border-sky-500/50 rounded-xl px-4 py-2.5 text-sm text-sky-400 font-mono font-bold tracking-wider cursor-not-allowed">
         </div>
         <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Guardar Clase</button>
       </form>
@@ -165,7 +165,6 @@
         <p class="text-xs text-slate-400 mt-1">Ficha Diagnóstica e Historial Evaluativo por Reto</p>
       </div>
 
-      <!-- Tarjetas de Desglose por Reto -->
       <div id="modalRetosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <!-- Render dinámico de cada reto -->
       </div>
@@ -174,7 +173,7 @@
 
   <script>
     const SUPABASE_URL = "https://duigabepvjpzmqllryiw.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_HHNr73IdlS1Ew5IVA6yDRg_lR35ZmT_"; // Asegúrate de tener tu key activa
+    const SUPABASE_ANON_KEY = "sb_publishable_HHNr73IdlS1Ew5IVA6yDRg_lR35ZmT_";
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
@@ -215,12 +214,16 @@
       location.reload();
     }
 
-    // CLASES
+    // CLASES (Filtradas por el docente autenticado)
     async function loadClasses() {
-      const { data } = await supabaseClient.from('sesiones_config').select('*');
+      const { data, error } = await supabaseClient
+        .from('sesiones_config')
+        .select('*')
+        .eq('docente_id', currentUser.id);
+
       const select = document.getElementById("classFilter");
       select.innerHTML = '<option value="ALL">📍 Todas mis Clases</option>';
-      if (data) {
+      if (data && !error) {
         data.forEach(c => {
           const opt = document.createElement("option");
           opt.value = c.nombre_clase;
@@ -230,8 +233,23 @@
       }
     }
 
-    function openCreateClassModal() { document.getElementById("createClassModal").classList.remove("hidden"); }
-    function closeCreateClassModal() { document.getElementById("createClassModal").classList.add("hidden"); }
+    function generateUniqueCode() {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let code = "TITA-";
+      for (let i = 0; i < 4; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function openCreateClassModal() { 
+      document.getElementById("newClassCode").value = generateUniqueCode();
+      document.getElementById("createClassModal").classList.remove("hidden"); 
+    }
+    
+    function closeCreateClassModal() { 
+      document.getElementById("createClassModal").classList.add("hidden"); 
+    }
 
     async function handleCreateClass(e) {
       e.preventDefault();
@@ -251,11 +269,25 @@
       }
     }
 
-    // OBTENER Y AGRUPAR DATOS
+    // OBTENER Y AGRUPAR DATOS (Exclusivo para las clases del usuario activo)
     async function fetchData() {
+      const { data: misClases } = await supabaseClient
+        .from('sesiones_config')
+        .select('id')
+        .eq('docente_id', currentUser.id);
+
+      if (!misClases || misClases.length === 0) {
+        rawTelemetry = [];
+        renderDashboard();
+        return;
+      }
+
+      const misSesionesIds = misClases.map(c => c.id);
+
       const { data, error } = await supabaseClient
         .from('telemetria_estudiantes')
         .select('*')
+        .in('sesion_id', misSesionesIds)
         .order('timestamp', { ascending: false });
 
       if (!error && data) {
@@ -268,10 +300,8 @@
       const selectedClass = document.getElementById("classFilter").value;
       const filteredRaw = selectedClass === "ALL" ? rawTelemetry : rawTelemetry.filter(r => r.nombre_clase === selectedClass);
 
-      // Agrupar varias filas en 1 sola por Grupo
       groupedData = agruparTelemetriaPorGrupo(filteredRaw);
 
-      // Actualizar KPIs
       document.getElementById("kpiTotalGrupos").textContent = groupedData.length;
       document.getElementById("kpiCortos").textContent = groupedData.reduce((acc, g) => acc + g.total_cortos, 0);
       document.getElementById("kpiIde").textContent = groupedData.reduce((acc, g) => acc + g.total_ide, 0);
@@ -281,7 +311,6 @@
         : "0.0";
       document.getElementById("kpiPromedio").textContent = avgProm;
 
-      // Renderizar Tabla
       const tableBody = document.getElementById("telemetryTable");
       tableBody.innerHTML = "";
       document.getElementById("tableCount").textContent = groupedData.length;
@@ -290,7 +319,6 @@
         const tr = document.createElement("tr");
         tr.className = "hover:bg-slate-800/50 transition-colors border-b border-slate-800/40";
 
-        // Badges de retos completados
         const retosBadges = Object.keys(grupo.retos)
           .sort()
           .map(rId => `<span class="bg-slate-800 text-sky-400 px-2 py-0.5 rounded text-xs border border-slate-700 font-semibold">Reto ${rId}</span>`)
@@ -348,7 +376,6 @@
       });
     }
 
-    // MODAL CON DESGLOSE POR RETO
     function openGroupModal(grupo) {
       document.getElementById("modalClase").textContent = grupo.nombre_clase;
       document.getElementById("modalGrupo").textContent = grupo.grupo_estudiantes;
@@ -356,7 +383,6 @@
       const container = document.getElementById("modalRetosContainer");
       container.innerHTML = "";
 
-      // Dibujar 1 tarjeta por cada reto completado por este grupo
       Object.keys(grupo.retos).sort().forEach(rId => {
         const r = grupo.retos[rId];
         const mins = Math.floor(r.tiempo_resolucion_seg / 60);
@@ -390,7 +416,6 @@
     function closeModal() { document.getElementById("studentModal").classList.add("hidden"); }
     document.getElementById("classFilter").addEventListener("change", renderDashboard);
 
-    // Auto-login si la sesión sigue activa
     supabaseClient.auth.getSession().then(({ data }) => {
       if (data.session) initDashboard(data.session.user);
     });
