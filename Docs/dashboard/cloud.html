@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TITA Analytics & Auto-Grader - Panel Docente</title>
+  <title>TITA Analytics - LMS & Auto-Grader Docente</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -21,369 +21,379 @@
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col">
 
-  <!-- Header / Top Bar -->
-  <header class="glass-card sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-6 py-4">
-    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-      <div class="flex items-center gap-3">
-        <div class="p-2.5 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-400">
-          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+  <!-- PANTALLA DE LOGIN DOCENTE -->
+  <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950">
+    <div class="glass-card max-w-md w-full p-8 rounded-2xl border border-slate-800 space-y-6 shadow-2xl">
+      <div class="text-center space-y-2">
+        <div class="inline-flex p-3 bg-sky-500/10 border border-sky-500/30 rounded-2xl text-sky-400 mb-2">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
         </div>
+        <h1 class="text-2xl font-black text-white">TITA LMS Docente</h1>
+        <p class="text-xs text-slate-400">Ingresa con tus credenciales para gestionar tus clases y telemetría de laboratorio</p>
+      </div>
+
+      <form onsubmit="handleAuth(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Correo Institucional</label>
+          <input type="email" id="authEmail" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="docente@udla.edu.ec">
+        </div>
+        <div>
+          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Contraseña</label>
+          <input type="password" id="authPassword" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="••••••••">
+        </div>
+        <div class="flex gap-3 pt-2">
+          <button type="submit" onclick="authMode='login'" class="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Iniciar Sesión</button>
+          <button type="submit" onclick="authMode='register'" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-xl text-sm transition-colors border border-slate-700">Registrarse</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- DASHBOARD PRINCIPAL (OCULTO HASTA AUTENTICARSE) -->
+  <div id="mainDashboard" class="hidden flex-col min-h-screen">
+    <!-- Top Header -->
+    <header class="glass-card sticky top-0 z-40 border-b border-slate-800 bg-slate-950/80 px-6 py-4">
+      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 class="text-xl font-extrabold text-white tracking-tight flex items-center gap-2">
             TITA <span class="text-xs px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-400 font-semibold border border-sky-500/30">Analytics & Auto-Grader</span>
           </h1>
-          <p class="text-xs text-slate-400">Telemetría Educativa y Diagnóstico de Circuitos VR</p>
+          <p class="text-xs text-slate-400">Bienvenido, <span id="docenteEmail" class="text-sky-300 font-semibold"></span></p>
         </div>
-      </div>
 
-      <!-- Controls & Status -->
-      <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-        <!-- Class Filter Dropdown -->
-        <div class="relative w-full sm:w-64">
-          <select id="classFilter" class="w-full bg-slate-900 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 px-3 py-2 focus:outline-none focus:border-sky-500 transition-colors cursor-pointer">
-            <option value="ALL">📍 Todas las Clases / Secciones</option>
+        <div class="flex flex-wrap items-center gap-3 w-full sm:w-auto">
+          <select id="classFilter" class="bg-slate-900 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 px-3 py-2.5 focus:outline-none focus:border-sky-500 cursor-pointer">
+            <option value="ALL">📍 Todas mis Clases</option>
           </select>
-        </div>
 
-        <button onclick="fetchData()" class="p-2 bg-slate-900 hover:bg-slate-800 text-slate-300 rounded-lg border border-slate-700 transition-colors text-xs font-medium flex items-center gap-1.5">
-          <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-          Actualizar
-        </button>
+          <button onclick="openCreateClassModal()" class="px-3 py-2 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5">
+            <span>➕</span> Nueva Clase
+          </button>
 
-        <div class="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-lg text-emerald-400 text-xs font-medium">
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-          </span>
-          PostgreSQL Cloud
+          <button onclick="logout()" class="px-3 py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-bold transition-colors">
+            Salir
+          </button>
         </div>
       </div>
-    </div>
-  </header>
+    </header>
 
-  <main class="max-w-7xl w-full mx-auto p-6 space-y-6 flex-1">
-
-    <!-- KPI Summary Cards -->
-    <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="glass-card p-5 rounded-2xl relative overflow-hidden">
-        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Total Evaluaciones</p>
-        <h3 id="kpiTotal" class="text-3xl font-black text-white mt-2">0</h3>
-        <p class="text-xs text-slate-500 mt-1">Sesiones de laboratorio registradas</p>
-      </div>
-
-      <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-rose-500/20">
-        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Cortocircuitos (MNA)</p>
-        <h3 id="kpiCortos" class="text-3xl font-black text-rose-400 mt-2">0</h3>
-        <p class="text-xs text-rose-400/70 mt-1 font-medium">Errores críticos VCC-GND</p>
-      </div>
-
-      <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-amber-500/20">
-        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Errores IDE / Arduino</p>
-        <h3 id="kpiIde" class="text-3xl font-black text-amber-400 mt-2">0</h3>
-        <p class="text-xs text-amber-400/70 mt-1 font-medium">Sintaxis C++ / Pinout mismatch</p>
-      </div>
-
-      <div class="glass-card p-5 rounded-2xl relative overflow-hidden border-emerald-500/20">
-        <p class="text-xs uppercase font-bold tracking-wider text-slate-400">Promedio General</p>
-        <h3 id="kpiNota" class="text-3xl font-black text-emerald-400 mt-2">0.0 <span class="text-sm font-normal text-slate-400">/ 10</span></h3>
-        <p class="text-xs text-emerald-400/70 mt-1 font-medium">Calificación Auto-Grader promedio</p>
-      </div>
-    </section>
-
-    <!-- Charts Section -->
-    <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      <div class="glass-card p-5 rounded-2xl lg:col-span-2">
-        <h3 class="text-sm font-bold text-white mb-4">Distribución de Errores por Categoría Teórica</h3>
-        <div class="h-64 relative">
-          <canvas id="errorsChart"></canvas>
+    <main class="max-w-7xl w-full mx-auto p-6 space-y-6 flex-1">
+      <!-- KPIs -->
+      <section class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="glass-card p-5 rounded-2xl">
+          <p class="text-xs uppercase font-bold text-slate-400">Grupos Evaluados</p>
+          <h3 id="kpiTotalGrupos" class="text-3xl font-black text-white mt-2">0</h3>
+          <p class="text-xs text-slate-500 mt-1">Parejas/Equipos registrados</p>
         </div>
-      </div>
-
-      <div class="glass-card p-5 rounded-2xl">
-        <h3 class="text-sm font-bold text-white mb-4">Tasa de Aprobación por Reto</h3>
-        <div class="h-64 relative flex items-center justify-center">
-          <canvas id="retosChart"></canvas>
+        <div class="glass-card p-5 rounded-2xl border-rose-500/20">
+          <p class="text-xs uppercase font-bold text-slate-400">Cortocircuitos MNA</p>
+          <h3 id="kpiCortos" class="text-3xl font-black text-rose-400 mt-2">0</h3>
+          <p class="text-xs text-rose-400/70 mt-1">Total mallas VCC-GND erróneas</p>
         </div>
-      </div>
-    </section>
+        <div class="glass-card p-5 rounded-2xl border-amber-500/20">
+          <p class="text-xs uppercase font-bold text-slate-400">Errores IDE Arduino</p>
+          <h3 id="kpiIde" class="text-3xl font-black text-amber-400 mt-2">0</h3>
+          <p class="text-xs text-amber-400/70 mt-1">Sintaxis y Pinout mismatch</p>
+        </div>
+        <div class="glass-card p-5 rounded-2xl border-emerald-500/20">
+          <p class="text-xs uppercase font-bold text-slate-400">Promedio General Clase</p>
+          <h3 id="kpiPromedio" class="text-3xl font-black text-emerald-400 mt-2">0.0 <span class="text-sm font-normal text-slate-400">/ 10</span></h3>
+          <p class="text-xs text-emerald-400/70 mt-1">Nota Auto-Grader consolidada</p>
+        </div>
+      </section>
 
-    <!-- Main Table -->
-    <section class="glass-card rounded-2xl overflow-hidden">
-      <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+      <!-- Tabla Consolidada por Grupo -->
+      <section class="glass-card rounded-2xl overflow-hidden">
+        <div class="p-5 border-b border-slate-800 flex justify-between items-center">
+          <div>
+            <h2 class="text-lg font-bold text-white">Consolidado de Calificaciones por Grupo</h2>
+            <p class="text-xs text-slate-400">Una sola fila por pareja. Haz clic en "Ver Desglose" para evaluar cada reto por separado</p>
+          </div>
+          <div class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+            Grupos: <span id="tableCount" class="font-bold text-sky-400">0</span>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
+              <tr>
+                <th class="p-4 font-semibold">Materia / Clase</th>
+                <th class="p-4 font-semibold">Grupo / Estudiantes</th>
+                <th class="p-4 font-semibold">Retos Completados</th>
+                <th class="p-4 font-semibold text-center">Rechazos VR-PC</th>
+                <th class="p-4 font-semibold text-center">Promedio Auto-Grader</th>
+                <th class="p-4 font-semibold text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="telemetryTable" class="divide-y divide-slate-800/60">
+              <!-- Render de filas agrupadas -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: CREAR NUEVA CLASE -->
+  <div id="createClassModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="glass-card max-w-md w-full rounded-2xl border border-slate-700 p-6 space-y-4 shadow-2xl relative">
+      <button onclick="closeCreateClassModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">✕</button>
+      <h2 class="text-xl font-black text-white">➕ Crear Nueva Clase / Sección</h2>
+      <form onsubmit="handleCreateClass(event)" class="space-y-4">
         <div>
-          <h2 class="text-lg font-bold text-white">Reporte de Desempeño por Grupo</h2>
-          <p class="text-xs text-slate-400">Haz clic en cualquier fila para abrir la ficha diagnóstica del estudiante</p>
+          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Nombre de la Clase / Materia</label>
+          <input type="text" id="newClassName" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white" placeholder="Ej: Circuitos I - Paralelo B">
         </div>
-        <div class="text-xs text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
-          Registros: <span id="tableCount" class="font-bold text-sky-400">0</span>
+        <div>
+          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Código de Sesión (Para alumnos)</label>
+          <input type="text" id="newClassCode" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white font-mono uppercase" placeholder="Ej: ELEK-101-B">
         </div>
-      </div>
+        <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Guardar Clase</button>
+      </form>
+    </div>
+  </div>
 
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-300">
-          <thead class="bg-slate-900/80 text-slate-400 text-xs uppercase tracking-wider">
-            <tr>
-              <th class="p-4 font-semibold">Materia / Clase</th>
-              <th class="p-4 font-semibold">Grupo / Estudiantes</th>
-              <th class="p-4 font-semibold">Reto</th>
-              <th class="p-4 font-semibold">Tiempo</th>
-              <th class="p-4 font-semibold">Errores Teóricos</th>
-              <th class="p-4 font-semibold text-center">Asimetría (Rechazos)</th>
-              <th class="p-4 font-semibold text-center">Nota Auto-Grader</th>
-              <th class="p-4 font-semibold text-right">Acción</th>
-            </tr>
-          </thead>
-          <tbody id="telemetryTable" class="divide-y divide-slate-800/60">
-            <!-- Dynamic rows -->
-          </tbody>
-        </table>
-      </div>
-    </section>
-  </main>
-
-  <!-- Modal Desglose por Alumno -->
+  <!-- MODAL: DESGLOSE COMPLETO POR RETOS DEL GRUPO -->
   <div id="studentModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="glass-card max-w-2xl w-full rounded-2xl border border-slate-700 p-6 space-y-6 shadow-2xl relative">
+    <div class="glass-card max-w-3xl w-full rounded-2xl border border-slate-700 p-6 space-y-6 shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <button onclick="closeModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white p-2">✕</button>
 
       <div class="border-b border-slate-800 pb-4">
         <span id="modalClase" class="text-xs uppercase tracking-wider font-bold text-sky-400"></span>
         <h2 id="modalGrupo" class="text-2xl font-black text-white mt-1"></h2>
-        <p class="text-xs text-slate-400 mt-1">Diagnóstico Automático del Simulador TITA</p>
+        <p class="text-xs text-slate-400 mt-1">Ficha Diagnóstica e Historial Evaluativo por Reto</p>
       </div>
 
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
-          <p class="text-[10px] text-slate-400 uppercase font-semibold">Reto</p>
-          <p id="modalReto" class="text-lg font-bold text-white mt-0.5"></p>
-        </div>
-        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
-          <p class="text-[10px] text-slate-400 uppercase font-semibold">Tiempo</p>
-          <p id="modalTiempo" class="text-lg font-bold text-sky-400 mt-0.5"></p>
-        </div>
-        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
-          <p class="text-[10px] text-slate-400 uppercase font-semibold">Rechazos VR-PC</p>
-          <p id="modalRechazos" class="text-lg font-bold text-amber-400 mt-0.5"></p>
-        </div>
-        <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-center">
-          <p class="text-[10px] text-slate-400 uppercase font-semibold">Nota</p>
-          <p id="modalNota" class="text-lg font-extrabold mt-0.5"></p>
-        </div>
-      </div>
-
-      <div class="space-y-3">
-        <h3 class="text-xs font-bold uppercase text-slate-300 tracking-wider">Desglose de Errores</h3>
-        <div class="space-y-2 text-xs">
-          <div class="flex justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-            <span class="text-slate-300">Cortocircuitos MNA (VCC - GND):</span>
-            <span id="modalCortos" class="font-mono font-bold text-rose-400"></span>
-          </div>
-          <div class="flex justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-            <span class="text-slate-300">Sobrecorriente / Ley de Watt:</span>
-            <span id="modalSobrecorriente" class="font-mono font-bold text-amber-400"></span>
-          </div>
-          <div class="flex justify-between p-3 bg-slate-900/50 rounded-xl border border-slate-800">
-            <span class="text-slate-300">Polaridad Invertida:</span>
-            <span id="modalPolaridad" class="font-mono font-bold text-indigo-400"></span>
-          </div>
-          <div id="modalArduinoBox" class="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl space-y-1.5 hidden">
-            <p class="font-bold text-purple-300 uppercase text-[10px]">Sandbox Arduino (Reto 4)</p>
-            <div class="flex justify-between">
-              <span class="text-slate-300">Fallos compilación IDE C++:</span>
-              <span id="modalIde" class="font-mono font-bold text-purple-400"></span>
-            </div>
-            <div class="flex justify-between">
-              <span class="text-slate-300">Pinout Mismatch (Lógica vs Física):</span>
-              <span id="modalPinout" class="font-mono font-bold text-purple-400"></span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="p-4 bg-sky-500/10 border border-sky-500/20 rounded-xl">
-        <h4 class="text-xs font-bold text-sky-400 uppercase tracking-wider mb-1">💡 Diagnóstico Pedagógico Sugerido</h4>
-        <p id="modalRecomendacion" class="text-xs text-slate-300 leading-relaxed"></p>
+      <!-- Tarjetas de Desglose por Reto -->
+      <div id="modalRetosContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <!-- Render dinámico de cada reto -->
       </div>
     </div>
   </div>
 
   <script>
     const SUPABASE_URL = "https://duigabepvjpzmqllryiw.supabase.co";
-    const SUPABASE_ANON_KEY = "sb_publishable_HHNr73IdlS1Ew5IVA6yDRg_lR35ZmT_"; // COLOCA TU KEY AQUÍ
+    const SUPABASE_ANON_KEY = "sb_publishable_HHNr73IdlS1Ew5IVA6yDRg_lR35ZmT_"; // Asegúrate de tener tu key activa
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    let currentUser = null;
+    let authMode = 'login';
+    let rawTelemetry = [];
+    let groupedData = [];
 
-    let allData = [];
-    let errorsChartObj = null;
-    let retosChartObj = null;
+    // AUTENTICACIÓN
+    async function handleAuth(e) {
+      e.preventDefault();
+      const email = document.getElementById("authEmail").value;
+      const password = document.getElementById("authPassword").value;
 
-    async function fetchData() {
-      try {
-        const { data, error } = await supabaseClient
-          .from('telemetria_estudiantes')
-          .select('*')
-          .order('timestamp', { ascending: false });
-
-        if (!error && data) {
-          allData = data;
-        }
-      } catch (e) {
-        console.error("Error al conectar con Supabase:", e);
+      if (authMode === 'login') {
+        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+        if (error) alert("Error de login: " + error.message);
+        else initDashboard(data.user);
+      } else {
+        const { data, error } = await supabaseClient.auth.signUp({ email, password });
+        if (error) alert("Error en registro: " + error.message);
+        else { alert("Registro exitoso. Inicia sesión."); }
       }
-
-      populateClassFilter();
-      renderDashboard();
     }
 
-    function populateClassFilter() {
+    async function initDashboard(user) {
+      currentUser = user;
+      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("mainDashboard").classList.remove("hidden");
+      document.getElementById("mainDashboard").classList.add("flex");
+      document.getElementById("docenteEmail").textContent = user.email;
+
+      await loadClasses();
+      await fetchData();
+    }
+
+    async function logout() {
+      await supabaseClient.auth.signOut();
+      location.reload();
+    }
+
+    // CLASES
+    async function loadClasses() {
+      const { data } = await supabaseClient.from('sesiones_config').select('*');
       const select = document.getElementById("classFilter");
-      const currentVal = select.value;
-      const classes = [...new Set(allData.map(d => d.nombre_clase))];
-
-      select.innerHTML = '<option value="ALL">📍 Todas las Clases / Secciones</option>';
-      classes.forEach(c => {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = `📚 ${c}`;
-        select.appendChild(opt);
-      });
-
-      if (classes.includes(currentVal)) select.value = currentVal;
+      select.innerHTML = '<option value="ALL">📍 Todas mis Clases</option>';
+      if (data) {
+        data.forEach(c => {
+          const opt = document.createElement("option");
+          opt.value = c.nombre_clase;
+          opt.textContent = `📚 ${c.nombre_clase} (${c.codigo_sesion})`;
+          select.appendChild(opt);
+        });
+      }
     }
 
-    function getFilteredData() {
-      const selectedClass = document.getElementById("classFilter").value;
-      if (selectedClass === "ALL") return allData;
-      return allData.filter(d => d.nombre_clase === selectedClass);
+    function openCreateClassModal() { document.getElementById("createClassModal").classList.remove("hidden"); }
+    function closeCreateClassModal() { document.getElementById("createClassModal").classList.add("hidden"); }
+
+    async function handleCreateClass(e) {
+      e.preventDefault();
+      const nombre = document.getElementById("newClassName").value;
+      const codigo = document.getElementById("newClassCode").value;
+
+      const { error } = await supabaseClient.from('sesiones_config').insert([
+        { nombre_clase: nombre, codigo_sesion: codigo, docente_id: currentUser.id }
+      ]);
+
+      if (!error) {
+        alert("¡Clase creada exitosamente!");
+        closeCreateClassModal();
+        await loadClasses();
+      } else {
+        alert("Error al crear clase: " + error.message);
+      }
+    }
+
+    // OBTENER Y AGRUPAR DATOS
+    async function fetchData() {
+      const { data, error } = await supabaseClient
+        .from('telemetria_estudiantes')
+        .select('*')
+        .order('timestamp', { ascending: false });
+
+      if (!error && data) {
+        rawTelemetry = data;
+        renderDashboard();
+      }
     }
 
     function renderDashboard() {
-      const data = getFilteredData();
+      const selectedClass = document.getElementById("classFilter").value;
+      const filteredRaw = selectedClass === "ALL" ? rawTelemetry : rawTelemetry.filter(r => r.nombre_clase === selectedClass);
 
-      document.getElementById("kpiTotal").textContent = data.length;
-      document.getElementById("kpiCortos").textContent = data.reduce((acc, i) => acc + (i.cant_cortocircuitos || 0), 0);
-      document.getElementById("kpiIde").textContent = data.reduce((acc, i) => acc + (i.fallos_compilacion_ide || 0) + (i.desconexiones_logica_fisica || 0), 0);
-      
-      const avgNota = data.length > 0 ? (data.reduce((acc, i) => acc + parseFloat(i.nota_autograder || 0), 0) / data.length).toFixed(1) : "0.0";
-      document.getElementById("kpiNota").textContent = avgNota;
+      // Agrupar varias filas en 1 sola por Grupo
+      groupedData = agruparTelemetriaPorGrupo(filteredRaw);
 
+      // Actualizar KPIs
+      document.getElementById("kpiTotalGrupos").textContent = groupedData.length;
+      document.getElementById("kpiCortos").textContent = groupedData.reduce((acc, g) => acc + g.total_cortos, 0);
+      document.getElementById("kpiIde").textContent = groupedData.reduce((acc, g) => acc + g.total_ide, 0);
+
+      const avgProm = groupedData.length > 0 
+        ? (groupedData.reduce((acc, g) => acc + parseFloat(g.promedio_general), 0) / groupedData.length).toFixed(1) 
+        : "0.0";
+      document.getElementById("kpiPromedio").textContent = avgProm;
+
+      // Renderizar Tabla
       const tableBody = document.getElementById("telemetryTable");
       tableBody.innerHTML = "";
-      document.getElementById("tableCount").textContent = data.length;
+      document.getElementById("tableCount").textContent = groupedData.length;
 
-      data.forEach(row => {
+      groupedData.forEach(grupo => {
         const tr = document.createElement("tr");
-        tr.className = "hover:bg-slate-800/50 transition-colors cursor-pointer border-b border-slate-800/40";
-        tr.onclick = () => openModal(row);
+        tr.className = "hover:bg-slate-800/50 transition-colors border-b border-slate-800/40";
 
-        const mins = Math.floor(row.tiempo_resolucion_seg / 60);
-        const secs = row.tiempo_resolucion_seg % 60;
-        const nota = parseFloat(row.nota_autograder || 0).toFixed(1);
+        // Badges de retos completados
+        const retosBadges = Object.keys(grupo.retos)
+          .sort()
+          .map(rId => `<span class="bg-slate-800 text-sky-400 px-2 py-0.5 rounded text-xs border border-slate-700 font-semibold">Reto ${rId}</span>`)
+          .join(" ");
+
+        const promNum = parseFloat(grupo.promedio_general);
 
         tr.innerHTML = `
-          <td class="p-4 font-semibold text-sky-400">${row.nombre_clase}</td>
-          <td class="p-4 font-bold text-white">${row.grupo_estudiantes}</td>
-          <td class="p-4"><span class="bg-slate-800 text-slate-300 px-2 py-1 rounded text-xs font-semibold">Reto ${row.reto_id}</span></td>
-          <td class="p-4 font-mono text-xs">${mins}m ${secs}s</td>
-          <td class="p-4 text-xs">
-            <span class="text-rose-400">Cortos: ${row.cant_cortocircuitos || 0}</span> | 
-            <span class="text-amber-400">Sobrecorriente: ${row.cant_sobrecorriente || 0}</span>
-          </td>
-          <td class="p-4 text-center font-mono">${row.rechazos_componentes || 0}</td>
+          <td class="p-4 font-semibold text-sky-400">${grupo.nombre_clase}</td>
+          <td class="p-4 font-bold text-white">${grupo.grupo_estudiantes}</td>
+          <td class="p-4 flex gap-1 flex-wrap">${retosBadges}</td>
+          <td class="p-4 text-center font-mono">${grupo.total_rechazos}</td>
           <td class="p-4 text-center">
-            <span class="px-3 py-1 rounded-full text-xs font-extrabold ${nota >= 7.0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}">
-              ${nota} / 10.0
+            <span class="px-3 py-1 rounded-full text-xs font-extrabold ${promNum >= 7.0 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'}">
+              ${grupo.promedio_general} / 10.0
             </span>
           </td>
           <td class="p-4 text-right">
-            <button class="text-xs text-sky-400 hover:underline">Ver Ficha</button>
+            <button onclick='openGroupModal(${JSON.stringify(grupo).replace(/'/g, "&apos;")})' class="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition-colors">
+              🔍 Ver Desglose
+            </button>
           </td>
         `;
         tableBody.appendChild(tr);
       });
-
-      renderCharts(data);
     }
 
-    function renderCharts(data) {
-      const cortos = data.reduce((acc, i) => acc + (i.cant_cortocircuitos || 0), 0);
-      const sobre = data.reduce((acc, i) => acc + (i.cant_sobrecorriente || 0), 0);
-      const polaridad = data.reduce((acc, i) => acc + (i.cant_polaridad_invertida || 0), 0);
-      const ide = data.reduce((acc, i) => acc + (i.fallos_compilacion_ide || 0), 0);
-
-      const ctx1 = document.getElementById("errorsChart").getContext("2d");
-      if (errorsChartObj) errorsChartObj.destroy();
-      errorsChartObj = new Chart(ctx1, {
-        type: 'bar',
-        data: {
-          labels: ['Cortocircuitos MNA', 'Sobrecorriente', 'Polaridad Invertida', 'IDE C++'],
-          datasets: [{
-            data: [cortos, sobre, polaridad, ide],
-            backgroundColor: ['#f43f5e', '#f59e0b', '#6366f1', '#a855f7'],
-            borderRadius: 6
-          }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    function agruparTelemetriaPorGrupo(rawRows) {
+      const map = {};
+      rawRows.forEach(row => {
+        const key = `${row.nombre_clase}__${row.grupo_estudiantes}`;
+        if (!map[key]) {
+          map[key] = {
+            nombre_clase: row.nombre_clase,
+            grupo_estudiantes: row.grupo_estudiantes,
+            retos: {},
+            total_cortos: 0,
+            total_ide: 0,
+            total_rechazos: 0,
+            notas: []
+          };
+        }
+        const g = map[key];
+        g.retos[row.reto_id] = row;
+        g.total_cortos += row.cant_cortocircuitos || 0;
+        g.total_ide += (row.fallos_compilacion_ide || 0) + (row.desconexiones_logica_fisica || 0);
+        g.total_rechazos += row.rechazos_componentes || 0;
+        g.notas.push(parseFloat(row.nota_autograder || 0));
       });
 
-      const ctx2 = document.getElementById("retosChart").getContext("2d");
-      if (retosChartObj) retosChartObj.destroy();
-      const aprobados = data.filter(d => (d.nota_autograder || 0) >= 7.0).length;
-      const reprobados = data.length - aprobados;
-
-      retosChartObj = new Chart(ctx2, {
-        type: 'doughnut',
-        data: {
-          labels: ['Aprobados', 'Requieren Refuerzo'],
-          datasets: [{ data: [aprobados, reprobados], backgroundColor: ['#10b981', '#f43f5e'] }]
-        },
-        options: { responsive: true, maintainAspectRatio: false, cutout: '70%' }
+      return Object.values(map).map(g => {
+        const sum = g.notas.reduce((a, b) => a + b, 0);
+        g.promedio_general = g.notas.length > 0 ? (sum / g.notas.length).toFixed(1) : "0.0";
+        return g;
       });
     }
 
-    function openModal(row) {
-      document.getElementById("modalClase").textContent = row.nombre_clase;
-      document.getElementById("modalGrupo").textContent = row.grupo_estudiantes;
-      document.getElementById("modalReto").textContent = `Reto ${row.reto_id}`;
-      document.getElementById("modalTiempo").textContent = `${Math.floor(row.tiempo_resolucion_seg / 60)}m ${row.tiempo_resolucion_seg % 60}s`;
-      document.getElementById("modalRechazos").textContent = row.rechazos_componentes || 0;
-      
-      const notaEl = document.getElementById("modalNota");
-      const notaVal = parseFloat(row.nota_autograder || 0).toFixed(1);
-      notaEl.textContent = `${notaVal} / 10`;
-      notaEl.className = `text-lg font-extrabold mt-0.5 ${notaVal >= 7.0 ? 'text-emerald-400' : 'text-rose-400'}`;
+    // MODAL CON DESGLOSE POR RETO
+    function openGroupModal(grupo) {
+      document.getElementById("modalClase").textContent = grupo.nombre_clase;
+      document.getElementById("modalGrupo").textContent = grupo.grupo_estudiantes;
 
-      document.getElementById("modalCortos").textContent = row.cant_cortocircuitos || 0;
-      document.getElementById("modalSobrecorriente").textContent = row.cant_sobrecorriente || 0;
-      document.getElementById("modalPolaridad").textContent = row.cant_polaridad_invertida || 0;
+      const container = document.getElementById("modalRetosContainer");
+      container.innerHTML = "";
 
-      const arduinoBox = document.getElementById("modalArduinoBox");
-      if (row.reto_id === 4) {
-        arduinoBox.classList.remove("hidden");
-        document.getElementById("modalIde").textContent = row.fallos_compilacion_ide || 0;
-        document.getElementById("modalPinout").textContent = row.desconexiones_logica_fisica || 0;
-      } else {
-        arduinoBox.classList.add("hidden");
-      }
+      // Dibujar 1 tarjeta por cada reto completado por este grupo
+      Object.keys(grupo.retos).sort().forEach(rId => {
+        const r = grupo.retos[rId];
+        const mins = Math.floor(r.tiempo_resolucion_seg / 60);
+        const secs = r.tiempo_resolucion_seg % 60;
+        const nota = parseFloat(r.nota_autograder || 0).toFixed(1);
 
-      const recEl = document.getElementById("modalRecomendacion");
-      if (row.cant_cortocircuitos > 1) {
-        recEl.textContent = "El grupo presenta deficiencias en el análisis previo de mallas (Ley de Kirchhoff). Se sugiere reforzar la verificación analítica antes del montaje físico.";
-      } else if (row.fallos_compilacion_ide > 3) {
-        recEl.textContent = "Alta tasa de fallos sintácticos en C++. El alumno requiere nivelación en estructuras básicas de control (`void setup` / `pinMode`).";
-      } else {
-        recEl.textContent = "Desempeño satisfactorio. El grupo demostró comprensión teórica y buen trabajo colaborativo en el entorno inmersivo.";
-      }
+        const card = document.createElement("div");
+        card.className = "bg-slate-900/90 border border-slate-800 rounded-xl p-4 space-y-3";
+        card.innerHTML = `
+          <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+            <span class="text-sm font-bold text-sky-400">Reto ${rId}</span>
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${nota >= 7.0 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'}">
+              Nota: ${nota} / 10
+            </span>
+          </div>
+          <div class="text-xs space-y-1.5 text-slate-300">
+            <p>⏱️ <strong>Tiempo:</strong> ${mins}m ${secs}s</p>
+            <p>⚡ <strong>Cortocircuitos MNA:</strong> ${r.cant_cortocircuitos || 0}</p>
+            <p>🔥 <strong>Sobrecorriente (Watt):</strong> ${r.cant_sobrecorriente || 0}</p>
+            <p>🔄 <strong>Polaridad Invertida:</strong> ${r.cant_polaridad_invertida || 0}</p>
+            ${rId == 4 ? `<p class="text-purple-400 font-semibold">💻 <strong>Errores IDE Arduino:</strong> ${r.fallos_compilacion_ide || 0} | <strong>Pinout Mismatch:</strong> ${r.desconexiones_logica_fisica || 0}</p>` : ''}
+            <p>🤝 <strong>Rechazos VR-PC:</strong> ${r.rechazos_componentes || 0}</p>
+          </div>
+        `;
+        container.appendChild(card);
+      });
 
       document.getElementById("studentModal").classList.remove("hidden");
     }
 
-    function closeModal() {
-      document.getElementById("studentModal").classList.add("hidden");
-    }
-
+    function closeModal() { document.getElementById("studentModal").classList.add("hidden"); }
     document.getElementById("classFilter").addEventListener("change", renderDashboard);
-    fetchData();
+
+    // Auto-login si la sesión sigue activa
+    supabaseClient.auth.getSession().then(({ data }) => {
+      if (data.session) initDashboard(data.session.user);
+    });
   </script>
 </body>
 </html>
