@@ -20,6 +20,29 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # Ejecución de Pruebas Unitarias ---
+      - name: Ejecutar Pruebas del Core Lógico (Unity EditMode)
+        run: |
+          mkdir -p build
+          "$UNITY_EDITOR" \
+            -batchmode \
+            -nographics \
+            -silent-crashes \
+            -projectPath . \
+            -runTests \
+            -testPlatform EditMode \
+            -testResults build/TestResults.xml \
+            -logFile /dev/stdout
+
+      # Subida de Evidencia ---
+      - name: Upload Artifact (Resultados de Pruebas)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: SeriousGame-TestResults
+          path: build/TestResults.xml
+      # ---------------------------------------------------
+
       - name: Build Unity (Técnico - Windows)
         run: |
           "$UNITY_EDITOR" \
