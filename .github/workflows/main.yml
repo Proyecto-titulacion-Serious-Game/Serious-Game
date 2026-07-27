@@ -55,18 +55,6 @@ jobs:
             -executeMethod BuildTecnico.BuildTecnicoBatch \
             -logFile /dev/stdout
 
-      - name: Build Unity (Explorador - Quest APK)
-        run: |
-          "$UNITY_EDITOR" \
-            -batchmode \
-            -nographics \
-            -silent-crashes \
-            -quit \
-            -projectPath . \
-            -buildTarget Android \
-            -executeMethod BuildQuest.BuildQuestBatch \
-            -logFile /dev/stdout
-
       - name: Generar Doxygen
         run: |
           mkdir -p docs
