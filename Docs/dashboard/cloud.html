@@ -246,7 +246,7 @@
       
       <div class="border-b border-slate-800 pb-3">
         <h2 class="text-xl font-black text-white">📚 Mis Clases y Secciones Creadas</h2>
-        <p class="text-xs text-slate-400">Listado completo de tus materias. Copia el código único para tus alumnos.</p>
+        <p class="text-xs text-slate-400">Listado completo de tus materias. Copia el código único para tus alumnos o gestiona la clase.</p>
       </div>
 
       <div id="myClassesContainer" class="space-y-3"></div>
@@ -371,12 +371,18 @@
               <h4 class="text-sm font-bold text-white">${c.nombre_clase}</h4>
               <p class="text-xs text-slate-400 mt-0.5">Creada el: ${new Date(c.creado_el || Date.now()).toLocaleDateString()}</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 mt-2 sm:mt-0">
               <span class="px-3 py-1 bg-slate-950 border border-sky-500/40 text-sky-400 font-mono text-xs font-bold rounded-lg">
                 ${c.codigo_sesion}
               </span>
-              <button onclick="copyCode('${c.codigo_sesion}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold">
-                📋 Copiar
+              <button onclick="copyCode('${c.codigo_sesion}')" class="p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold" title="Copiar Código">
+                📋
+              </button>
+              <button onclick="editClass('${c.id}', '${c.nombre_clase}')" class="p-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-semibold transition-colors" title="Editar Nombre">
+                ✏️
+              </button>
+              <button onclick="deleteClass('${c.id}', '${c.nombre_clase}')" class="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-semibold transition-colors" title="Eliminar Clase">
+                🗑️
               </button>
             </div>
           `;
@@ -430,6 +436,78 @@
         await loadClasses();
       } else {
         alert("Error al crear clase: " + error.message);
+      }
+    }
+
+    // CRUD DE CLASES (UPDATE & DELETE)
+    async function editClass(id, oldName) {
+      const newName = prompt("Ingresa el nuevo nombre para la clase:", oldName);
+      if (!newName || newName.trim() === oldName) return;
+      
+      const { error } = await supabaseClient
+        .from('sesiones_config')
+        .update({ nombre_clase: newName.trim() })
+        .eq('id', id);
+        
+      if (error) {
+        alert("Error al actualizar la clase: " + error.message);
+      } else {
+        await loadClasses();
+        openMyClassesModal(); 
+        await fetchData(); 
+      }
+    }
+
+    async function deleteClass(id, name) {
+      const confirmDelete = confirm(`¿Estás seguro de eliminar la clase "${name}"?\n\nADVERTENCIA: Si existen registros de telemetría de estudiantes asociados a esta clase y la base de datos no tiene configurado el borrado en cascada (CASCADE), esta operación será denegada.`);
+      if (!confirmDelete) return;
+
+      const { error } = await supabaseClient
+        .from('sesiones_config')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        alert("Error al eliminar la clase: " + error.message);
+      } else {
+        await loadClasses();
+        openMyClassesModal();
+        await fetchData();
+      }
+    }
+
+    // CRUD DE GRUPOS (UPDATE & DELETE)
+    async function editGroup(nombreClase, oldGroupName) {
+      const newName = prompt(`Ingresa el nuevo nombre para el grupo (Clase: ${nombreClase}):`, oldGroupName);
+      if (!newName || newName.trim() === oldGroupName) return;
+
+      const { error } = await supabaseClient
+        .from('telemetria_estudiantes')
+        .update({ grupo_estudiantes: newName.trim() })
+        .eq('nombre_clase', nombreClase)
+        .eq('grupo_estudiantes', oldGroupName);
+
+      if (error) {
+        alert("Error al actualizar el grupo: " + error.message);
+      } else {
+        await fetchData(); 
+      }
+    }
+
+    async function deleteGroup(nombreClase, groupName) {
+      const confirmDelete = confirm(`¿Estás seguro de eliminar TODOS los registros de telemetría del grupo "${groupName}" en la clase "${nombreClase}"?\n\nEsta acción es irreversible y afectará los promedios estadísticos.`);
+      if (!confirmDelete) return;
+
+      const { error } = await supabaseClient
+        .from('telemetria_estudiantes')
+        .delete()
+        .eq('nombre_clase', nombreClase)
+        .eq('grupo_estudiantes', groupName);
+
+      if (error) {
+        alert("Error al eliminar el grupo: " + error.message);
+      } else {
+        await fetchData();
       }
     }
 
@@ -495,9 +573,15 @@
               ${grupo.promedio_general} / 10.0
             </span>
           </td>
-          <td class="p-4 text-right">
-            <button onclick='openGroupModal(${JSON.stringify(grupo).replace(/'/g, "&apos;")})' class="px-3 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-xl text-xs font-bold transition-colors">
-              🔍 Ver Desglose
+          <td class="p-4 text-right flex justify-end gap-2">
+            <button onclick='openGroupModal(${JSON.stringify(grupo).replace(/'/g, "&apos;")})' class="px-2 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-lg text-xs font-bold transition-colors" title="Ver Desglose">
+              🔍
+            </button>
+            <button onclick="editGroup('${grupo.nombre_clase}', '${grupo.grupo_estudiantes}')" class="px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold transition-colors" title="Editar Grupo">
+              ✏️
+            </button>
+            <button onclick="deleteGroup('${grupo.nombre_clase}', '${grupo.grupo_estudiantes}')" class="px-2 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-bold transition-colors" title="Eliminar Grupo">
+              🗑️
             </button>
           </td>
         `;
