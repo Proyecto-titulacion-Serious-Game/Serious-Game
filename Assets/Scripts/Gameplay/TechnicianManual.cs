@@ -32,21 +32,61 @@ public class TechnicianManual : MonoBehaviour
                     "La misma corriente I fluye por todos los componentes.\n" +
                     "El voltaje total se divide en caídas proporcionales a cada R.",
 
+        // La franja de corriente de abajo NO es decorativa: la pieza se acepta con una tolerancia
+        // del 12% (Resistor.IsValueCorrect usa max(tolerancePercent, 12)), y con V_fuente=9V y
+        // V_LED=2V solo un objetivo de ~7,5-8,5 mA cae dentro de esa ventana. El texto anterior
+        // decia "0.005A a 0.020A": siguiendo el propio manual con un valor redondo y razonable
+        // (10 o 15 mA) salia una resistencia que el juego rechazaba. Si se cambian los valores de
+        // la escena (correctResistance / Vf / voltaje de la fuente), recalcular esta franja.
         formula   = "Ley de Ohm:     V = I x R\n" +
                     "Corriente:       I = V / R_total\n" +
                     "R total serie:   R_t = R1 + R2 + ...\n" +
                     "-------------------------\n" +
-                    "Ejemplo con tus datos:\n" +
-                    "R_necesaria = (V_fuente - V_LED) / I_LED\n" +
-                    "I_LED correcto: 0.005A a 0.020A",
+                    "RESISTENCIA LIMITADORA DE UN LED:\n" +
+                    "  V_R = V_fuente - V_LED\n" +
+                    "  R   = V_R / I_objetivo\n\n" +
+                    "El LED es un DIODO: 'consume' su caida\n" +
+                    "directa V_LED (~2 V) y el RESTO del\n" +
+                    "voltaje lo absorbe la resistencia serie.\n" +
+                    "-------------------------\n" +
+                    "CORRIENTE NOMINAL DE ESTE LED:\n" +
+                    "  8 mA  (franja util 7,5 a 8,5 mA,\n" +
+                    "         o sea 0,0075 A a 0,0085 A)\n\n" +
+                    "  OJO: 10 mA / 15 mA / 20 mA son de un\n" +
+                    "  LED indicador generico. ESTE modulo no\n" +
+                    "  acepta la pieza con esos objetivos.\n" +
+                    "-------------------------\n" +
+                    "EJEMPLO RESUELTO — son OTROS numeros,\n" +
+                    "no los de esta nave; sirve solo para ver\n" +
+                    "el metodo:\n" +
+                    "  fuente 5 V · LED de 2 V · objetivo 6 mA\n" +
+                    "  V_R = 5 - 2 = 3 V\n" +
+                    "  R   = 3 V / 0,006 A = 500 Ohm\n\n" +
+                    "Repeti esos 2 pasos con el voltaje que te\n" +
+                    "dicte el Explorador y la corriente nominal\n" +
+                    "de arriba.",
 
-        objetivo  = "El LED está en sobrecarga (rojo) porque la\n" +
-                    "resistencia tiene el valor incorrecto.\n\n" +
-                    "1. Pide al Explorador que mida V en nodo_A y nodo_B\n" +
-                    "2. Calcula: R = (9V - V_LED) / I_objetivo\n" +
-                    "   (usa el voltaje medido; I_objetivo está en la fórmula)\n" +
-                    "3. Escribe TU resultado en el campo y pulsa ENVIAR\n" +
-                    "   Si el LED no cambia a verde, revisa el cálculo.",
+        objetivo  = "La resistencia serie tiene el valor\n" +
+                    "equivocado: pasa demasiada corriente y el\n" +
+                    "LED se ve ROJO (sobrecarga).\n\n" +
+                    "1. Que el Explorador CIERRE el interruptor\n" +
+                    "   de la mesa. Con el abierto todo mide 0.\n" +
+                    "2. VOLTAJE entre los 2 bornes de la bateria\n" +
+                    "   (disco VCC y disco GND): eso te da\n" +
+                    "   V_fuente. Es el voltaje TOTAL del lazo,\n" +
+                    "   no la caida de un componente suelto.\n" +
+                    "3. Puntas en los 2 EXTREMOS de la\n" +
+                    "   resistencia y boton de modo hasta\n" +
+                    "   CORRIENTE: esa es la corriente real que\n" +
+                    "   circula ahora. Comparala con la nominal\n" +
+                    "   del LED (ver formulas): si es mucho\n" +
+                    "   mayor, la resistencia es muy BAJA.\n" +
+                    "4. Calcula R = (V_fuente - V_LED) / I_obj\n" +
+                    "   con la corriente nominal del LED.\n" +
+                    "5. Escribe TU resultado y pulsa ENVIAR.\n" +
+                    "   Si el LED no queda verde, revisa el\n" +
+                    "   paso 4: casi siempre es la corriente\n" +
+                    "   objetivo mal elegida.",
 
         tablaValores =
                     "CÓDIGO DE COLORES DE RESISTENCIAS (4 bandas)\n" +
@@ -81,16 +121,22 @@ public class TechnicianManual : MonoBehaviour
                     "  I_rama = (V_fuente - V_LED) / (R_protección + R_LED)",
 
         objetivo  = "El sensor (LED) de una rama NO enciende porque está\n" +
-                    "colocado con la POLARIDAD INVERTIDA (dañado).\n\n" +
-                    "1. El Explorador conecta los cables de cada rama\n" +
-                    "   (VCC -> resistencia -> LED -> GND) -> enciende el LED\n" +
-                    "   bueno.\n" +
+                    "colocado con la POLARIDAD INVERTIDA (dañado) — esa\n" +
+                    "pieza ya no sirve, hay que REEMPLAZARLA (no basta con\n" +
+                    "voltearla a mano).\n\n" +
+                    "1. El Explorador conecta los cables de AMBAS ramas\n" +
+                    "   (batería -> riel VCC/GND, y en cada rama:\n" +
+                    "   VCC -> resistencia -> LED -> GND). La rama sana\n" +
+                    "   enciende sola en cuanto queda cerrada.\n" +
                     "2. Pide al Explorador medir el LED dañado (0V / sin\n" +
                     "   corriente = está al revés).\n" +
-                    "3. Envía un LED NUEVO al Explorador.\n" +
-                    "4. El Explorador REEMPLAZA el LED dañado colocando el\n" +
-                    "   LED nuevo donde estaba: al soltarlo se conecta y\n" +
-                    "   enciende solo (polaridad correcta).\n" +
+                    "3. Selecciona LED en tu panel, polaridad CORRECTA, y\n" +
+                    "   ENVÍA — viaja como pieza SUELTA, no se instala solo.\n" +
+                    "4. El Explorador debe soltarlo EXACTAMENTE sobre el\n" +
+                    "   slot marcado de esa rama (fila 3, columna 5): ahí\n" +
+                    "   encaja y queda fijo, ya con su propia protección\n" +
+                    "   incluida (no hace falta otra resistencia para él).\n" +
+                    "   En cualquier otro lugar sigue agarrable/suelto.\n" +
                     "5. Los 2 LED en VERDE -> reto superado.",
 
         tablaValores =
@@ -101,9 +147,11 @@ public class TechnicianManual : MonoBehaviour
                     "-------------------------\n" +
                     "Condición de victoria: LED verde (polaridad correcta\n" +
                     "y corriente en rango seguro, sin sobrecarga).\n\n" +
-                    "PRECAUCIÓN: si crees que está todo conectado y no\n" +
-                    "marca victoria, presiona F8 para re-verificar el\n" +
-                    "circuito (solo completa si de verdad está correcto)."
+                    "PRECAUCIÓN: si crees que ya conectaste todo y una rama\n" +
+                    "sigue sin encender, pide al Explorador medir esa rama\n" +
+                    "en VOLTAJE: 0V = falta el cable de batería a ese riel;\n" +
+                    "con voltaje pero LED apagado = falta reemplazar/voltear\n" +
+                    "el LED de esa rama."
     };
 
     // ─────────────────────────────────────────────
@@ -124,9 +172,15 @@ public class TechnicianManual : MonoBehaviour
                     "POLARIDAD CAPACITOR electrolítico:\n" +
                     "  (+) banda blanca / pata larga -> positivo\n" +
                     "  (-) banda negra / pata corta -> tierra\n\n" +
-                    "RESISTENCIA: no viene dada — calculala con la\n" +
-                    "Ley de Ohm (ver Reto 1) y el código de colores\n" +
-                    "(tabla abajo).",
+                    "RESISTENCIA: mismo METODO que el Reto 1\n" +
+                    "(V_R = V_fuente - V_LED ; R = V_R / I_objetivo),\n" +
+                    "el capacitor en paralelo no cambia esta cuenta\n" +
+                    "(en regimen no consume corriente). PERO la\n" +
+                    "corriente objetivo de ESTE reto es DISTINTA a\n" +
+                    "la del Reto 1 — no reuses ese numero:\n\n" +
+                    "CORRIENTE NOMINAL DE ESTE LED (Reto 3):\n" +
+                    "  14 mA  (franja util 13,5 a 15 mA,\n" +
+                    "          o sea 0,0135 A a 0,015 A)",
 
         objetivo  = "Corregir las 3 fallas EN ORDEN DE PRIORIDAD, igual que en Retos 1 y 2:\n" +
                     "selecciona la pieza en tu panel y pulsa ENVIAR con la polaridad/valor correcto.\n\n" +
@@ -135,17 +189,20 @@ public class TechnicianManual : MonoBehaviour
                     "PRIORIDAD 2 -> LED invertido\n" +
                     "  Selecciona LED, polaridad CORRECTA, y ENVÍA\n\n" +
                     "PRIORIDAD 3 -> Resistencia incorrecta\n" +
-                    "  Calculá el valor correcto (Ley de Ohm + código\n" +
-                    "  de colores) y ENVIALO",
+                    "  Mide V_fuente (bornes de la bateria) y calcula\n" +
+                    "  R = (V_fuente - V_LED) / I_objetivo con la\n" +
+                    "  corriente nominal de ESTE reto (ver formulas,\n" +
+                    "  NO la del Reto 1) y ENVIALO",
 
         tablaValores =
                     "RESISTENCIA CON FALLA EN LA NAVE\n" +
                     "-------------------------\n" +
-                    "Medida: 470 Ohm\n" +
-                    "  Amarillo-Violeta-Marrón-Oro\n" +
+                    "Medida: 2200 Ohm\n" +
+                    "  Rojo-Rojo-Rojo-Oro\n" +
                     "-------------------------\n" +
                     "Usá la tabla de código de colores del Reto 1 y la\n" +
-                    "Ley de Ohm para calcular el valor correcto.\n\n" +
+                    "corriente nominal de ESTE reto (ver formulas) para\n" +
+                    "calcular el valor correcto.\n\n" +
                     "Indicador de humo en capacitor:\n" +
                     "  -> corregir ANTES que el LED"
     };

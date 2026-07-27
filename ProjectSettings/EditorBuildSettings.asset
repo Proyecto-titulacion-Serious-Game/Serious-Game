@@ -8,7 +8,7 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/UnityJapanOffice/Scenes/Base.unity
     guid: 7f62db489cfbb3c48b9401495a7a653f
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Tecnico/Tecnico.unity
     guid: 99c9720ab356a0642a771bea13969a05
   - enabled: 1
@@ -20,7 +20,7 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/UnityJapanOffice/Scenes/EveningB.unity
     guid: 6e51415c66579e847bd2b4581df67294
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/Tecnico/NoonA.unity
     guid: 670f15f008c3a3f498fb2b30d26ddc90
   - enabled: 0
@@ -35,6 +35,7 @@ EditorBuildSettings:
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 6ac30592f31e179468752426ed2b25d8, type: 2}
     UnityEditor.XR.ARCore.ARCoreSettings: {fileID: 11400000, guid: c15be7662b2e58645b64847a683ce737, type: 2}
+    com.unity.dt.app-ui: {fileID: 11400000, guid: 1b1c20d82303e4b5781c3ef50ac1449f, type: 2}
     com.unity.input.settings: {fileID: 11400000, guid: 9e7be553448fa2546aea5752021cbcf7, type: 2}
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 052faaac586de48259a63d0c4782560b, type: 3}
     com.unity.xr.arfoundation.simulation_settings: {fileID: 11400000, guid: 6c6319f1c3750524d8bbd97e6eb080d6, type: 2}

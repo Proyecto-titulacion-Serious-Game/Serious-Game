@@ -379,9 +379,18 @@ public class Reto2CircuitGuard : MonoBehaviour
 
             // El nuevo hereda la posición del dañado (queda "donde estaba") y la rotación horizontal
             // estándar del board. Solo movemos el LED NUEVO; el dañado no se toca, se oculta.
+            //
+            // BUG REAL (reportado: "LED del Reto 2 no tiene la misma escala que el LED bueno/
+            // Circuit_LED1"): el LED nuevo llega parenteado bajo la bandeja de entrega, NO bajo el
+            // mismo padre que 'danado' (el protoboard) — asignar lossyScale (escala MUNDIAL de
+            // 'danado') directo a localScale (relativo al padre de ledGO) solo da el tamaño correcto
+            // si ambos padres tienen la MISMA escala acumulada, cosa que no se cumplía. Reparentar
+            // primero bajo el mismo padre que 'danado' y copiar localScale directo evita la mezcla
+            // mundo/local: mismo padre → mismo espacio → comparación válida.
             var t = danado.transform;
+            ledGO.transform.SetParent(t.parent, worldPositionStays: true);
             ledGO.transform.SetPositionAndRotation(t.position, rotacionHorizontal);
-            ledGO.transform.localScale = t.lossyScale;
+            ledGO.transform.localScale = t.localScale;
             danado.gameObject.SetActive(false);
             _ledDanadoOculto = danado.gameObject;
         }

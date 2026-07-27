@@ -110,6 +110,19 @@ public class DashboardServer : MonoBehaviour
                 dataExporter?.SetAccessCode(code);
                 Respond(ctx, 200, "application/json", "{\"code\":\"" + code + "\"}");
             }
+            else if (method == "POST" && path == "/api/sessions/clear")
+            {
+                // Borrado TOTAL del historial (docente). El exporter marca y guarda en su Update().
+                dataExporter?.BorrarTodoElHistorial();
+                Respond(ctx, 200, "application/json", "{\"ok\":true}");
+            }
+            else if (method == "POST" && path == "/api/sessions/delete")
+            {
+                // Borra UNA sesión por su timestamp (?t=...). Query string para no leer body aquí.
+                string t = ctx.Request.QueryString["t"];
+                bool okDel = dataExporter != null && dataExporter.BorrarSesion(t ?? "");
+                Respond(ctx, 200, "application/json", okDel ? "{\"ok\":true}" : "{\"ok\":false}");
+            }
             else if (path == "/api/results")
             {
                 // JSON ya serializado en el hilo principal (JsonUtility NO se puede llamar aquí).
@@ -315,7 +328,7 @@ public class DashboardServer : MonoBehaviour
         "#toast{position:fixed;bottom:20px;right:20px;background:#1f6feb;color:#fff;" +
         "padding:10px 18px;border-radius:6px;display:none;font-size:.9em}" +
         ".note{font-size:.75em;color:#8b949e;text-align:right;margin-top:8px}" +
-        "</style></head><body>" +
+        "ul.det{margin:6px 0 0 18px;font-size:.85em;color:#c9d1d9;padding-left:0} .note-b{color:#8b949e;font-size:.8em}</style></head><body>" +
         "<h1>TITA — Panel Docente</h1>" +
         "<p class='sub'>Serious Game — Circuitos Eléctricos VR &nbsp;|&nbsp; <span id='clock'></span></p>" +
         "<div class='card'>" +
@@ -336,6 +349,7 @@ public class DashboardServer : MonoBehaviour
         "  <div class='stat'><span>Errores en el reto</span><span class='stat-val' id='l-err'>0</span></div>" +
         "  <div class='stat'><span>Retos completados</span><span class='stat-val' id='l-done'>0/4</span></div>" +
         "  <div id='l-types' style='margin-top:12px'></div>" +
+        "  <div id='l-det' style='margin-top:10px'></div>" +
         "  <div id='l-prog' style='margin-top:12px'></div>" +
         "  <p class='note'>Actualización en vivo cada 2 s</p>" +
         "</div>" +
@@ -350,7 +364,8 @@ public class DashboardServer : MonoBehaviour
         "<div class='card' style='margin-top:16px'>" +
         "  <h2>Historial de Sesiones " +
         "<a class='btn' href='/api/records.csv' download='retos_tita.csv' style='float:right;text-decoration:none;text-transform:none'>CSV por reto</a>" +
-        "<a class='btn' href='/api/sessions.csv' download='sesiones_tita.csv' style='float:right;text-decoration:none;text-transform:none;margin-right:6px'>CSV por sesion</a></h2>" +
+        "<a class='btn' href='/api/sessions.csv' download='sesiones_tita.csv' style='float:right;text-decoration:none;text-transform:none;margin-right:6px'>CSV por sesion</a>" +
+        "<a class='btn' onclick='borrarTodo()' style='float:right;text-decoration:none;text-transform:none;margin-right:6px;color:#f85149;border-color:#f85149;cursor:pointer'>Borrar todo</a></h2>" +
         "  <div id='sessions'><p style='color:#8b949e;padding:12px 0'>Sin sesiones registradas.</p></div>" +
         "</div>" +
         "<div id='toast'></div>" +
@@ -376,11 +391,11 @@ public class DashboardServer : MonoBehaviour
         "    var s=d.summary;" +
         "    var pct=Math.round((s.scorePercent||0)*100);" +
         "    var t=fmt(s.totalTimeSeconds);" +
-        "    var h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Nota /10</th><th>Tiempo</th><th>Errores</th><th>Tipos de error</th><th>Evaluación</th></tr></thead><tbody>';" +
+        "    var h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Nota /10</th><th>Tiempo</th><th>Errores</th><th>Tipos de error</th><th>Qué pasó</th><th>Evaluación</th></tr></thead><tbody>';" +
         "    if(d.records&&d.records.length){" +
         "      for(var i=0;i<d.records.length;i++){" +
         "        var r=d.records[i];var c=r.success?'ok':'fail';var ic=r.success?'OK':'X';" +
-        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td><b>'+(r.nota!=null?r.nota.toFixed(1):'-')+'</b></td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td><td>'+r.evaluation+'</td></tr>';" +
+        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td><b>'+(r.nota!=null?r.nota.toFixed(1):'-')+'</b></td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td><td>'+detInline(r.detalles)+'</td><td>'+r.evaluation+'</td></tr>';" +
         "      }" +
         "    }" +
         "    h+='</tbody></table>';" +
@@ -399,12 +414,12 @@ public class DashboardServer : MonoBehaviour
         "async function fetchSessions(){" +
         "  try{" +
         "    var d=(await(await fetch('/api/sessions')).json());" +
-        "    var el=document.getElementById('sessions');" +
+        "    var el=document.getElementById('sessions');window._sess=d.sessions||[];" +
         "    if(!d.sessions||!d.sessions.length){el.innerHTML='<p style=\\'color:#8b949e\\'>Sin sesiones registradas.</p>';return;}" +
-        "    var h='<table><thead><tr><th>#</th><th>Fecha</th><th>Codigo</th><th>Score</th><th>Tiempo</th><th>Errores</th><th>Evaluacion</th></tr></thead><tbody>';" +
+        "    var h='<table><thead><tr><th>#</th><th>Fecha</th><th>Codigo</th><th>Score</th><th>Tiempo</th><th>Errores</th><th>Evaluacion</th><th></th></tr></thead><tbody>';" +
         "    for(var i=d.sessions.length-1;i>=0;i--){" +
         "      var s=d.sessions[i];var pct=Math.round((s.scorePercent||0)*100);" +
-        "      h+='<tr><td>'+(i+1)+'</td><td>'+(s.timestamp||'-')+'</td><td>'+(s.accessCode||'----')+'</td><td>'+s.totalScore+'/'+s.maxScore+' ('+pct+'%)</td><td>'+fmt(s.totalTimeSeconds)+'</td><td class=\\'fail\\'>'+s.totalErrors+'</td><td>'+(s.evaluation||'-')+'</td></tr>';" +
+        "      h+='<tr><td>'+(i+1)+'</td><td>'+(s.timestamp||'-')+'</td><td>'+(s.accessCode||'----')+'</td><td>'+s.totalScore+'/'+s.maxScore+' ('+pct+'%)</td><td>'+fmt(s.totalTimeSeconds)+'</td><td class=\\'fail\\'>'+s.totalErrors+'</td><td>'+(s.evaluation||'-')+'</td><td><a class=btn style=color:#f85149;border-color:#f85149;cursor:pointer onclick=borrarSesion('+i+')>X</a></td></tr>';" +
         "    }" +
         "    h+='</tbody></table>';" +
         "    h+='<p style=\\'font-size:.75em;color:#8b949e;margin-top:8px\\'>'+d.sessions.length+' sesiones registradas (mas recientes arriba).</p>';" +
@@ -456,6 +471,27 @@ public class DashboardServer : MonoBehaviour
         "  if(!arr||!arr.length)return '—';" +
         "  var s=[];for(var i=0;i<arr.length;i++){s.push(arr[i].tipo+' ('+arr[i].count+')');}return s.join(', ');" +
         "}" +
+        "async function borrarSesion(i){" +
+        "  var s=(window._sess||[])[i];if(!s)return;" +
+        "  if(!confirm('Borrar la sesion del '+s.timestamp+'? No se puede deshacer.'))return;" +
+        "  await fetch('/api/sessions/delete?t='+encodeURIComponent(s.timestamp),{method:'POST'});" +
+        "  setTimeout(fetchSessions,700);" +
+        "}" +
+        "async function borrarTodo(){" +
+        "  if(!confirm('Borrar TODO el historial de sesiones? No se puede deshacer.'))return;" +
+        "  await fetch('/api/sessions/clear',{method:'POST'});" +
+        "  setTimeout(function(){fetchSessions();fetchResults();},700);" +
+        "}" +
+        "function detInline(arr){" +
+        "  if(!arr||!arr.length)return '—';" +
+        "  return arr.join(' · ');" +
+        "}" +
+        "function detList(arr){" +
+        "  if(!arr||!arr.length)return '';" +
+        "  var s='<b class=note-b>Qué pasó:</b><ul class=det>';" +
+        "  for(var i=0;i<arr.length;i++){s+='<li>'+arr[i]+'</li>';}" +
+        "  return s+'</ul>';" +
+        "}" +
         "function chips(arr){" +
         "  if(!arr||!arr.length)return '<span style=\\'color:#8b949e;font-size:.8em\\'>Sin errores en este reto.</span>';" +
         "  var s='<b style=\\'color:#8b949e;font-size:.8em\\'>Errores por tipo: </b>';" +
@@ -472,12 +508,13 @@ public class DashboardServer : MonoBehaviour
         "    document.getElementById('l-err').textContent=d.currentErrors||0;" +
         "    document.getElementById('l-done').textContent=(d.retosCompletados||0)+'/4';" +
         "    document.getElementById('l-types').innerHTML=chips(d.currentErrorTypes);" +
+        "    document.getElementById('l-det').innerHTML=detList(d.currentErrorDetails);" +
         "    var h='';" +
         "    if(d.completedRecords&&d.completedRecords.length){" +
-        "      h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Nota /10</th><th>Tiempo</th><th>Errores</th><th>Tipos</th></tr></thead><tbody>';" +
+        "      h='<table><thead><tr><th>Reto</th><th>Resultado</th><th>Nota /10</th><th>Tiempo</th><th>Errores</th><th>Tipos</th><th>Qué pasó</th></tr></thead><tbody>';" +
         "      for(var i=0;i<d.completedRecords.length;i++){" +
         "        var r=d.completedRecords[i];var c=r.success?'ok':'fail';var ic=r.success?'OK':'X';" +
-        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td><b>'+(r.nota!=null?r.nota.toFixed(1):'-')+'</b></td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td></tr>';" +
+        "        h+='<tr><td>'+r.levelName+'</td><td class=\\''+c+'\\'>'+ic+'</td><td><b>'+(r.nota!=null?r.nota.toFixed(1):'-')+'</b></td><td>'+fmt(r.timeSeconds)+'</td><td>'+r.errors+'</td><td>'+typesInline(r.errorTypes)+'</td><td>'+detInline(r.detalles)+'</td></tr>';" +
         "      }" +
         "      h+='</tbody></table>';" +
         "    }" +

@@ -27,7 +27,9 @@ public class MultimeterUI : MonoBehaviour
     public Multimeter multimeter;
 
     [Header("Textos del HUD (TMP)")]
-    public TMP_Text txtVoltaje;        // Valor grande central: "8.18 V"
+    public TMP_Text txtVoltaje;        // Valor grande central: "8.18 V" (o resistencia/corriente según modo)
+    public TMP_Text txtCorriente;      // Corriente, siempre visible junto al valor principal: "7.8 mA"
+    public TMP_Text txtModo;           // Modo activo: "DC VOLTAGE" / "DC CURRENT" / "RESISTANCE"
     public TMP_Text txtProbeRoja;      // "🔴 Nodo_Positivo"
     public TMP_Text txtProbeNegra;     // "⚫ Nodo_Medio"
     public TMP_Text txtEstado;         // "Midiendo..." / "Sin conexión"
@@ -53,6 +55,12 @@ public class MultimeterUI : MonoBehaviour
     // ─────────────────────────────────────────────
     void Update()
     {
+        // Igual que NodeInteractable/GameManager/MultimeterModeButton: si la referencia serializada
+        // quedó null (o apunta a una instancia desactivada), resolvemos la única activa. Sin esto
+        // el panel nunca se actualizaba — multimeter quedaba en {fileID: 0} para siempre.
+        if (multimeter == null || !multimeter.gameObject.activeInHierarchy)
+            multimeter = FindAnyObjectByType<Multimeter>();
+
         _updateTimer += Time.deltaTime;
         if (_updateTimer < INTERVAL) return;
         _updateTimer = 0f;
@@ -70,13 +78,18 @@ public class MultimeterUI : MonoBehaviour
         bool probeBok = multimeter.probeB != null;
         bool midiendo = probeAok && probeBok;
 
+        // El modo se muestra siempre, incluso sin lectura — el jugador debe saber qué modo tiene
+        // seleccionado antes de apuntar a un nodo.
+        SetTMP(txtModo, multimeter.ModeLabel());
+
         // Textos de sondas
         SetTMP(txtProbeRoja,   probeAok ? multimeter.probeA.name : "—");
         SetTMP(txtProbeNegra,  probeBok ? multimeter.probeB.name : "—");
 
         if (!midiendo)
         {
-            SetTMP(txtVoltaje, "—");
+            SetTMP(txtVoltaje,   "—");
+            SetTMP(txtCorriente, "—");
             SetTMP(txtEstado,  "Conecta ambas puntas");
             SetFondo(colorSinConexion);
             return;
@@ -95,6 +108,9 @@ public class MultimeterUI : MonoBehaviour
             MultimeterMode.Resistance => Multimeter.FormatResistance(valorPrincipal),
             _                         => Multimeter.FormatVoltage(valorPrincipal),
         });
+
+        // Corriente: visible en los 3 modos (igual que la pantalla física original), no solo en DCCurrent.
+        SetTMP(txtCorriente, Multimeter.FormatCurrent(multimeter.measuredCurrent));
 
         // "Voltaje alto" solo tiene sentido midiendo Voltaje; en Corriente/Resistencia solo
         // distinguimos "hay lectura" de "sin lectura".

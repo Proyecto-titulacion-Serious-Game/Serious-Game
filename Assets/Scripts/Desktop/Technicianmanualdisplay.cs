@@ -274,6 +274,9 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "  VCC -> resistencia -> LED -> GND\n\n" +
                                     "Si una rama no enciende, la OTRA\nno se afecta — revisa esa rama\n" +
                                     "sola (su cable, su LED).\n\n" +
+                                    "OJO: una de las 2 ramas trae el LED\nDANADO (no sirve voltearlo a mano).\n" +
+                                    "Esa pieza hay que REEMPLAZARLA:\nenvíasela al Explorador desde tu\n" +
+                                    "panel (ver pagina de Diagnostico).\n\n" +
                                     "Diagrama de referencia -->",
                         derecha   = "",
                         imagen    = diagramaRamasReto2,
@@ -296,20 +299,24 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "el Explorador dice 'no prende\n" +
                                     "nada, ni un LED'.",
                         derecha   = "COMO CABLEAR — CADA RAMA:\n\n" +
-                                    "Por cada rama (resistencia + LED),\n" +
-                                    "en este orden:\n\n" +
-                                    "3. Riel VCC -> entrada de la\n" +
-                                    "   resistencia\n" +
-                                    "4. Salida de la resistencia ->\n" +
-                                    "   entrada del LED (anodo,\n" +
-                                    "   la pata LARGA)\n" +
-                                    "5. Salida del LED (catodo) ->\n" +
-                                    "   riel GND\n\n" +
-                                    "Repetir 3-5 para la OTRA rama.\n" +
-                                    "En total son 6 cables: 2 de\n" +
-                                    "bateria + 2 por rama x 2 ramas.\n\n" +
-                                    "Guialo con la foto de la\n" +
-                                    "protoboard (pagina siguiente)."
+                                    "Los slots van COLOREADOS como\n" +
+                                    "guia: ROJO=VCC · NEGRO=GND ·\n" +
+                                    "AZUL=entrada R · AMARILLO=salida\n" +
+                                    "R · VERDE=anodo del LED.\n\n" +
+                                    "3. Cable: ROJO (VCC) -> AZUL\n" +
+                                    "   (entrada de la resistencia)\n" +
+                                    "4. Cable: AMARILLO (salida R) ->\n" +
+                                    "   VERDE (anodo del LED). Cada\n" +
+                                    "   columna solo une sus PROPIOS\n" +
+                                    "   agujeros — este cable ES la\n" +
+                                    "   union en serie R->LED, igual\n" +
+                                    "   que en una protoboard real.\n" +
+                                    "5. El catodo del LED ya queda en\n" +
+                                    "   el riel GND al colocarlo (su\n" +
+                                    "   propia pata, SIN cable extra).\n\n" +
+                                    "Repetir 3-4 para la OTRA rama.\n" +
+                                    "Total: 6 cables (2 bateria +\n" +
+                                    "2 por rama x 2 ramas)."
                     },
                     new Pagina
                     {
@@ -354,7 +361,7 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "que leer sus bandas para saber\ncual es.\n\n" +
                                     "1a y 2a banda = digitos\n3a banda = cantidad de ceros\n" +
                                     "4a banda = tolerancia\n\n" +
-                                    "Compara contra la tabla de la\npagina anterior (850/220/330/\n470 Ohm).",
+                                    "Compara contra la tabla de\ncolores de la pagina anterior\ny dicta el valor leido.",
                         derecha   = "",
                         imagen    = codigoColoresReto3,
                         imagenTitulo = "Como leer las bandas de color",
@@ -375,13 +382,14 @@ public class TechnicianManualDisplay : MonoBehaviour
                     new Pagina
                     {
                         izquierda = "DIAGNOSTICO — RETO 3:\n\n" +
-                                    "Este circuito tiene VARIAS fallas\na la vez. Orden recomendado:\n\n" +
-                                    "1. Polaridad del LED (pata larga\n   al positivo).\n" +
-                                    "2. Polaridad del capacitor (franja\n   = negativo).\n" +
+                                    "Este circuito tiene VARIAS fallas\na la vez. Orden recomendado\n" +
+                                    "(el mismo del clipboard):\n\n" +
+                                    "1. Polaridad del capacitor (franja\n   = negativo) — URGENTE: riesgo\n   de humo.\n" +
+                                    "2. Polaridad del LED (pata larga\n   al positivo).\n" +
                                     "3. Valor de la resistencia serie\n   (leer codigo de colores).",
                         derecha   = "PISTAS POR MEDICION:\n\n" +
                                     "- LED apagado con voltaje OK\n  = polaridad invertida.\n" +
-                                    "- I muy baja = R serie muy alta\n  (470 en vez de 220 Ohm).\n" +
+                                    "- I muy baja = R serie muy alta\n  (la averiada marca 2200 Ohm;\n  calcula tu la correcta).\n" +
                                     "- Voltaje negativo en el cap\n  = capacitor invertido.\n\n" +
                                     "Corrige TODO antes de validar."
                     }
@@ -428,13 +436,17 @@ public class TechnicianManualDisplay : MonoBehaviour
                         izquierda = "CABLEADO DEL PROTOBOARD:\n\n" +
                                     "Camino obligatorio (por cada pin\nque tu codigo use):\n\n" +
                                     "Pin digital (D2-D13)\n   |\n   cable\n   |\nResistencia\n   |\n" +
-                                    "LED (anodo al lado del pin)\n   |\nGND del Arduino\n\n" +
+                                    "LED (anodo al lado del pin)\n   |\nriel GND de la protoboard\n   |\n" +
+                                    "cable APARTE -> GND del Arduino\n\n" +
                                     "El LED es OPCIONAL: una rama\ncon solo resistencia a GND\ntambien es valida.",
                         derecha   = "REGLAS DE ORO:\n\n" +
                                     "- El pin del CODIGO debe ser el\n  MISMO pin cableado.\n" +
                                     "- Sin resistencia el LED explota\n  y hay que pedir otro.\n" +
-                                    "- 330 Ohm es el valor recomendado\n  (I aprox. 9 mA, segura).\n" +
-                                    "- El circuito debe CERRAR en GND;\n  un extremo suelto = abierto.\n" +
+                                    "- 330 Ohm es el valor recomendado\n  (I aprox. 8-9 mA, segura).\n" +
+                                    "- OJO: el riel GND de la protoboard\n  NO viene pre-cableado al Arduino,\n" +
+                                    "  solo une sus propios agujeros entre\n  si. Hace falta UN CABLE APARTE\n" +
+                                    "  desde ese riel hasta un pin GND\n  fisico del Arduino, o el circuito\n" +
+                                    "  queda abierto aunque todo lo demas\n  este bien.\n" +
                                     "- Puedes usar VARIOS pines a la\n  vez, cada uno con su rama."
                     },
                     new Pagina
@@ -504,7 +516,9 @@ public class TechnicianManualDisplay : MonoBehaviour
                         izquierda = "DIAGNOSTICO — RETO 4:\n\n" +
                                     "El boton Comprobar reporta la\nfalla real de la simulacion:\n\n" +
                                     "- 'Ningun pin activo' = el codigo\n  no escribe HIGH/PWM en loop().\n" +
-                                    "- 'No llega a GND' = falta cerrar\n  el circuito con un cable.\n" +
+                                    "- 'No llega a GND' = casi siempre\n  falta el cable APARTE del riel\n" +
+                                    "  GND al pin GND fisico del Arduino\n  (el riel solo, sin ese cable,\n" +
+                                    "  no hace nada).\n" +
                                     "- 'LED invertido' = el LED esta\n  al reves en su rama.",
                         derecha   = "MAS FALLAS TIPICAS:\n\n" +
                                     "- 'LED no enciende' = corriente\n  insuficiente en esa rama.\n" +
@@ -535,10 +549,9 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "color: lo MIDE con el multimetro\nen modo OHMS para confirmar su\n" +
                                     "valor real.\n\n" +
                                     "COMO HACERLO:\n\n" +
-                                    "1. El Explorador toma el multimetro.\n" +
-                                    "2. Cambia el modo hasta que diga\n   'RESISTANCE': APRIETA EL\n" +
-                                    "   JOYSTICK de la mano que\n   sostiene el multimetro (o\n" +
-                                    "   toca el boton fisico de modo).\n" +
+                                    "1. El Explorador se acerca al panel\n   del multimetro de esta sala.\n" +
+                                    "2. Cambia el modo hasta que diga\n   'RESISTANCE' tocando el boton\n" +
+                                    "   fisico de modo del panel (el\n   cuerpo esta fijo, no se agarra).\n" +
                                     "3. Toca con las 2 puntas los\n   extremos del resistor.\n" +
                                     "4. La pantalla muestra los OHMS\n   reales del componente.\n\n" +
                                     "(Si el docente activa el candado\n" +
@@ -564,7 +577,7 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "por el lado mas alejado de la\n" +
                                     "banda dorada/plateada (tolerancia).\n\n" +
                                     "Compara el resultado con la tabla\n" +
-                                    "de la pagina anterior (850 Ohm).",
+                                    "de colores de la pagina anterior.",
                         derecha   = "",
                         imagen    = codigoColoresReto1,
                         imagenTitulo = "Bandas de color de la resistencia",
@@ -579,10 +592,16 @@ public class TechnicianManualDisplay : MonoBehaviour
                                     "- 'Muy BAJA' = pasa demasiada\n  corriente, sobrecarga el LED.\n" +
                                     "- 'Muy ALTA' = pasa poca\n  corriente, no enciende.",
                         derecha   = "GUIA AL EXPLORADOR:\n\n" +
-                                    "- 'LED: ENCENDIDO/APAGADO' +\n  voltaje y corriente medidos\n  (objetivo: 10 mA) — te dice si\n  ya casi llega o esta lejos.\n" +
+                                    "- 'LED: ENCENDIDO/APAGADO' +\n  voltaje y corriente medidos\n  — te dice si ya casi llega o\n  esta lejos de una zona segura.\n" +
                                     "- Si dice 'Muy BAJA': pide una\n  resistencia de MAYOR valor.\n" +
                                     "- Si dice 'Muy ALTA': pide una\n  de MENOR valor.\n\n" +
-                                    "Victoria: '[OK] Circuito correcto:\n850 Ohm entrega ~10 mA al LED.'"
+                                    // No citar aqui el valor correcto (regla del proyecto: el
+                                    // manual diagnostica, no da la respuesta). El texto anterior
+                                    // decia '850 Ohm entrega ~7-8 mA', que ademas ya no coincidia
+                                    // con lo que imprime DiagnosticSystem.
+                                    "Victoria: el panel dice '[OK] Circuito\ncorrecto' cuando la corriente del LED\n" +
+                                    "cae en su franja nominal (~8 mA).\n\n" +
+                                    "OJO: el LED resta su propio Vf antes\nde repartir el voltaje — no es I=V/R\npuro sobre los 9 V."
                     }
                 };
 
@@ -600,22 +619,22 @@ public class TechnicianManualDisplay : MonoBehaviour
     Pagina PaginaInfoMultimetro() => new Pagina
     {
         izquierda = "EL MULTIMETRO:\n\n" +
-                    "Herramienta del Explorador (VR)\npara medir el circuito con 2\n" +
-                    "puntas: ROJA (mano derecha) y\nNEGRA (mano izquierda,\nreferencia).\n\n" +
-                    "Tiene 3 MODOS — se cambian con\nel boton fisico de su cuerpo:\n\n" +
+                    "Panel fijo en la pared de cada\nsala (uno por reto), con 2\n" +
+                    "puntas colgando por cable: ROJA\n(mano derecha) y NEGRA (mano\nizquierda, referencia).\n\n" +
+                    "Tiene 3 MODOS — se cambian con\nel boton fisico del panel:\n\n" +
                     "1. VOLTAJE (DC): diferencia de\n   potencial entre las 2 puntas.\n" +
                     "2. CORRIENTE (DC): corriente que\n   atraviesa el componente\n   entre las puntas.\n" +
                     "3. RESISTENCIA (OHMS): valor del\n   componente que tocan las\n   puntas.",
         derecha   = "COMO SE USA:\n\n" +
-                    "1. El Explorador agarra el\n   multimetro.\n" +
-                    "2. Presiona el boton para elegir\n   el modo (Voltaje / Corriente /\n   Resistencia).\n" +
-                    "3. Apunta la mano DERECHA (punta\n   roja) a un nodo o slot.\n" +
-                    "4. Apunta la mano IZQUIERDA\n   (punta negra) a otro nodo.\n" +
-                    "5. La pantalla muestra la\n   lectura en vivo.\n\n" +
+                    "1. El Explorador agarra el MANGO\n   de cada punta (no hace falta\n   agarrar el panel: esta fijo).\n" +
+                    "2. Presiona el boton fisico del\n   panel para elegir el modo\n   (Voltaje / Corriente / Resistencia).\n" +
+                    "3. Acerca la punta ROJA (mano\n   derecha) a un nodo o slot —\n   no hace falta tocarlo exacto.\n" +
+                    "4. Acerca la punta NEGRA\n   (mano izquierda) a otro nodo.\n" +
+                    "5. La pantalla del panel muestra\n   la lectura en vivo.\n\n" +
                     "CUANDO USARLO EN EL JUEGO:\n\n" +
                     "- Reto 1: confirmar el voltaje\n  sobre el LED/resistor.\n" +
                     "- Retos 2 y 3: diagnosticar por\n  que una rama no enciende.\n" +
-                    "- Reto 4: medir la RESISTENCIA\n  (modo OHMS) es la buena\n  practica del tecnico real.\n  Cambio de modo: click del\n  joystick de la mano que\n  sostiene el multimetro.",
+                    "- Reto 4: medir la RESISTENCIA\n  (modo OHMS) es la buena\n  practica del tecnico real.\n  Cambio de modo: boton fisico\n  del panel, no el cuerpo.",
         imagen        = imagenMultimetro,
         imagenTitulo  = "El multimetro: puntas roja y negra",
         imagenTamano  = new Vector2(480, 480)
@@ -763,12 +782,16 @@ public class TechnicianManualDisplay : MonoBehaviour
         {
             // REGLA PERMANENTE del proyecto: el manual da DIAGNÓSTICO (qué está mal, qué se mide,
             // qué hace falta), nunca el VALOR CALCULADO — eso es lo que el Técnico tiene que resolver
-            // con V=I×R a partir de lo que le dicte el Explorador. "R correcta: 850/220 Ohm" y las
+            // con V=I×R a partir de lo que le dicte el Explorador. "R correcta: 850/470 Ohm" y las
             // filas de código de colores que apuntaban a esos mismos valores en BuildColorCodes()
             // regalaban la respuesta del Reto 1 y del Reto 3 directamente — quitadas.
-            LevelType.OhmLaw   => "VALORES DEL RETO 1:\n\nFuente: 9V\nLED R interna: 50 Ohm\nI objetivo: 10 mA\n\nCalcula R con V=I×R usando el voltaje que te dicte el Explorador.",
+            // La corriente nominal (8 mA, franja 7,5-8,5) es el dato que hace que el calculo caiga
+            // dentro de la tolerancia real de aceptacion (+-12% en Resistor.IsValueCorrect). Dar
+            // solo "5-20 mA" hacia que el jugador calculara un valor que el juego rechazaba.
+            // Sigue SIN decir la resistencia correcta: eso lo resuelve el Tecnico.
+            LevelType.OhmLaw   => "VALORES DEL RETO 1:\n\nFuente: 9V\nVf del LED: ~2V (se resta antes de aplicar V=I×R)\nLED R interna: 50 Ohm\nCorriente nominal del LED: 8 mA (7,5 a 8,5 mA)\n\nR = (V_fuente - Vf) / I_objetivo, con el voltaje que te dicte el Explorador.\nNo uses 10-20 mA: son de un LED generico, no de este.",
             LevelType.Parallel => "VALORES DEL RETO 2:\n\nFuente: 9V\nProteccion de rama: 470 Ohm\nRama rota: circuito abierto\nI segura por rama: ~13 mA",
-            LevelType.Mixed    => "VALORES DEL RETO 3:\n\nR serie incorrecta: 470 Ohm\nLED: polaridad invertida\nCap: polaridad invertida\n\nCalcula la R correcta con V=I×R usando lo que te dicte el Explorador.",
+            LevelType.Mixed    => "VALORES DEL RETO 3:\n\nR serie incorrecta: 2200 Ohm\nLED: polaridad invertida\nCap: polaridad invertida\n\nCalcula la R correcta con V=I×R usando lo que te dicte el Explorador.",
             LevelType.Arduino  => "SANDBOX RETO 4:\n\nFuente: 5V (TTL)\nPines libres: D2-D13\nR minima: 100 Ohm\nI max LED: 20 mA",
             _ => "—"
         };
@@ -788,7 +811,7 @@ public class TechnicianManualDisplay : MonoBehaviour
         "Tolerancia: Oro=5% Plata=10%\n\n" +
         "Ejemplo (no es la respuesta de ningun reto):\n" +
         "100 Ohm = Marron-Negro-Marron-Oro\n" +
-        "470 Ohm = Amarillo-Violeta-Marron-Oro";
+        "1000 Ohm = Marron-Negro-Rojo-Oro";
 
     void Set(TMP_Text t, string s) { if (t != null) t.text = s; }
 }

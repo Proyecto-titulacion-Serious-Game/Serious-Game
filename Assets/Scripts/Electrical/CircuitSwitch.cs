@@ -78,11 +78,18 @@ public class CircuitSwitch : ElectricalComponent
 
     /// <summary>Alterna el switch desde código o desde el Inspector (clic derecho → Toggle).</summary>
     [ContextMenu("Toggle")]
+
     public void Toggle()
     {
         isOn = !isOn;
         UpdateVisual();
-        GetComponentInParent<CircuitManager>()?.MarkDirty();
+        
+        // ❌ BORRAR O COMENTAR LA LÍNEA ANTIGUA:
+        // GetComponentInParent<CircuitManager>()?.MarkDirty();
+        
+        // ✅ NUEVA LÍNEA: Avisar al motor MNA que algo cambió físicamente
+        CircuitGraphAnalyzer.OnCircuitChanged?.Invoke();
+        
         Debug.Log($"[CircuitSwitch] '{name}' → {(isOn ? "ON  ✓" : "OFF ✗")} (debug)");
     }
 

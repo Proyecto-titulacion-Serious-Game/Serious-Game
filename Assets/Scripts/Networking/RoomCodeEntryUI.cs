@@ -89,19 +89,32 @@ public class RoomCodeEntryUI : MonoBehaviour
 
         EnsureStyles();
 
-        const float w = 420f, h = 220f;
+        // Alto aumentado de 220 a 280: el hint ahora explica el código de sesión (más texto que
+        // antes, ver BUG REAL 2026-07-25 abajo) y con 220 quedaba cortado contra el botón.
+        const float w = 420f, h = 280f;
         var rect = new Rect((Screen.width - w) * 0.5f, (Screen.height - h) * 0.45f, w, h);
         GUI.Box(rect, GUIContent.none, _box);
 
         GUILayout.BeginArea(new Rect(rect.x + 20, rect.y + 20, w - 40, h - 40));
 
         // Sin código de sala: hay UNA sola partida (el Explorador siempre se une a ella
-        // automáticamente, sin escribir nada — no tiene teclado). Este campo YA NO conecta ni
-        // desconecta a nadie: solo etiqueta las métricas de esta sesión (curso/semestre/grupo) para
-        // poder diferenciarlas después en el dashboard/Sheets.
-        GUILayout.Label("CURSO / GRUPO", _title);
-        GUILayout.Label("Ej: 'Semestre 3'. Solo ordena las métricas del dashboard — " +
-                         "no hace falta que el Explorador escriba nada, se conecta solo.", _hint);
+        // automáticamente, sin escribir nada — no tiene teclado). Este campo NO conecta ni
+        // desconecta a nadie: SOLO intenta enlazar la sesión con una clase real de Supabase si lo
+        // tecleado coincide con un codigo_sesion ya creado en el panel web (ver CrearSala() →
+        // AnalyticsManager.ValidarCodigoSesion()).
+        // BUG REAL 2026-07-25 (reportado por el usuario viendo el dashboard real en producción):
+        // este campo ANTES también copiaba el código tecleado a SessionDataExporter.grupo, que es
+        // el campo `grupo_estudiantes` que ve el docente en el panel web — el dashboard terminaba
+        // mostrando el CÓDIGO DE CLASE ("SEC-2VFN") como si fuera el nombre del grupo/pareja, en
+        // vez de un nombre real de estudiantes. El grupo/pareja lo decide el panel del docente por
+        // su cuenta (no este campo) — acá solo se ingresa el código para unirse a la clase.
+        GUILayout.Label("Ingresa el código de clase/grupo", _title);
+        GUILayout.Label("Pedile al panel web (dashboard) el código de tu clase y escribilo acá para " +
+                         "vincular las métricas a esa clase — no hace falta escribir el nombre del " +
+                         "grupo/pareja, eso lo decide el panel del docente. Si todavía no tenés " +
+                         "código, dejalo vacío: las métricas quedan igual, solo sin vincular a una " +
+                         "clase real (modo práctica libre). El Explorador no necesita escribir nada, " +
+                         "se conecta solo.", _hint);
         GUILayout.Space(5);
         _grupo = GUILayout.TextField(_grupo, 40, _inputStyle, GUILayout.Height(32));
 
@@ -122,14 +135,27 @@ public class RoomCodeEntryUI : MonoBehaviour
 
     void CrearSala(ConnectionManager cm)
     {
-        string grupo = (_grupo ?? "").Trim();
-        if (!string.IsNullOrEmpty(grupo))
+        string codigo = (_grupo ?? "").Trim();
+        if (!string.IsNullOrEmpty(codigo))
         {
-            var exp = FindAnyObjectByType<SessionDataExporter>();
-            if (exp != null) exp.grupo = grupo;
-            PlayerPrefs.SetString(PREFS_GRUPO_KEY, grupo);
+            PlayerPrefs.SetString(PREFS_GRUPO_KEY, codigo);
             PlayerPrefs.Save();
-            Debug.Log($"[RoomCodeEntryUI] Grupo registrado para las métricas: '{grupo}'.");
+            Debug.Log($"[RoomCodeEntryUI] Código de clase ingresado: '{codigo}'.");
+
+            // Enlazar con una clase real de Supabase (tabla sesiones_config): si el código coincide
+            // con un codigo_sesion ya creado (desde el dashboard web), AnalyticsManager completa
+            // sesion_id/nombreClaseActual y las métricas quedan agrupadas por clase real en vez de
+            // "Modo Práctica Libre". Si no coincide con nada, no cambia nada — sigue en modo
+            // práctica libre.
+            //
+            // A PROPÓSITO ya NO se copia este código a SessionDataExporter.grupo — ese campo es
+            // `grupo_estudiantes` en Supabase, el nombre de la pareja/grupo que ve el docente en el
+            // panel web, y NO debe ser el mismo texto que el código de clase (bug real reportado
+            // 2026-07-25: el dashboard mostraba "SEC-2VFN" como si fuera un nombre de grupo). Se
+            // deja en su valor por defecto (SystemInfo.deviceName, ver SessionDataExporter payload)
+            // hasta que exista un mecanismo real de asignación de grupo/pareja.
+            if (AnalyticsManager.Instance != null)
+                AnalyticsManager.Instance.ValidarCodigoSesion(codigo);
         }
 
         // Código vacío → ConnectionManager.ResolveRoomCode() cae al valor por defecto fijo

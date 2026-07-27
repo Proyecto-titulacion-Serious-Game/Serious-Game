@@ -56,9 +56,12 @@ public class XRCableConnector : MonoBehaviour
         _grab.selectExited.RemoveListener(OnRelease);
     }
 
-    void OnGrab(SelectEnterEventArgs _)
+   void OnGrab(SelectEnterEventArgs _)
     {
         if (_con.IsConnected) _con.Disconnect();
+        
+        // ✅ NUEVO: Al arrancar el cable, recalculamos el circuito
+        CircuitGraphAnalyzer.OnCircuitChanged?.Invoke();
     }
 
     void OnRelease(SelectExitEventArgs _)
@@ -73,6 +76,11 @@ public class XRCableConnector : MonoBehaviour
             float d = Vector3.Distance(_con.ConnectionPosition, c.ConnectionPosition);
             if (d < bestDist) { bestDist = d; best = c; }
         }
-        if (best != null) best.Connect(_con);
+        if (best != null) 
+        {
+            best.Connect(_con);
+            // ✅ NUEVO: Al enchufar exitosamente, recalculamos el circuito
+            CircuitGraphAnalyzer.OnCircuitChanged?.Invoke();
+        }
     }
 }

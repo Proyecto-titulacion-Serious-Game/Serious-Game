@@ -98,7 +98,7 @@ public static class Reto4Feedback
             Reto4Diagnostico.SinResistencia => $"falta resistencia de proteccion (>=100 ohm) en el pin D{pin}. Sin ella el LED se quema. Pide una resistencia en serie.",
             Reto4Diagnostico.CorrienteAlta  => $"la corriente en el pin D{pin} supera el limite seguro. Pide una resistencia mayor (330 ohm recomendado).",
             Reto4Diagnostico.ResistenciaExcesiva => $"el LED del pin D{pin} esta bien conectado pero la resistencia es demasiado alta: casi no pasa corriente y no enciende. Pide una resistencia menor (330 ohm recomendado).",
-            Reto4Diagnostico.ResistenciaSinMedir => $"el circuito del pin D{pin} esta electricamente correcto. Falta que el Explorador ponga el multimetro en modo OHMS y mida el resistor antes de volver a Comprobar (el modo se cambia APRETANDO EL JOYSTICK de la mano que sostiene el multimetro).",
+            Reto4Diagnostico.ResistenciaSinMedir => $"el circuito del pin D{pin} esta electricamente correcto. Falta que el Explorador mida el resistor con el panel del multimetro en modo OHMS antes de volver a Comprobar (el modo se cambia con el boton fisico del panel, no se agarra el cuerpo).",
             _                               => $"el circuito del pin D{pin} aun no cumple el objetivo. Revisen las conexiones (resistencia, y LED/polaridad si lo hay).",
         };
         return $"<color=#FF8888>> DIAGNOSTICO: {d}</color>";

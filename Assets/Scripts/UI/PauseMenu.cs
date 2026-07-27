@@ -262,14 +262,11 @@ public class PauseMenu : MonoBehaviour
 
     IEnumerator FinalizarYSalir()
     {
-        // 1. Finalizar la sesión con el progreso actual (dispara OnSessionEnded → guarda + sube).
+        // Finalizar la sesión con el progreso actual (dispara OnSessionEnded → guarda local +
+        // sube a Supabase reto por reto, ya disparado antes vía GameManager.OnLevelCompleted).
         var obj = FindAnyObjectByType<ObjectiveSystem>();
         if (obj != null) obj.FinalizarSesion();
-
-        // 2. Esperar (máx 5 s) a que termine la subida a Sheets antes de cerrar.
-        var exp = SessionDataExporter.Instance;
-        float t = 0f;
-        while (exp != null && exp.SubidaEnCurso && t < 5f) { t += Time.unscaledDeltaTime; yield return null; }
+        yield return null;
 
         Debug.Log("[PauseMenu] Sesión registrada. Cerrando el juego.");
 #if UNITY_EDITOR

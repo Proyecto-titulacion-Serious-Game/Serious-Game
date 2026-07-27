@@ -56,11 +56,15 @@ public class DiagnosticSystem
             float vb = led.nodeB != null ? led.nodeB.voltage : 0f;
             sb.AppendLine($"LED: {(led.isOn ? "ENCENDIDO" : "APAGADO")} {GetLEDStateIcon(led.state)}");
             sb.AppendLine($"   Voltaje en el LED: {Mathf.Abs(va - vb):F2} V");
-            sb.AppendLine($"   Corriente: {led.current * 1000f:F1} mA (objetivo: 10 mA)");
+            // Objetivo REAL: con V_fuente=9V y Vf=2V, el valor aceptado por Resistor.IsValueCorrect
+            // (+-12%) entrega ~7-8,8 mA al LED. Decir "objetivo: 10 mA" empujaba al Tecnico a
+            // calcular R = 7V/0,010A = 700 Ohm, que el juego RECHAZA (ventana 748-952 Ohm).
+            sb.AppendLine($"   Corriente: {led.current * 1000f:F1} mA (nominal del LED: ~8 mA)");
         }
 
         if (resistor != null && !resistor.hasFault && led != null && led.isOn && led.state == LEDState.Correct)
-            sb.AppendLine("\n[OK] Circuito correcto: 850 Ohm entrega ~10 mA al LED.");
+            // Sin citar la resistencia correcta (regla del proyecto: diagnostico, no la respuesta).
+            sb.AppendLine("\n[OK] Circuito correcto: el LED trabaja en su corriente nominal.");
 
         return sb.ToString().TrimEnd();
     }

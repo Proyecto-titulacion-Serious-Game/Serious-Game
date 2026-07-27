@@ -73,6 +73,9 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
     /// <summary>Se dispara cuando la conexión falla o se agota el tiempo.</summary>
     public static event Action<string>    OnConnectionFailed;
 
+    /// <summary>Se dispara al lograr conexión (Host o Client) — para que los overlays de espera se oculten.</summary>
+    public static event Action            OnConnected;
+
     // ─────────────────────────────────────────────
     private Coroutine _connectionTimeout;
     private bool      _connected;
@@ -273,9 +276,16 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
         // completarse ni reconectar. Con el hijo sacrificable, solo muere el runner.
         var previo = transform.Find("[FusionRunner]");
         if (previo != null) Destroy(previo.gameObject);
-        var runnerGO = new GameObject("[FusionRunner]");
+
+        // Prefab con NetworkRunner + Recorder + FusionVoiceClient (chat de voz Técnico↔Explorador).
+        // Generado por Tools → TITA → Red → Configurar Chat de Voz. Si aún no se corrió esa
+        // herramienta, cae de vuelta a un NetworkRunner desnudo (sin voz) para no romper la conexión.
+        var runnerPrefab = Resources.Load<GameObject>("FusionRunnerVoice");
+        GameObject runnerGO = runnerPrefab != null ? Instantiate(runnerPrefab) : new GameObject();
+        runnerGO.name = "[FusionRunner]";
+        if (runnerGO.GetComponent<NetworkRunner>() == null) runnerGO.AddComponent<NetworkRunner>();
         runnerGO.transform.SetParent(transform, false);
-        _runner = runnerGO.AddComponent<NetworkRunner>();
+        _runner = runnerGO.GetComponent<NetworkRunner>();
         _runner.AddCallbacks(this);   // en otro GO, los callbacks ya no se auto-registran
 
         _runner.ProvideInput = true;
@@ -323,6 +333,7 @@ public class ConnectionManager : MonoBehaviour, INetworkRunnerCallbacks
         _connected = true;
         _reconnectsUsados = 0;   // conexión lograda → resetear presupuestos de reintentos
         _esperaSalaUsados = 0;
+        OnConnected?.Invoke();   // apaga cualquier overlay de "esperando sala"/"reintentando"
 
         if (mode == GameMode.Host || mode == GameMode.Server)
         {

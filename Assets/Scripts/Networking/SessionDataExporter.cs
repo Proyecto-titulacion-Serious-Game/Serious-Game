@@ -3,8 +3,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-using UnityEngine.InputSystem;
-using UnityEngine.Networking;
 
 /// <summary>
 /// Recolecta los datos de la sesión de juego y los expone de forma
@@ -17,19 +15,8 @@ public class SessionDataExporter : MonoBehaviour
 {
     public static SessionDataExporter Instance { get; private set; }
 
-    [Header("Subida a Google Sheets (opcional, vía Apps Script)")]
-    [Tooltip("Si está activo, al terminar la sesión hace POST al webhook y agrega filas a la Sheet.")]
-    public bool   subirASheets = false;
-    [Tooltip("URL /exec del Web App de Apps Script.")]
-    public string webhookUrl   = "";
-    [Tooltip("Token compartido (debe coincidir con TOKEN en el Apps Script).")]
-    public string sheetsToken  = "TITA-2026-cambia-esto";
-    [Tooltip("Etiqueta del grupo/PC. Vacío = nombre del equipo (SystemInfo.deviceName).")]
+    [Tooltip("Etiqueta del grupo/PC (usada en el payload de Supabase). Vacío = nombre del equipo (SystemInfo.deviceName).")]
     public string grupo        = "";
-
-    /// <summary>True mientras hay una subida a Google Sheets en curso. Lo usa PauseMenu para esperar
-    /// a que termine antes de cerrar el juego al pulsar "Salir".</summary>
-    public bool SubidaEnCurso { get; private set; }
 
     private readonly object      _lock = new object();
     private SessionExportData    _data = new SessionExportData();
@@ -61,12 +48,14 @@ public class SessionDataExporter : MonoBehaviour
     {
         ObjectiveSystem.OnSessionEnded += HandleSessionEnded;
         GameManager.OnLevelLoaded      += HandleLevelLoaded;
+        GameManager.OnLevelCompleted   += HandleLevelCompletedForSupabase;
     }
 
     void OnDisable()
     {
         ObjectiveSystem.OnSessionEnded -= HandleSessionEnded;
         GameManager.OnLevelLoaded      -= HandleLevelLoaded;
+        GameManager.OnLevelCompleted   -= HandleLevelCompletedForSupabase;
     }
 
     // ─────────────────────────────────────────────
@@ -100,14 +89,13 @@ public class SessionDataExporter : MonoBehaviour
     // ─────────────────────────────────────────────
     void Update()
     {
-        // Tecla de PRUEBA: Ctrl+F8 sube una fila de test a Google Sheets (verificar la conexión sin
-        // jugar). Requiere Ctrl porque F8 sola ya la usan TecnicoValidarPrecaucion (re-verificar el
-        // reto online) y SoloTechnicianDebug (offline) — sin el modificador, cada F8 del Técnico
-        // metía además una fila [PRUEBA] en la hoja del docente.
-        var kb = Keyboard.current;
-        if (kb != null && kb.f8Key.wasPressedThisFrame &&
-            (kb.leftCtrlKey.isPressed || kb.rightCtrlKey.isPressed))
-            StartCoroutine(SubirPrueba());
+        // Flush de borrados pedidos desde el hilo HTTP del dashboard (JsonUtility solo aquí).
+        if (_pendingSaveHistory)
+        {
+            _pendingSaveHistory = false;
+            SaveHistory();
+            if (_pendingClearResults) { _pendingClearResults = false; SaveToDisk(); }
+        }
 
         if (Time.unscaledTime < _nextLiveRefresh) return;
         _nextLiveRefresh = Time.unscaledTime + 0.5f;
@@ -129,6 +117,7 @@ public class SessionDataExporter : MonoBehaviour
             live.currentTimeSeconds = _tracker.GetTime();
             live.currentErrors      = _tracker.GetErrors();
             live.currentErrorTypes  = _tracker.GetErrorBreakdown();
+            live.currentErrorDetails = _tracker.GetErrorDetails();
 
             var recs = _tracker.GetAllRecords();
             var dto  = new LevelRecordDto[recs.Count];
@@ -158,6 +147,49 @@ public class SessionDataExporter : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────
+    //  Borrado de datos (docente, vía dashboard)
+    // ─────────────────────────────────────────────
+    // El hilo HTTP del DashboardServer solo puede MARCAR la petición: JsonUtility (que usa
+    // SaveHistory/SaveToDisk) revienta fuera del hilo principal. Update() hace el flush.
+    volatile bool _pendingSaveHistory;
+    volatile bool _pendingClearResults;
+
+    /// <summary>Borra UNA sesión del historial por su timestamp exacto (el id visible en la tabla).
+    /// Thread-safe (llamable desde el hilo HTTP). Devuelve true si algo se borró.</summary>
+    public bool BorrarSesion(string timestamp)
+    {
+        if (string.IsNullOrEmpty(timestamp)) return false;
+        bool borrado;
+        lock (_lock)
+        {
+            var lista = new List<SessionSummaryDto>(_history.sessions);
+            borrado = lista.RemoveAll(s => s != null && s.timestamp == timestamp) > 0;
+            if (borrado) _history.sessions = lista.ToArray();
+        }
+        if (borrado)
+        {
+            _pendingSaveHistory = true;
+            Debug.Log($"[SessionDataExporter] Sesión '{timestamp}' borrada del historial (pedido del dashboard).");
+        }
+        return borrado;
+    }
+
+    /// <summary>Borra TODO el historial y el resultado de la última sesión. Thread-safe.</summary>
+    public void BorrarTodoElHistorial()
+    {
+        lock (_lock)
+        {
+            _history.sessions = Array.Empty<SessionSummaryDto>();
+            _data.hasResult   = false;
+            _data.records     = Array.Empty<LevelRecordDto>();
+            _data.state       = "En espera";
+        }
+        _pendingSaveHistory  = true;
+        _pendingClearResults = true;
+        Debug.Log("[SessionDataExporter] Historial COMPLETO borrado (pedido del dashboard).");
+    }
+
+    // ─────────────────────────────────────────────
     //  Handlers
     // ─────────────────────────────────────────────
 
@@ -175,6 +207,7 @@ public class SessionDataExporter : MonoBehaviour
         var tracker = FindAnyObjectByType<PerformanceTracker>(FindObjectsInactive.Include);
         var records = tracker != null ? tracker.GetAllRecords() : new List<LevelRecord>();
 
+        // 1. Guardado local tradicional (mantiene compatibilidad con tu sistema actual)
         var serialized = new LevelRecordDto[records.Count];
         for (int i = 0; i < records.Count; i++)
             serialized[i] = new LevelRecordDto(records[i]);
@@ -189,7 +222,6 @@ public class SessionDataExporter : MonoBehaviour
             _data.records      = serialized;
             _data.timestamp    = stamp;
 
-            // Añadir esta sesión al HISTORIAL (lista de todas las sesiones), con sus registros por reto.
             var lista = new List<SessionSummaryDto>(_history.sessions)
             {
                 new SessionSummaryDto(result, stamp, _data.accessCode, serialized)
@@ -200,135 +232,134 @@ public class SessionDataExporter : MonoBehaviour
         SaveToDisk();
         SaveHistory();
 
-        // Sink opcional a la nube: además del respaldo local, sube la sesión a Google Sheets.
-        if (subirASheets && !string.IsNullOrEmpty(webhookUrl))
-        {
-            SubidaEnCurso = true;
-            StartCoroutine(SubirASheets(result, serialized, stamp));
-        }
+        // El envío a Supabase YA se hizo reto por reto en HandleLevelCompletedForSupabase, apenas
+        // cada uno terminó — no se re-envía aquí (evita filas duplicadas). Ver esa función para el
+        // motivo: antes esto solo pasaba una vez, al FINAL de los 4 retos, así que si la sesión se
+        // cortaba antes (p.ej. el Reto 4 nunca cerraba) se perdían TAMBIÉN los retos 1-3 que sí se
+        // habían completado bien — un reto perdido no debería tirar a los demás.
     }
 
-    // ─────────────────────────────────────────────
-    //  Subida a Google Sheets (webhook de Apps Script)
-    // ─────────────────────────────────────────────
-    [Serializable] class SheetsSesion { public string fecha, grupo, codigo, evaluacion;
-                                        public int score, scoreMax, porcentaje, tiempo, errores;
-                                        public float notaFinal; }   // promedio 0-10 de las notas por reto
-    [Serializable] class SheetsReto   { public string reto, evaluacion, tipos;
-                                        public int tiempo, errores, exito;
-                                        public float nota; }        // nota 0-10 del reto (tiempo + errores)
-    [Serializable] class SheetsPayload{ public string token; public SheetsSesion session; public SheetsReto[] records; }
-
-    IEnumerator SubirASheets(SessionResult r, LevelRecordDto[] recs, string stamp)
+    /// <summary>
+    /// Envía a Supabase el registro de UN reto apenas termina (éxito o fallo), en vez de esperar a
+    /// que los 4 hayan terminado. Antes el envío completo vivía en HandleSessionEnded (una sola vez
+    /// al final): si el Reto 4 nunca llegaba a completarse (p.ej. el riel GND del protoboard no
+    /// cerraba el circuito), los retos 1-3 —ya jugados y evaluados bien— tampoco llegaban a la base
+    /// de datos, porque todo el envío dependía de un evento que solo dispara al cerrar la sesión
+    /// COMPLETA. Ahora cada reto se sube en cuanto su propio registro existe.
+    /// </summary>
+    void HandleLevelCompletedForSupabase(LevelType level, bool success)
     {
-        string codigo;
-        lock (_lock) { codigo = _data.accessCode; }
-        string grp = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo;
-
-        // Nota final de la sesión = suma de notas 0-10 por reto, dividida SIEMPRE entre los 4 retos
-        // totales (no entre los alcanzados). Así una sesión cortada a la mitad (p. ej. se acaba la
-        // clase en el Reto 2) pesa menos que completar los 4 — dividir solo por recs.Length premiaba
-        // igual a un grupo que llegó a 2 retos excelentes que a uno que completó los 4.
-        const int TOTAL_RETOS = 4;
-        float notaFinal = 0f;
-        if (recs != null && recs.Length > 0)
-        {
-            foreach (var x in recs) notaFinal += x.nota;
-            notaFinal = Mathf.Round(notaFinal / TOTAL_RETOS * 10f) / 10f;
-        }
-
-        var payload = new SheetsPayload
-        {
-            token   = sheetsToken,
-            session = new SheetsSesion
-            {
-                fecha = stamp, grupo = grp, codigo = codigo, evaluacion = r.evaluation,
-                // score/scoreMax/porcentaje EN ESCALA 0-10 (antes venían de ObjectiveSystem: puntos
-                // por objetivo que ni sumaban toda la sesión —se reinician por reto— ni estaban en la
-                // misma escala que notaFinal, por eso el dashboard local mostraba cosas como "0/600").
-                // Ahora son un espejo entero de notaFinal para que la columna "Score" de la Sheet
-                // quede consistente con la nota 0-10; notaFinal sigue siendo el valor exacto con decimal.
-                score = Mathf.RoundToInt(notaFinal), scoreMax = 10,
-                porcentaje = Mathf.RoundToInt(notaFinal / 10f * 100f),
-                tiempo = Mathf.RoundToInt(r.totalTimeSeconds), errores = r.totalErrors,
-                notaFinal = notaFinal
-            },
-            records = Array.ConvertAll(recs ?? Array.Empty<LevelRecordDto>(), x => new SheetsReto
-            {
-                reto = x.levelName, tiempo = Mathf.RoundToInt(x.timeSeconds),
-                errores = x.errors, exito = x.success ? 1 : 0, evaluacion = x.evaluation,
-                tipos = TiposInline(x.errorTypes), nota = x.nota
-            })
-        };
-
-        yield return PostPayload(payload);
+        // BUG REAL 2026-07-25 (reportado: "la telemetría no llega a la base de datos al completar
+        // cada reto por separado" — reproducible en TODOS los retos, no intermitente): este handler
+        // y PerformanceTracker.HandleLevelCompleted están suscritos AMBOS a GameManager.OnLevelCompleted,
+        // y C# invoca un evento multicast en el orden de suscripción. SessionDataExporter se crea
+        // dinámicamente en DashboardBootstrap vía RuntimeInitializeOnLoadMethod(AfterSceneLoad) — su
+        // OnEnable (donde se suscribe) corre DURANTE esa fase, que la documentación de Unity ubica
+        // justo después de Awake+OnEnable de los objetos de escena pero ANTES de que corra el Start()
+        // de ningún MonoBehaviour de escena. PerformanceTracker se suscribe en su propio Start() (no
+        // OnEnable) — así que, en cualquier partida real, SessionDataExporter queda suscrito ANTES
+        // que PerformanceTracker. Resultado: cada vez que GameManager dispara OnLevelCompleted, ESTE
+        // método corría primero y el registro que busca en PerformanceTracker.GetAllRecords() todavía
+        // no existía (lo agrega PerformanceTracker.HandleLevelCompleted, que corre después, en el
+        // MISMO despacho síncrono del evento) → "no encontré el registro... se omite este envío" en
+        // TODOS los retos, siempre, sin importar la red/Supabase.
+        //
+        // Fix: no depender del orden de suscripción de un evento compartido. Diferir la búsqueda del
+        // registro un frame (o unos pocos, por margen) con una coroutine — para entonces el despacho
+        // síncrono original del evento (con TODOS sus suscriptores, incluido PerformanceTracker) ya
+        // terminó hace rato, así que el registro siempre está ahí.
+        StartCoroutine(BuscarYEnviarRetoDiferido(level));
     }
 
-    /// <summary>PRUEBA: sube una fila de test a la hoja al instante (tecla F8 en Play), para verificar
-    /// la conexión a Google Sheets SIN tener que completar una sesión real.</summary>
-    public IEnumerator SubirPrueba()
+    IEnumerator BuscarYEnviarRetoDiferido(LevelType level)
     {
-        var payload = new SheetsPayload
+        const int MAX_FRAMES_ESPERA = 5; // margen de sobra: 1 frame ya alcanza en el caso normal
+
+        for (int intento = 0; intento < MAX_FRAMES_ESPERA; intento++)
         {
-            token   = sheetsToken,
-            session = new SheetsSesion
+            yield return null; // esperar al siguiente frame
+
+            var tracker = FindAnyObjectByType<PerformanceTracker>(FindObjectsInactive.Include);
+            if (tracker == null) continue;
+
+            var records = tracker.GetAllRecords();
+            LevelRecord? rec = null;
+            for (int i = records.Count - 1; i >= 0; i--)
+                if (records[i].level == level) { rec = records[i]; break; }
+
+            if (rec != null)
             {
-                fecha = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
-                grupo = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo,
-                codigo = "TEST", evaluacion = "[PRUEBA]",
-                score = 9, scoreMax = 10, porcentaje = 90, tiempo = 0, errores = 0,
-                notaFinal = 9.0f
-            },
-            records = new[]
-            {
-                new SheetsReto { reto = "Reto 1 — PRUEBA", tiempo = 42, errores = 1, exito = 1,
-                                 evaluacion = "[PRUEBA]", tipos = "Cortocircuito:1", nota = 9.0f }
+                EnviarUnRetoASupabase(rec.Value);
+                yield break;
             }
+        }
+
+        Debug.LogWarning($"[SessionDataExporter] HandleLevelCompletedForSupabase: no encontré el " +
+                          $"registro de {LevelName(level)} en PerformanceTracker tras {MAX_FRAMES_ESPERA} " +
+                          "frames de espera — se omite este envío (¿PerformanceTracker no está en la escena?).");
+    }
+
+    /// <summary>Construye el payload de UN reto y lo envía a Supabase (si AnalyticsManager está disponible).</summary>
+    void EnviarUnRetoASupabase(LevelRecord rec)
+    {
+        if (AnalyticsManager.Instance == null)
+        {
+            Debug.LogWarning($"[SessionDataExporter] No se pudo enviar {LevelName(rec.level)} a Supabase: " +
+                              "AnalyticsManager.Instance es null (¿no se instanció en DashboardBootstrap?).");
+            return;
+        }
+
+        // Extraer contadores de errores del breakdown del tracker
+        int cortocircuitos = 0;
+        int sobrecorriente = 0;
+        int polaridadInvertida = 0;
+
+        if (rec.errorTypes != null)
+        {
+            foreach (var tag in rec.errorTypes)
+            {
+                string tipoLower = (tag.tipo ?? "").ToLower();
+                if (tipoLower.Contains("corto")) cortocircuitos += tag.count;
+                else if (tipoLower.Contains("potencia") || tipoLower.Contains("sobrecarga") || tipoLower.Contains("watt")) sobrecorriente += tag.count;
+                else if (tipoLower.Contains("polaridad") || tipoLower.Contains("invertida")) polaridadInvertida += tag.count;
+            }
+        }
+
+        // Mapear el nivel de Unity al ID entero del reto (1 al 4)
+        string nombreReto = LevelName(rec.level);
+        int retoIdInt = nombreReto.Contains("1") ? 1 :
+                        nombreReto.Contains("2") ? 2 :
+                        nombreReto.Contains("3") ? 3 : 4;
+
+        // Crear el Payload exacto que pide la tabla 'telemetria_estudiantes'.
+        // sesion_id / nombre_clase: vienen de AnalyticsManager.idSesionActual/nombreClaseActual,
+        // resueltos por ValidarCodigoSesion contra sesiones_config (ver RoomCodeEntryUI.CrearSala).
+        // Si el docente no escribió un código que coincida con ninguna clase creada, nombreClaseActual
+        // ya trae su propio default ("Modo Práctica Libre") — antes este campo iba quemado como
+        // "[CLASE DE PRUEBA]" sin importar si se había validado una sesión real o no.
+        var payloadSupabase = new AnalyticsManager.TelemetriaPayload
+        {
+            sesion_id = AnalyticsManager.Instance.idSesionActual,
+            nombre_clase = AnalyticsManager.Instance.nombreClaseActual,
+            grupo_estudiantes = string.IsNullOrEmpty(grupo) ? SystemInfo.deviceName : grupo,
+            reto_id = retoIdInt,
+
+            tiempo_resolucion_seg = Mathf.RoundToInt(rec.timeSeconds),
+            completado = rec.success,
+            nota_autograder = rec.nota,
+
+            cant_cortocircuitos = cortocircuitos,
+            cant_sobrecorriente = sobrecorriente,
+            cant_polaridad_invertida = polaridadInvertida,
+
+            fallos_compilacion_ide = 0,
+            desconexiones_logica_fisica = 0,
+            rechazos_componentes = rec.errors
         };
-        Debug.Log("[SessionDataExporter] F8: enviando fila de PRUEBA a Google Sheets...");
-        yield return PostPayload(payload);
-    }
 
-    IEnumerator PostPayload(SheetsPayload payload)
-    {
-        if (string.IsNullOrEmpty(webhookUrl))
-        {
-            Debug.LogWarning("[SessionDataExporter] webhookUrl vacío: configura SHEETS_URL en DashboardBootstrap.");
-            yield break;
-        }
-        byte[] body = System.Text.Encoding.UTF8.GetBytes(JsonUtility.ToJson(payload));
-        using (var req = new UnityWebRequest(webhookUrl, "POST"))
-        {
-            req.uploadHandler   = new UploadHandlerRaw(body);
-            req.downloadHandler = new DownloadHandlerBuffer();
-            req.SetRequestHeader("Content-Type", "application/json");
-            req.redirectLimit = 5;    // Apps Script responde con 302 → hay que seguir el redirect
-            req.timeout       = 15;
-            yield return req.SendWebRequest();
-
-            // Apps Script SIEMPRE responde HTTP 200 (incluso 'unauthorized' o 'error: …'), así
-            // que el éxito real hay que leerlo del CUERPO: solo "ok" cuenta como subido.
-            string cuerpo = req.downloadHandler != null ? (req.downloadHandler.text ?? "").Trim() : "";
-            bool ok = req.result == UnityWebRequest.Result.Success && cuerpo == "ok";
-            if (ok)
-                Debug.Log("[SessionDataExporter] Subido a Google Sheets: ok");
-            else if (req.result == UnityWebRequest.Result.Success)
-                Debug.LogWarning($"[SessionDataExporter] Sheets RECHAZÓ el envío: '{cuerpo}' " +
-                                 "(¿token distinto entre Unity y el Apps Script?). Respaldo local intacto.");
-            else
-                Debug.LogWarning($"[SessionDataExporter] No se pudo subir a Sheets: {req.error}. " +
-                                 "El respaldo local (JSON/CSV) está intacto.");
-        }
-        SubidaEnCurso = false;
-    }
-
-    // "cortocircuito:2;polaridad:1" — desglose de errores en una celda.
-    static string TiposInline(ErrorTagCount[] arr)
-    {
-        if (arr == null || arr.Length == 0) return "";
-        var parts = new string[arr.Length];
-        for (int i = 0; i < arr.Length; i++) parts[i] = arr[i].tipo + ":" + arr[i].count;
-        return string.Join(";", parts);
+        AnalyticsManager.Instance.EnviarMetricas(payloadSupabase);
+        Debug.Log($"[SessionDataExporter] {nombreReto} enviado a Supabase " +
+                  $"(nota={rec.nota}, tiempo={rec.timeSeconds:F0}s, exito={rec.success}).");
     }
 
     // ─────────────────────────────────────────────
@@ -442,6 +473,8 @@ public class LevelRecordDto
     public bool           success;
     public string         evaluation = "";
     public ErrorTagCount[] errorTypes = Array.Empty<ErrorTagCount>();
+    /// <summary>Mensajes descriptivos de cada error ("no llega a GND", "R muy baja → corto"...).</summary>
+    public string[]       detalles   = Array.Empty<string>();
     /// <summary>Nota 0–10 del reto (5 pts tiempo + 5 pts errores).</summary>
     public float          nota;
 
@@ -454,6 +487,7 @@ public class LevelRecordDto
         success     = r.success;
         evaluation  = r.evaluation;
         errorTypes  = r.errorTypes ?? Array.Empty<ErrorTagCount>();
+        detalles    = r.detalles   ?? Array.Empty<string>();
         nota        = r.nota;
     }
 }
@@ -471,6 +505,7 @@ public class SessionLiveData
     public float            currentTimeSeconds;     // tiempo en el reto en curso
     public int              currentErrors;          // errores en el reto en curso
     public ErrorTagCount[]  currentErrorTypes   = Array.Empty<ErrorTagCount>();
+    public string[]         currentErrorDetails = Array.Empty<string>();   // "qué pasó" de cada error
     public int              retosCompletados;
     public LevelRecordDto[] completedRecords    = Array.Empty<LevelRecordDto>();
     public bool             exploradorConectado;

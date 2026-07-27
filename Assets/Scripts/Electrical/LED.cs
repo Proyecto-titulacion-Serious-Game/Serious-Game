@@ -207,7 +207,6 @@ public class LED : ElectricalComponent
     {
         if (nodeA == null || nodeB == null) return;
 
-        // Mientras se sostiene el LED, no parpadear: estado estable apagado.
         if (IsHeld)
         {
             current = 0f; voltageDrop = 0f; isOn = false; _lit01 = 0f;
@@ -217,41 +216,31 @@ public class LED : ElectricalComponent
 
         if (resistance <= 0f)
         {
-            current     = 0f;
-            voltageDrop = 0f;
-            isOn        = false;
-            _lit01      = 0f;
+            current = 0f; voltageDrop = 0f; isOn = false; _lit01 = 0f;
             SetState(LEDState.Off);
             return;
         }
 
         float voltageDiff = nodeA.voltage - nodeB.voltage;
-
-        // Polaridad: si está invertida el voltaje efectivo es negativo
         if (polarityInverted) voltageDiff = -voltageDiff;
 
-        // Sin polaridad directa → LED apagado
-        if (voltageDiff <= 0f)
+        // ⚡ CORRECCIÓN: El diodo NO conduce si el voltaje no supera su Forward Voltage
+        if (voltageDiff <= forwardVoltage)
         {
             current     = 0f;
-            voltageDrop = 0f;
+            voltageDrop = voltageDiff;
             isOn        = false;
             _lit01      = 0f;
             SetState(LEDState.Off);
             return;
         }
 
-        // Ley de Ohm
-        current     = voltageDiff / resistance;
+        // ⚡ CORRECCIÓN: Ley de Ohm real aplicada al LED: I = (V - Vf) / R
+        current     = (voltageDiff - forwardVoltage) / resistance;
         voltageDrop = voltageDiff;
 
-        // Brillo continuo 0..1 (igual fórmula que ApplyResolvedCurrent, usada por el Reto 4) —
-        // antes SOLO se actualizaba ahí, así que un LED "Correcto" de los Retos 1-3 pulsaba
-        // siempre al mínimo (_lit01 nunca subía de 0) sin importar la corriente real: nunca se
-        // veía la diferencia entre un LED recién encendido y uno a corriente plena.
         _lit01 = Mathf.Clamp01(Mathf.Abs(current) / Mathf.Max(1e-4f, maxSafeCurrent));
 
-        // Clasificar estado educativo
         if (current < minOperatingCurrent)
         {
             isOn = false;

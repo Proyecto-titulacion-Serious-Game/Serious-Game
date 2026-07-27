@@ -69,6 +69,11 @@ public class GameManager : MonoBehaviour
     private int   _lastTimerTickSecond = -1; // throttle de OnTimerTick a 1 vez por segundo, ver Update()
     private float _tiempoInicioReto = 0f;
 
+    /// <summary>Segundos tras cargar un reto durante los que se ignora un "0 s restantes" que
+    /// venga del reloj de RED — es el timer EXPIRADO del reto anterior mientras el deadline nuevo
+    /// del Host todavía no se replica al cliente. Ver Update().</summary>
+    private const float GRACIA_TIMER_RED = 3f;
+
     public LevelType currentLevel     => _currentLevel;
     public bool      levelCompleted   => _levelCompleted;
     public float     currentTimeLimit => _currentIndex < timeLimits.Length ? timeLimits[_currentIndex] : 600f;
@@ -221,6 +226,17 @@ public class GameManager : MonoBehaviour
             gsTimer.IniciarTimerReto(_remainingTime);
 
         float? restanteRed = enRed ? gsTimer.TiempoRestanteReto() : null;
+
+        // GUARDA DE CARRERA AL CAMBIAR DE RETO: el cliente carga el reto nuevo por RPC_CambiarReto
+        // ANTES de que el deadline nuevo del Host se replique en RetoTimer. En esa ventana
+        // TiempoRestanteReto() todavía devuelve 0 — el timer EXPIRADO del reto anterior
+        // (TickTimer.Expired → 0f) — así que el reto recién cargado nacía con 0:00 y se daba por
+        // agotado en su primer Update(). Durante los primeros segundos de un reto se ignora un 0
+        // que viene de red y se cuenta local hasta que llegue el deadline nuevo.
+        if (restanteRed != null && restanteRed.Value <= 0f &&
+            Time.time - _tiempoInicioReto < GRACIA_TIMER_RED)
+            restanteRed = null;
+
         if (restanteRed != null) _remainingTime  = restanteRed.Value;
         else                     _remainingTime -= Time.deltaTime;
 
@@ -237,10 +253,19 @@ public class GameManager : MonoBehaviour
 
         if (_remainingTime <= 0f)
         {
+            // El tiempo del reto es de REFERENCIA, no un límite duro: al agotarse solo se avisa
+            // (OnTimerExpired) y la nota baja sola — PerformanceTracker.CalcularNota10 usa el
+            // tiempo REAL transcurrido y su factor de tiempo ya cae a 0 al pasar el límite.
+            // Antes acá se llamaba CompleteLevel(false), que cerraba el reto como FALLO aunque el
+            // equipo estuviera a punto de resolverlo (y, en red, arrastraba al reto siguiente por
+            // la carrera del RetoTimer — ver la guarda de arriba). El reto sigue jugable: lo
+            // completa el auto-chequeo normal (CumpleVictoriaRetos123 / validación del sandbox)
+            // cuando el equipo realmente lo resuelva.
+            // _remainingTime se congela en 0 (la ventana de referencia se acabó); el tiempo real
+            // de sobra lo mide PerformanceTracker.GetTime(), que sigue corriendo aparte.
             _remainingTime = 0f;
             _timerActive   = false;
             OnTimerExpired?.Invoke(_currentLevel);
-            CompleteLevel(false);
         }
     }
 
@@ -270,14 +295,15 @@ public class GameManager : MonoBehaviour
     {
         _wrongAttempts++;
         string categoria = ClasificarError();
-        performance?.AddError(categoria);
+        string detalle   = DescribirError(categoria, reason);
+        performance?.AddError(categoria, detalle);
 
         // Si este proceso es un CLIENTE (Explorador), reenviar el error al Host: su tracker es el
         // que alimenta el dashboard localhost y la subida a Sheets — sin esto, el docente veía
         // "0 errores" aunque el Explorador se hubiera equivocado (p.ej. LED con polaridad invertida).
         var gsErr = GameSession.Instance;
         if (gsErr != null && gsErr.Object != null && gsErr.Object.IsValid && !gsErr.Object.HasStateAuthority)
-            gsErr.RPC_RegistrarErrorRemoto(categoria);
+            gsErr.RPC_RegistrarErrorRemoto(categoria, detalle);
 
         Debug.Log($"[GameManager] Intento incorrecto #{_wrongAttempts} [{categoria}]: {reason}");
 
@@ -290,6 +316,30 @@ public class GameManager : MonoBehaviour
     /// circuito y las fallas presentes. Alimenta el desglose "tipo de errores" del dashboard
     /// docente (categorías del documento: cortocircuito, polaridad, valor, voltaje, abierto, sobrecarga).
     /// </summary>
+    /// <summary>
+    /// Explicación humana del error para la columna "Qué pasó" del dashboard docente.
+    /// En el Reto 4 el validador del sandbox ya dice exactamente qué pasó ("el circuito no
+    /// llega a GND", "LED invertido"...) → se usa ese mensaje tal cual; en los Retos 1-3 se
+    /// traduce la categoría a una frase entendible por el docente/estudiante.
+    /// </summary>
+    string DescribirError(string categoria, string reason)
+    {
+        if (_currentLevel == LevelType.Arduino && !string.IsNullOrEmpty(reason))
+            return reason;
+
+        switch (categoria)
+        {
+            case "Cortocircuito":        return "Cortocircuito: la resistencia del circuito quedó demasiado baja y la corriente se disparó.";
+            case "Polaridad":            return "Un LED o capacitor está conectado con la polaridad invertida.";
+            case "Valor de resistencia": return "La resistencia instalada no es el valor que el circuito necesita.";
+            case "Voltaje de fuente":    return "La fuente de voltaje tiene una falla.";
+            case "Conexión abierta":     return "El circuito no cierra: hay un cable o componente desconectado.";
+            case "Conexión/pin":         return "El cableado físico no corresponde al pin que usa el código.";
+            case "Sobrecarga":           return "Corriente excesiva: un componente recibe más de lo que soporta.";
+            default: return string.IsNullOrEmpty(reason) ? "Intento de validación incorrecto." : reason;
+        }
+    }
+
     string ClasificarError()
     {
         // Reto 4 (sandbox): clasificar por el mensaje de validación.
@@ -554,8 +604,8 @@ public class GameManager : MonoBehaviour
         if (_lastSandboxResult.success && !resistenciaMedida)
         {
             motivo = "Circuito correcto, pero falta medir la resistencia del resistor con el " +
-                     "multimetro en modo OHMS antes de validar. (Sosten el multimetro y APRIETA " +
-                     "EL JOYSTICK de esa mano para cambiar de modo.)";
+                     "multimetro en modo OHMS antes de validar. (Presiona el boton fisico del panel " +
+                     "del multimetro para cambiar de modo, y acerca la punta a un nodo o slot.)";
         }
         else
         {
@@ -675,6 +725,16 @@ public class GameManager : MonoBehaviour
         CompleteLevel(true);
     }
 
+    /// <summary>Host-autoritativo: aplica el resultado REAL (éxito o fallo/timeout) que ya se
+    /// evaluó en el cliente que realmente jugó el reto — a diferencia de DebugCompleteCurrentLevel
+    /// (que siempre fuerza éxito, para el atajo F4), esto sincroniza también un timeout para que
+    /// el Host no se quede esperando un reto que el cliente ya dio por terminado.</summary>
+    public void CompleteLevelFromNetwork(bool success)
+    {
+        _debugMode = true;
+        CompleteLevel(success);
+    }
+
     // ─────────────────────────────────────────────
     //  Gestión de Zonas
     // ─────────────────────────────────────────────
@@ -685,6 +745,15 @@ public class GameManager : MonoBehaviour
         if (reto3Zone != null) reto3Zone.SetActive(level == LevelType.Mixed);
         if (reto4Zone != null) reto4Zone.SetActive(level == LevelType.Arduino);
         if (pcArduino  != null) pcArduino.SetActive(level == LevelType.Arduino);
+
+        // Panel de medición fijo (2026-07-24, "Panel de Medición"): hay UN multímetro por
+        // Reto_Zone, hijo de esa zona — solo el de la zona recién activada queda activeInHierarchy.
+        // Re-resolver acá después del SetActive de arriba mantiene 'multimeter' apuntando siempre
+        // al panel correcto (lo usan CumpleVictoriaRetos1/EvaluarReto4 más abajo); si queda
+        // apuntando al de una zona ya desactivada, measuredVoltage se congela y esas victorias
+        // dejan de poder cumplirse.
+        if (multimeter == null || !multimeter.gameObject.activeInHierarchy)
+            multimeter = FindAnyObjectByType<Multimeter>();
 
         switch (level)
         {
@@ -782,10 +851,14 @@ public class GameManager : MonoBehaviour
         OnLevelCompleted?.Invoke(_currentLevel, success);
         OnZoneTransitionStart?.Invoke(_currentLevel, success);
 
-        // ONLINE: si quien completó es el CLIENTE (Explorador)...
+        // ONLINE: si quien completó es el CLIENTE (Explorador), avisar al Host para que sincronice
+        // el avance en AMBOS lados — antes solo se avisaba "if (success)": un timeout del reto en
+        // el Explorador (CompleteLevel(false) por el timer) nunca llegaba al Host, que se quedaba
+        // esperando ese reto para siempre mientras el Explorador ya había avanzado/terminado solo
+        // (bug real reportado: "no apareció juego finalizado ni en el técnico ni en el explorador").
         var gs = GameSession.Instance;
-        if (success && gs != null && gs.Object != null && gs.Object.IsValid && !gs.Object.HasStateAuthority)
-            gs.RPC_SolicitarCompletarReto();
+        if (gs != null && gs.Object != null && gs.Object.IsValid && !gs.Object.HasStateAuthority)
+            gs.RPC_SolicitarCompletarReto(success);
 
         StartCoroutine(TransitionToNextLevel());
     }

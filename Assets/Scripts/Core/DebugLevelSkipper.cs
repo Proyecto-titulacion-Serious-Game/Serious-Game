@@ -111,7 +111,7 @@ public class DebugLevelSkipper : MonoBehaviour
         if (enRed && !gs.Object.HasStateAuthority)
         {
             Debug.Log("[DEBUG] F4: pidiendo al Host completar el reto actual (como ganado)...");
-            gs.RPC_SolicitarCompletarReto();
+            gs.RPC_SolicitarCompletarReto(true);
             return;
         }
 

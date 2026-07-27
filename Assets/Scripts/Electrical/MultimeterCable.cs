@@ -27,10 +27,16 @@ public class MultimeterCable : MonoBehaviour
     public Rigidbody probeRigidbody;
 
     [Header("Cable")]
-    [Min(0.1f)]          public float maxCableLength = 0.6f;
+    [Min(0.1f)]          public float maxCableLength = 0.85f;
     [Range(6, 32)]       public int   segments       = 16;
     [Range(0.001f, 0.015f)] public float cableWidth  = 0.003f;
     [Range(0f, 0.3f)]    public float sagAmount      = 0.08f;
+
+    [Header("Resorte (estirón progresivo)")]
+    [Tooltip("Rigidez del resorte al llegar a maxCableLength. Más bajo = estirón más suave/progresivo; " +
+             "más alto = tope más duro y abrupto.")]
+    public float springForce = 350f;
+    public float springDamper = 12f;
 
     [Header("Reposo")]
     [Tooltip("Offset en WORLD SPACE desde anchorPoint donde descansa la punta al soltarla. " +
@@ -83,8 +89,8 @@ public class MultimeterCable : MonoBehaviour
         sj.anchor      = Vector3.zero;
         sj.minDistance = 0f;
         sj.maxDistance = maxCableLength;
-        sj.spring      = 600f;
-        sj.damper      = 12f;
+        sj.spring      = springForce;
+        sj.damper      = springDamper;
         sj.tolerance   = 0.005f;
         sj.enableCollision = false;
     }

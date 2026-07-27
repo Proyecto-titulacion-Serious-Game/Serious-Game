@@ -25,7 +25,7 @@ public class InteractableResistor : MonoBehaviour
     void OnEnable()  => _interactable.selectEntered.AddListener(OnActivated);
     void OnDisable() => _interactable.selectEntered.RemoveListener(OnActivated);
 
-    void OnActivated(SelectEnterEventArgs _)
+void OnActivated(SelectEnterEventArgs _)
     {
         if (resistor == null)
         {
@@ -35,7 +35,9 @@ public class InteractableResistor : MonoBehaviour
 
         _index = (_index + 1) % values.Length;
         resistor.resistance = values[_index];
-        GetComponentInParent<CircuitManager>()?.MarkDirty();
+        
+        // ✅ NUEVO: Avisamos al motor global que la resistencia cambió
+        CircuitGraphAnalyzer.OnCircuitChanged?.Invoke();
 
         Debug.Log($"[InteractableResistor] Nueva resistencia: {resistor.resistance} Ω");
     }

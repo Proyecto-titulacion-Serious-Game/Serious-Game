@@ -18,7 +18,7 @@ Material:
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: 2000
   stringTagMap:
-    RenderType: TransparentCutout
+    RenderType: Opaque
   disabledShaderPasses:
   - MOTIONVECTORS
   m_LockedProperties: 
@@ -28,11 +28,12 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaClip: 0
+    - _AlphaToMask: 0
     - _Glossiness: 1
     - _Smoothness: 1
     m_Colors:
     - _BaseColor: {r: 0.039215688, g: 0.1019607, b: 0.05882346, a: 1}
-    - _Color: {r: 0.039215688, g: 0.101960726, b: 0.05882348, a: 1}
+    - _Color: {r: 0.039215688, g: 0.10196067, b: 0.058823436, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
 --- !u!114 &8718880053160739164

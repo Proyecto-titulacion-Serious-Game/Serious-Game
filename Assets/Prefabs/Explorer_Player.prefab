@@ -272,13 +272,17 @@ MonoBehaviour:
   enableSnapTurn: 1
   turnSpeed: 90
   turnDeadzone: 0.15
+  turnSpeedStep: 15
   giroJoystickIzquierdo: 0
   snapTurnAngle: 45
   snapTurnThreshold: 0.5
+  rotarObjetoEnMano: 1
+  velocidadRotarObjeto: 180
   katSerialNumber: 
   katSpeedMultiplier: 1.8
   katYawOffset: 0
   katAutoCalibDelay: 1
+  katViaRed: 0
   xrRig: {fileID: 924104108446896422}
   headCamera: {fileID: 1946809961227520127}
   characterController: {fileID: 0}
@@ -321,6 +325,7 @@ MonoBehaviour:
   strongIntensity: 1
   chalecoEnabled: 0
   maxCurrentForHaptic: 0.1
+  testCurrentValue: 0.05
 --- !u!114 &5656501356997195751
 MonoBehaviour:
   m_ObjectHideFlags: 0

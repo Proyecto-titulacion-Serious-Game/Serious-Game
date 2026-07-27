@@ -1,89 +1,77 @@
 using UnityEngine;
 
 /// <summary>
-/// Simula un pin del Arduino para el Reto 4.
-/// Permite fallas: pin incorrecto y cable suelto en la protoboard.
+/// Representa un Pin de salida del Arduino para el Reto 4.
+/// Actúa como fuente de voltaje dinámica (soporta PWM).
 /// </summary>
 public class ArduinoPin : ElectricalComponent
 {
-    // ─────────────────────────────────────────────
-    //  Inspector
-    // ─────────────────────────────────────────────
-    [Header("Configuración del pin")]
-    [Tooltip("Número de pin en el Arduino (educativo).")]
-    public int  pinNumber         = 0;
-    public int  correctPinNumber  = 2;   // Pin correcto según el diagrama del Técnico
-    public bool isDigital         = true;
+    [Header("Configuración del Pin")]
+    public int pinNumber;
+    public int correctPinNumber = 4; // El pin objetivo del Reto 4
+    public bool hasFault = false;
+    public bool hasLooseCable = false;
 
-    [Header("Estado de fallas")]
-    public bool hasFault      = false;   // Pin incorrecto
-    public bool hasLooseCable = false;   // Cable suelto en protoboard
+    [Header("Salida Eléctrica")]
+    [Tooltip("Voltaje real que está entregando el pin en este instante")]
+    public float pinVoltage = 0.0f; 
 
-    [Header("Señal")]
-    [Range(0f, 5f)]
-    public float signalVoltage = 0f;     // 0V = LOW, 5V = HIGH
-
-    // ─────────────────────────────────────────────
-    //  ElectricalComponent
-    // ─────────────────────────────────────────────
     public override float GetResistance()
     {
-        // Pin incorrecto o cable suelto = circuito abierto
-        return (hasLooseCable || hasFault) ? 1_000_000f : 10f;
+        // Un pin activo tiene resistencia interna casi nula.
+        // Si el cable está suelto o quemado, se abre el circuito.
+        return (hasLooseCable || isOpenCircuit) ? 1_000_000f : 0.1f;
     }
 
     public override void Calculate()
     {
         if (nodeA == null || nodeB == null) return;
 
-        // Sin señal si hay falla de cable o pin incorrecto
-        if (hasLooseCable || hasFault)
-        {
-            current     = 0f;
-            voltageDrop = 0f;
-            signalVoltage = 0f;
-            return;
-        }
-
-        signalVoltage = nodeA.voltage;
+        // La corriente fluirá en base a la resistencia que tenga el resto del circuito.
         float voltageDiff = nodeA.voltage - nodeB.voltage;
-        current     = voltageDiff / GetResistance();
+        current = (hasLooseCable || isOpenCircuit) ? 0f : voltageDiff / GetResistance();
         voltageDrop = voltageDiff;
     }
 
-    // ─────────────────────────────────────────────
-    //  API de juego
-    // ─────────────────────────────────────────────
-
-    /// <summary>Aplica falla: pone el pin en número incorrecto.</summary>
-    public void ApplyFault()
+    // ⚡ NUEVO: Mapeo de señal PWM a voltaje físico (0-255 a 0V-5V)
+    // Invocar este método desde ArduinoCore o ArduinoNetworkBridge
+    public void SetPwmOutput(int pwmValue)
     {
-        hasFault  = true;
-        // Poner en un pin incorrecto
-        pinNumber = correctPinNumber == 2 ? 4 : 2;
+        // 1. Limitar el valor a resolución de 8 bits
+        pwmValue = Mathf.Clamp(pwmValue, 0, 255);
+        
+        // 2. Mapeo lineal
+        float effectiveVoltage = 5.0f * (pwmValue / 255.0f);
+        
+        // 3. Aplicar voltaje al pin
+        this.pinVoltage = effectiveVoltage;
+        
+        // Si el pin está inyectando voltaje en el nodo A del circuito
+        if (nodeA != null) 
+        {
+            nodeA.voltage = this.pinVoltage;
+        }
+
+        // Forzar actualización física del circuito
+        var circuit = GetComponentInParent<CircuitManager>();
+        if (circuit != null) circuit.MarkDirty();
     }
 
-    /// <summary>Repara el pin al número correcto.</summary>
-    public void RepairPin(int proposedPin)
+    // Interacciones desde PlayerInteraction.cs
+    public void RepairPin(int selectedPinNumber)
     {
-        if (proposedPin == correctPinNumber)
-        {
-            pinNumber = correctPinNumber;
-            hasFault  = false;
-            Debug.Log($"[ArduinoPin] Pin {correctPinNumber} conectado correctamente.");
-        }
-        else
-        {
-            Debug.Log($"[ArduinoPin] Pin {proposedPin} incorrecto. Correcto: {correctPinNumber}.");
-        }
+        pinNumber = selectedPinNumber;
+        hasFault = (pinNumber != correctPinNumber);
+        
+        var circuit = GetComponentInParent<CircuitManager>();
+        if (circuit != null) circuit.MarkDirty();
     }
 
-    /// <summary>Conecta el cable suelto.</summary>
     public void FixLooseCable()
     {
         hasLooseCable = false;
-        Debug.Log("[ArduinoPin] Cable reconectado en la protoboard.");
+        
+        var circuit = GetComponentInParent<CircuitManager>();
+        if (circuit != null) circuit.MarkDirty();
     }
-
-    public bool IsFullyOperational() => !hasFault && !hasLooseCable;
 }

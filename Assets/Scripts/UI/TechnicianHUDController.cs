@@ -41,7 +41,7 @@ public class TechnicianHUDController : MonoBehaviour
         GameManager.OnTimerExpired        += OnTimerExpired;
         GameManager.OnZoneTransitionStart += OnZoneTransitionStart;
         GameManager.OnZoneActivated       += OnZoneActivated;
-        GameManager.OnGameCompleted       += OnGameCompleted;
+        ObjectiveSystem.OnSessionEnded    += OnSessionEnded;
     }
 
     void OnDisable()
@@ -51,7 +51,7 @@ public class TechnicianHUDController : MonoBehaviour
         GameManager.OnTimerExpired        -= OnTimerExpired;
         GameManager.OnZoneTransitionStart -= OnZoneTransitionStart;
         GameManager.OnZoneActivated       -= OnZoneActivated;
-        GameManager.OnGameCompleted       -= OnGameCompleted;
+        ObjectiveSystem.OnSessionEnded    -= OnSessionEnded;
     }
 
     void Start()
@@ -90,9 +90,21 @@ public class TechnicianHUDController : MonoBehaviour
         txtTimer.color = remaining < 60f ? new Color(1f, 0.3f, 0.3f) : Color.white;
     }
 
+    /// <summary>
+    /// El tiempo del reto es de REFERENCIA: desde 2026-07-26 <c>GameManager</c> ya NO llama
+    /// <c>CompleteLevel(false)</c> al agotarse, así que el reto sigue jugable y solo baja la nota.
+    /// El HUD lo dice en ámbar ("sigan"), no en rojo de fracaso: antes esto quedaba en "0:00" rojo
+    /// justo cuando el reto se cerraba solo, y el equipo lo leía como "perdimos".
+    /// </summary>
     void OnTimerExpired(LevelType _)
     {
-        if (txtTimer != null) { txtTimer.text = "0:00"; txtTimer.color = Color.red; }
+        if (txtTimer != null)
+        {
+            txtTimer.text  = "0:00 EXTRA";
+            txtTimer.color = new Color(1f, 0.7f, 0.2f);   // ámbar: aviso, no fracaso
+        }
+        if (txtTransicionSub != null && panelTransicion != null && panelTransicion.activeSelf)
+            txtTransicionSub.text = "Tiempo de referencia agotado — pueden seguir; solo baja la nota.";
     }
 
     void OnZoneTransitionStart(LevelType level, bool success)
@@ -121,12 +133,20 @@ public class TechnicianHUDController : MonoBehaviour
         // El panel de transición se oculta cuando el nuevo nivel ya cargó (OnLevelLoaded)
     }
 
-    /// <summary>Se completaron los 4 retos: felicitación final en la pantalla del Técnico.</summary>
-    void OnGameCompleted()
+    /// <summary>
+    /// Fin de la sesión (los 4 retos, o corte por tiempo/salida manual): pantalla final en el
+    /// Técnico con el resultado REAL, no un "misión cumplida" fijo. Antes se colgaba de
+    /// GameManager.OnGameCompleted (sin datos) y SIEMPRE mostraba el mismo texto de victoria,
+    /// incluso cuando un reto terminó por timeout (bug real reportado: el Reto 4 "desaparecía"
+    /// por timeout y ni el Técnico ni el Explorador veían un cierre claro de qué pasó).
+    /// </summary>
+    void OnSessionEnded(SessionResult result)
     {
         if (panelTransicion != null) panelTransicion.SetActive(true);
-        if (txtTransicionTitulo != null) txtTransicionTitulo.text = "¡MISIÓN CUMPLIDA!";
+        bool exito = result.evaluation.StartsWith("[EXCELENTE]") || result.evaluation.StartsWith("[BUENO]");
+        if (txtTransicionTitulo != null)
+            txtTransicionTitulo.text = exito ? "¡MISIÓN CUMPLIDA!" : "SESIÓN TERMINADA";
         if (txtTransicionSub != null)
-            txtTransicionSub.text = "Completaron los 4 retos en equipo. ¡Excelente trabajo, técnico y explorador!";
+            txtTransicionSub.text = $"{result.evaluation} — {Mathf.RoundToInt(result.scorePercent * 100f)}% del puntaje total.";
     }
 }

@@ -29,6 +29,11 @@ public class PerformanceTracker : MonoBehaviour
     // Desglose de errores por tipo (categoría) del reto en curso. Se reinicia por reto.
     private readonly Dictionary<string, int> _errorsByType = new Dictionary<string, int>();
 
+    // Mensajes DESCRIPTIVOS de cada error del reto en curso ("no llega a GND", "resistencia muy
+    // baja → cortocircuito"...). Alimentan la columna "Qué pasó" del dashboard docente.
+    private readonly List<string> _errorDetails = new List<string>();
+    const int MAX_DETALLES = 30;   // tope: el panel no necesita más y evita crecer sin límite
+
     // Evita el registro DUPLICADO por reto: GameManager.OnLevelCompleted puede dispararse dos veces
     // por la misma compleción (p.ej. con la escena NoonA cargada aditivamente en el Host, o un
     // re-disparo del temporizador). Solo se permite UN registro por cada carga de nivel; un replay
@@ -61,16 +66,22 @@ public class PerformanceTracker : MonoBehaviour
         _currentErrors     = 0;
         _recordedThisLevel = false;
         _errorsByType.Clear();
+        _errorDetails.Clear();
     }
 
-    public void AddError(string errorType = "General")
+    public void AddError(string errorType = "General", string detalle = "")
     {
         _currentErrors++;
         if (string.IsNullOrEmpty(errorType)) errorType = "General";
         _errorsByType.TryGetValue(errorType, out int n);
         _errorsByType[errorType] = n + 1;
-        Debug.Log($"[PerformanceTracker] Error #{_currentErrors} [{errorType}]");
+        if (_errorDetails.Count < MAX_DETALLES)
+            _errorDetails.Add(string.IsNullOrEmpty(detalle) ? errorType : detalle);
+        Debug.Log($"[PerformanceTracker] Error #{_currentErrors} [{errorType}] {detalle}");
     }
+
+    /// <summary>Mensajes descriptivos de los errores del reto en curso (para el dashboard).</summary>
+    public string[] GetErrorDetails() => _errorDetails.ToArray();
 
     /// <summary>Desglose de errores por tipo (categoría) del reto en curso.</summary>
     public ErrorTagCount[] GetErrorBreakdown()
@@ -141,6 +152,7 @@ public class PerformanceTracker : MonoBehaviour
             success    = success,
             evaluation = GetEvaluation(),
             errorTypes = GetErrorBreakdown(),
+            detalles   = GetErrorDetails(),
             nota       = CalcularNota10(t, _currentErrors, success, limite)
         });
     }
@@ -175,6 +187,8 @@ public struct LevelRecord
     public bool            success;
     public string          evaluation;
     public ErrorTagCount[] errorTypes;
+    /// <summary>Mensajes descriptivos de cada error ("no llega a GND", "R muy baja → corto"...).</summary>
+    public string[]        detalles;
     /// <summary>Nota 0–10 del reto (5 pts tiempo + 5 pts errores). Ver PerformanceTracker.CalcularNota10.</summary>
     public float           nota;
 }

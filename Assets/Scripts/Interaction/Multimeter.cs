@@ -1,36 +1,28 @@
 using UnityEngine;
-using UnityEngine.XR;
-using UnityEngine.XR.Interaction.Toolkit;
-using UnityEngine.XR.Interaction.Toolkit.Interactables;
-using UnityEngine.XR.Interaction.Toolkit.Interactors;
 using TMPro;
 
 /// <summary>
-/// Multímetro digital VR para el Explorador.
+/// Multímetro de banco (panel fijo en la pared) para el Explorador.
 ///
 /// FLUJO:
-///   1. Explorador agarra el multímetro (XRGrabInteractable).
-///   2. Apunta el controlador DERECHO al nodo a medir → gatillo → punta roja asignada.
-///   3. Apunta el controlador IZQUIERDO al nodo de referencia → gatillo → punta negra.
-///   4. El display muestra voltaje y corriente en tiempo real.
-///   5. El Técnico lee los mismos valores en TechnicianUIController
+///   1. El cuerpo está fijo en la pared de cada Reto_Zone — no se agarra.
+///   2. El jugador estira las puntas (Rod_Visual, con su propio XRGrabInteractable)
+///      hasta los nodos del circuito. Apunta el controlador DERECHO al nodo a medir
+///      → gatillo → punta roja asignada. Igual con el IZQUIERDO → punta negra.
+///   3. El display muestra voltaje y corriente en tiempo real.
+///   4. El Técnico lee los mismos valores en TechnicianUIController
 ///      mediante las propiedades measuredVoltage / measuredCurrent.
 ///
-/// JERARQUÍA EN UNITY:
-///   Multimeter_VR                   ← este script + XRGrabInteractable + Rigidbody
-///   ├─ Body                         ← Cube (0.06 × 0.12 × 0.02), color gris oscuro
-///   ├─ Indicator_Red                ← Sphere (0.008), color rojo — se ilumina al asignar
-///   ├─ Indicator_Black              ← Sphere (0.008), color negro — se ilumina al asignar
-///   └─ Screen_Canvas                ← Canvas WorldSpace, Scale 0.001
-///       ├─ TMP_Voltage              ← "9.00 V"
-///       ├─ TMP_Current              ← "15.3 mA"
-///       ├─ TMP_Status               ← "MIDIENDO" / "SIN CONTACTO"
-///       └─ TMP_Mode                 ← "DC VOLTAGE"
+/// Un panel por reto (Multimeter_Panel_Art), hijo de cada RetoX_Zone — se activa/
+/// desactiva junto con la zona vía GameManager.LoadLevel(). Los consumidores
+/// (NodeInteractable, MultimeterModeButton, GameManager, etc.) resuelven "el
+/// multímetro activo" con FindAnyObjectByType&lt;Multimeter&gt;() cuando su referencia
+/// serializada es null o quedó apuntando a una instancia inactiva — así que solo
+/// existe UN Multimeter activo a la vez sin código adicional.
 ///
 /// NO necesita MultimeterProbe.cs ni CircuitNode.cs.
 /// Trabaja directamente con ElectricalNode asignado por NodeInteractable.
 /// </summary>
-[RequireComponent(typeof(XRGrabInteractable))]
 public class Multimeter : MonoBehaviour
 {
     // ─────────────────────────────────────────────
@@ -49,10 +41,6 @@ public class Multimeter : MonoBehaviour
 
     [Header("Modo de medición")]
     public MultimeterMode mode = MultimeterMode.DCVoltage;
-
-    [Header("Feedback háptico al asignar nodo")]
-    [Range(0f, 1f)] public float hapticIntensity = 0.3f;
-    public float hapticDuration = 0.08f;
 
     // ─────────────────────────────────────────────
     //  Estado (solo lectura desde inspector)
@@ -95,106 +83,24 @@ public class Multimeter : MonoBehaviour
     public static event System.Action OnReadingTaken;
 
     // ─────────────────────────────────────────────
-    //  XR
-    // ─────────────────────────────────────────────
-    private XRGrabInteractable _grab;
-    private UnityEngine.XR.Interaction.Toolkit.Interactors.IXRSelectInteractor _currentInteractor;
-    private Collider _bodyCollider;
-
-    // ─────────────────────────────────────────────
     //  Unity Lifecycle
     // ─────────────────────────────────────────────
 
     void Awake()
     {
-        _grab = GetComponent<XRGrabInteractable>();
-        _grab.selectEntered.AddListener(OnGrabbed);
-        _grab.selectExited.AddListener(OnReleased);
         _indicatorMpb = new MaterialPropertyBlock();
-
-        // Mismo bug ya documentado y arreglado antes en CableBoxSpawner.RepararInteraccionVR(): un
-        // XRGrabInteractable con la lista 'colliders' VACÍA auto-recolecta TODOS los colliders de sus
-        // hijos (Physics.GetComponentsInChildren), no solo el propio — con las 2 puntas del
-        // multímetro (Probe_Red_Tip/Probe_Black_Tip) colgando como hijos vía Cable_Red/Cable_Black,
-        // el grab del CUERPO del multímetro podía "robarse" el collider de una punta, dejándola sin
-        // poder agarrarse por separado (el reporte: "solo la punta negra se puede agarrar"). Acotar
-        // la lista al collider propio del cuerpo evita la ambigüedad, sin tocar las puntas (que ya
-        // tienen su propio XRGrabInteractable independiente vía MultimeterProbe).
-        _bodyCollider = GetComponent<Collider>();
-        if (_bodyCollider != null)
-        {
-            _grab.colliders.Clear();
-            _grab.colliders.Add(_bodyCollider);
-        }
-    }
-
-    void OnDestroy()
-    {
-        if (_grab == null) return;
-        _grab.selectEntered.RemoveListener(OnGrabbed);
-        _grab.selectExited.RemoveListener(OnReleased);
     }
 
     void Update()
     {
         TakeReading();
         UpdateDisplay();
-        AtenderCambioDeModoPorStick();
     }
 
-    // ─────────────────────────────────────────────
-    //  Cambio de modo con el CLICK del joystick (mano que sostiene)
-    // ─────────────────────────────────────────────
-    //  El botón físico Mode_Button perdía el "duelo de distancias" de XRI contra el grab del
-    //  cuerpo (el pivote del multímetro queda a ~1 cm del botón): al querer presionarlo, la mano
-    //  agarraba el multímetro (reporte real). Como el Reto 4 EXIGE pasar a modo OHMS, hace falta
-    //  un camino que no dependa de puntería: mientras se SOSTIENE el multímetro, apretar el
-    //  JOYSTICK (click del stick) de esa misma mano cicla Voltaje → Corriente → Resistencia.
-    //  (El stick de esa mano no compite con nada: mover/girar usa el stick de la otra o queda
-    //  consumido por la rotación de objeto en mano, que ignora el click.)
-    //  Segundo atajo (más fácil de encontrar que el stick): el GATILLO de la misma mano que
-    //  sostiene el cuerpo también cicla el modo. El agarre del cuerpo usa Grip/Select (no
-    //  Trigger) — igual que MultimeterProbe ya lee el gatillo crudo sin soltar el objeto — así
-    //  que sostener y apretar el gatillo no lo suelta.
-    //  En PCVR/editor también funciona la tecla M como atajo de prueba.
-
-    [Header("Cambio de modo sosteniendo el cuerpo")]
-    [Range(0.1f, 0.95f)] public float triggerModeThreshold = 0.6f;
-
-    private bool _stickClickPrev;
-    private bool _triggerModePrev;
-
-    void AtenderCambioDeModoPorStick()
-    {
-        bool kb = UnityEngine.InputSystem.Keyboard.current != null &&
-                  UnityEngine.InputSystem.Keyboard.current.mKey.wasPressedThisFrame;
-
-        bool click   = false;
-        bool trigger = false;
-        if (_currentInteractor != null)   // solo mientras alguien lo sostiene
-        {
-            XRNode nodo = XRNode.RightHand;
-            if (_currentInteractor is XRBaseInputInteractor input &&
-                input.handedness == InteractorHandedness.Left)
-                nodo = XRNode.LeftHand;
-
-            var dev = InputDevices.GetDeviceAtXRNode(nodo);
-            dev.TryGetFeatureValue(CommonUsages.primary2DAxisClick, out click);
-
-            dev.TryGetFeatureValue(CommonUsages.trigger, out float triggerValue);
-            trigger = triggerValue > triggerModeThreshold;
-        }
-
-        if ((click && !_stickClickPrev) || (trigger && !_triggerModePrev) || kb) CiclarModo();
-        _stickClickPrev  = click;
-        _triggerModePrev = trigger;
-    }
-
-    /// <summary>Cicla Voltaje → Corriente → Resistencia (usado por el stick-click y el botón físico).</summary>
+    /// <summary>Cicla Voltaje → Corriente → Resistencia (usado por Mode_Button).</summary>
     public void CiclarModo()
     {
         SetMode((MultimeterMode)(((int)mode + 1) % 3));
-        SendHaptic();
         Debug.Log($"[Multimeter] Modo → {mode}");
     }
 
@@ -210,7 +116,6 @@ public class Multimeter : MonoBehaviour
         if (node != _nodeRed)
         {
             Debug.Log($"[Multimeter] Punta roja → {node?.gameObject.name} ({node?.voltage:F2}V)");
-            SendHaptic();   // vibrar solo al tocar un nodo NUEVO, no 60 veces/s de contacto
             _nodeRed = node;
             RecomputeBridgeComponent();
         }
@@ -223,7 +128,6 @@ public class Multimeter : MonoBehaviour
         if (node != _nodeBlack)
         {
             Debug.Log($"[Multimeter] Punta negra → {node?.gameObject.name} ({node?.voltage:F2}V)");
-            SendHaptic();
             _nodeBlack = node;
             RecomputeBridgeComponent();
         }
@@ -233,28 +137,94 @@ public class Multimeter : MonoBehaviour
     // ─────────────────────────────────────────────
     //  Componente puente (para lectura de corriente) — cacheado
     // ─────────────────────────────────────────────
-    // TakeReading() corre cada Update() mientras ambas puntas están asignadas (constante
-    // mientras el Explorador sostiene el multímetro en contacto). Antes escaneaba TODA la
-    // escena con FindObjectsByType cada frame para hallar el componente entre las 2 puntas
-    // — costoso en Quest. Ahora se recalcula solo cuando cambia una punta (ver SetRedNode/
+    // TakeReading() corre cada Update() mientras ambas puntas están asignadas. Antes escaneaba
+    // TODA la escena con FindObjectsByType cada frame para hallar el componente entre las 2
+    // puntas — costoso en Quest. Ahora se recalcula solo cuando cambia una punta (ver SetRedNode/
     // SetBlackNode) y TakeReading() reutiliza el resultado cacheado.
     private ElectricalComponent _bridgeComponent;
+
+    // Bug real de playtest (2026-07-26): "el voltaje se ve bien pero CORRIENTE y RESISTENCIA
+    // marcan 0 aunque las 2 puntas estén sobre nodos reales".
+    //
+    // Causa 1 — LA FUENTE NO TIENE CORRIENTE RESUELTA. CircuitManager.ForceSimulate() excluye al
+    //   VoltageSource del MNA (passiveComps) y nunca llama a su Calculate(), así que
+    //   VoltageSource.current queda en 0 PARA SIEMPRE. Los puntos de medición "oficiales" del
+    //   Reto 1 son justamente los bornes de la batería (NP_R1_VCC lleva probeType=Red y
+    //   Node_R1_GND probeType=Black en la escena) → el puente hallado era el Battery_9V → I=0 mA
+    //   y, en modo Resistencia, 0 Ω; el voltaje (que no depende del puente) seguía bien: 9,00 V.
+    // Causa 2 — PAR SIN COMPONENTE EXACTO. Si las puntas abarcan más de un componente (p.ej.
+    //   VCC↔Mid = switch + resistencia) ningún componente tiene ESE par de nodos → puente null →
+    //   I=0 igual.
+    //
+    // Solución: el puente pasivo sigue siendo la lectura preferida (es la corriente que atraviesa
+    // ESE componente), pero cuando no lo hay se cae al circuito que contiene ambos nodos:
+    //   · puntas en los bornes de la fuente → la fuente lleva SIEMPRE la corriente total;
+    //   · circuito SERIE sin puente exacto  → la corriente es la misma en todo el lazo.
+    // Fuera de esos casos (paralelo/mixto sin puente) no se puede saber → 0 A, como antes.
+    private VoltageSource  _bridgeSource;
+    private CircuitManager _bridgeCircuit;
+    private float          _nextBridgeRescan;   // throttle del rescan de escena (ver TakeReading)
 
     void RecomputeBridgeComponent()
     {
         _bridgeComponent = null;
+        _bridgeSource    = null;
+        _bridgeCircuit   = null;
         if (_nodeRed == null || _nodeBlack == null) return;
 
         var allComps = FindObjectsByType<ElectricalComponent>(FindObjectsInactive.Exclude);
         foreach (var comp in allComps)
         {
-            if ((comp.nodeA == _nodeRed && comp.nodeB == _nodeBlack) ||
-                (comp.nodeA == _nodeBlack && comp.nodeB == _nodeRed))
-            {
-                _bridgeComponent = comp;
-                break;
-            }
+            if (comp == null) continue;
+            bool bridges = (comp.nodeA == _nodeRed   && comp.nodeB == _nodeBlack) ||
+                           (comp.nodeA == _nodeBlack && comp.nodeB == _nodeRed);
+            if (!bridges) continue;
+
+            // Preferir SIEMPRE un componente pasivo: la fuente comparte bornes con el resto del
+            // lazo y su 'current' nunca se resuelve (ver nota arriba).
+            if (comp is VoltageSource vs) { if (_bridgeSource == null) _bridgeSource = vs; continue; }
+
+            _bridgeComponent = comp;
+            break;
         }
+
+        if (_bridgeComponent == null)
+            _bridgeCircuit = FindCircuitContaining(_nodeRed, _nodeBlack);
+    }
+
+    /// <summary>CircuitManager activo cuya lista de componentes toca AMBOS nodos probados.</summary>
+    static CircuitManager FindCircuitContaining(ElectricalNode a, ElectricalNode b)
+    {
+        foreach (var cm in FindObjectsByType<CircuitManager>(FindObjectsInactive.Exclude))
+        {
+            if (cm == null || cm.components == null) continue;
+            bool hasA = false, hasB = false;
+            foreach (var c in cm.components)
+            {
+                if (c == null) continue;
+                if (c.nodeA == a || c.nodeB == a) hasA = true;
+                if (c.nodeA == b || c.nodeB == b) hasB = true;
+            }
+            if (hasA && hasB) return cm;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Corriente que el amperímetro debe mostrar entre las 2 puntas. Ver la nota de
+    /// <see cref="RecomputeBridgeComponent"/> para el orden de resolución.
+    /// </summary>
+    float ResolveProbedCurrent()
+    {
+        if (_bridgeComponent != null) return Mathf.Abs(_bridgeComponent.current);
+        if (_bridgeCircuit   == null) return 0f;
+
+        // Bornes de la fuente: la fuente lleva la corriente total del circuito, sea cual sea la
+        // topología. Serie sin puente exacto: la corriente es la misma en todo el lazo.
+        if (_bridgeSource != null || _bridgeCircuit.topology == CircuitTopology.Series)
+            return Mathf.Abs(_bridgeCircuit.totalCurrent);
+
+        return 0f;
     }
 
     // ─────────────────────────────────────────────
@@ -342,8 +312,6 @@ public class Multimeter : MonoBehaviour
         Debug.Log("──────────────────────────────────────────────────");
     }
 
-    /// <summary>Reinicia ambas puntas (llamado por GameManager al cargar nivel).</summary>
-
     /// <summary>Alias de probeA → _nodeRed (compatibilidad con código existente).</summary>
     public ElectricalNode probeA => _nodeRed;
 
@@ -356,11 +324,14 @@ public class Multimeter : MonoBehaviour
     /// <summary>Alias de SetProbeB → SetBlackNode (usado por PlayerInteraction).</summary>
     public void SetProbeB(ElectricalNode node) => SetBlackNode(node);
 
+    /// <summary>Reinicia ambas puntas (llamado por GameManager al cargar nivel).</summary>
     public void ResetProbes()
     {
         _nodeRed   = null;
         _nodeBlack = null;
         _bridgeComponent = null;
+        _bridgeSource    = null;
+        _bridgeCircuit   = null;
         _measuredVoltage = 0f;
         _measuredCurrent = 0f;
         _isReading = false;
@@ -369,11 +340,22 @@ public class Multimeter : MonoBehaviour
         UpdateDisplay();
     }
 
-    /// <summary>Cambia el modo de medición.</summary>
+    /// <summary>
+    /// Cambia el modo de medición SIN soltar las puntas — igual que girar la perilla de un
+    /// multímetro real: los cables siguen donde estaban.
+    ///
+    /// Antes esto llamaba a ResetProbes(), así que pulsar el botón de modo dejaba la pantalla en
+    /// "SIN CONTACTO" hasta que el Explorador volvía a apuntar y gatillar los DOS nodos. Como
+    /// MultimeterProbe solo reasigna en el flanco del gatillo o en un OnTriggerEnter NUEVO, una
+    /// punta ya apoyada no se reasignaba sola: cambiar a CORRIENTE parecía "no funcionar".
+    /// GameManager.LoadLevel() sigue llamando a ResetProbes() al entrar a cada reto.
+    /// </summary>
     public void SetMode(MultimeterMode newMode)
     {
         mode = newMode;
-        ResetProbes();
+        RecomputeBridgeComponent();
+        TakeReading();
+        UpdateDisplay();
     }
 
     // ─────────────────────────────────────────────
@@ -382,6 +364,8 @@ public class Multimeter : MonoBehaviour
 
     void TakeReading()
     {
+        // Panel fijo: los jacks están soldados al cuerpo (sin sockets que desconectar) — solo
+        // falta tocar un nodo con las puntas.
         if (_nodeRed == null || _nodeBlack == null)
         {
             _isReading       = false;
@@ -397,13 +381,19 @@ public class Multimeter : MonoBehaviour
 
         // 1. Voltaje (Diferencia de potencial real)
         float vDiff = _nodeRed.voltage - _nodeBlack.voltage;
-        
+
         // 2. Corriente — componente puente, cacheado (ver RecomputeBridgeComponent). Si el
         // objeto cacheado fue destruido (p.ej. componente reemplazado por red) el operador ==
-        // de Unity lo detecta como null; se recalcula una vez en vez de volver a escanear
-        // la escena cada frame de forma incondicional.
-        if (_bridgeComponent == null) RecomputeBridgeComponent();
-        float i = _bridgeComponent != null ? Mathf.Abs(_bridgeComponent.current) : 0f;
+        // de Unity lo detecta como null; se recalcula en vez de volver a escanear la escena
+        // cada frame de forma incondicional. El rescan va limitado a 2 Hz: hay pares de nodos
+        // que legítimamente NO tienen puente pasivo (bornes de la fuente, tramos de varios
+        // componentes) y sin el límite se escaneaba la escena entera en CADA Update().
+        if (_bridgeComponent == null && Time.unscaledTime >= _nextBridgeRescan)
+        {
+            _nextBridgeRescan = Time.unscaledTime + 0.5f;
+            RecomputeBridgeComponent();
+        }
+        float i = ResolveProbedCurrent();
 
         switch (mode)
         {
@@ -451,44 +441,17 @@ public class Multimeter : MonoBehaviour
                 break;
 
             case MultimeterMode.Resistance:
-                float ohms = Mathf.Abs(_measuredCurrent) > 0.0001f
-                           ? _measuredVoltage / _measuredCurrent
-                           : 0f;
-                Set(txtVoltage, FormatResistance(ohms));
+                // _measuredVoltage YA es el cociente V/I (calculado en TakeReading()), no un
+                // voltaje crudo — formatearlo directo. Dividirlo otra vez acá por _measuredCurrent
+                // (bug real encontrado y corregido el 2026-07-24: divide dos veces, R/I en vez de
+                // R) mostraba una resistencia incorrecta en la pantalla.
+                Set(txtVoltage, FormatResistance(_measuredVoltage));
                 Set(txtCurrent, FormatCurrent(_measuredCurrent));
                 break;
         }
 
         Set(txtStatus, "MIDIENDO");
         Set(txtMode,   ModeLabel());
-    }
-
-    // ─────────────────────────────────────────────
-    //  XR — grab
-    // ─────────────────────────────────────────────
-
-    void OnGrabbed(SelectEnterEventArgs args)
-    {
-        _currentInteractor = args.interactorObject;
-
-        // Mientras se sostiene, el collider del cuerpo pasa a trigger: sostenido cerca del pecho/
-        // cara (como se hace con uno real para leer la pantalla) no puede empujar físicamente al
-        // jugador, sin depender de Physics.IgnoreCollision. Vuelve a sólido al soltar para poder
-        // agarrarlo de nuevo (XRI necesita un collider no-trigger para el agarre por toque).
-        if (_bodyCollider != null) _bodyCollider.isTrigger = true;
-    }
-
-    void OnReleased(SelectExitEventArgs args)
-    {
-        _currentInteractor = null;
-        if (_bodyCollider != null) _bodyCollider.isTrigger = false;
-    }
-
-    void SendHaptic()
-    {
-        if (_currentInteractor == null) return;
-        (_currentInteractor as UnityEngine.XR.Interaction.Toolkit.Interactors.XRBaseInputInteractor)
-            ?.SendHapticImpulse(hapticIntensity, hapticDuration);
     }
 
     // ─────────────────────────────────────────────
@@ -539,7 +502,8 @@ public class Multimeter : MonoBehaviour
              : $"{r:F0} Ω";
     }
 
-    string ModeLabel() => mode switch
+    /// <summary>Público para que MultimeterUI (panel HUD) muestre el mismo nombre de modo sin duplicar el switch.</summary>
+    public string ModeLabel() => mode switch
     {
         MultimeterMode.DCVoltage  => "DC VOLTAGE",
         MultimeterMode.DCCurrent  => "DC CURRENT",

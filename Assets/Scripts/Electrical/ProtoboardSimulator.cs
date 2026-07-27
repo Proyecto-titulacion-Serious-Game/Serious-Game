@@ -72,34 +72,41 @@ public class ProtoboardSimulator : MonoBehaviour
     // ─────────────────────────────────────────────
     //  Unity
     // ─────────────────────────────────────────────
+    // ─────────────────────────────────────────────
+    //  Unity & Eventos (¡OPTIMIZADO PARA VR!)
+    // ─────────────────────────────────────────────
     void OnEnable()
     {
-        StartCoroutine(SimLoop());
+        // Nos suscribimos al evento. Cuando alguien toque un cable o pieza, se recalcula.
+        CircuitGraphAnalyzer.OnCircuitChanged += ForzarValidacion;
     }
 
     void OnDisable()
     {
-        StopAllCoroutines();
+        // Nos desuscribimos para evitar fugas de memoria
+        CircuitGraphAnalyzer.OnCircuitChanged -= ForzarValidacion;
     }
 
     // ─────────────────────────────────────────────
     //  API pública
     // ─────────────────────────────────────────────
-    /// <summary>Solicita una nueva simulación en el próximo tick.</summary>
-    public void MarkDirty() => _dirty = true;
+    /// <summary>Solicita una nueva simulación (mantenido por compatibilidad).</summary>
+    public void MarkDirty() 
+    {
+        CircuitGraphAnalyzer.OnCircuitChanged?.Invoke();
+    }
 
     /// <summary>
-    /// Ejecuta simulación + validación AHORA (síncrono), sin esperar al próximo tick del SimLoop.
-    /// Lo usa el botón "Comprobar circuito" del Reto 4 para que un solo toque refleje el estado
-    /// actual del circuito (dispara <see cref="OnSandboxValidated"/> al instante).
+    /// Ejecuta simulación + validación AHORA (síncrono).
     /// </summary>
     public void ForzarValidacion()
     {
-        _dirty = false;
         RunSimulation();
-        OnCircuitChanged?.Invoke();
+        OnCircuitChanged?.Invoke(); // Aviso a los HUDs
         ValidateSandboxObjective();
     }
+    
+    // ❌ ¡BORRA EL IEnumerator SimLoop() POR COMPLETO! Ya no lo necesitamos. ❌
 
     // ─────────────────────────────────────────────
     //  Bucle de simulación
@@ -263,9 +270,7 @@ public class ProtoboardSimulator : MonoBehaviour
         // propio) también lo encontraría por búsqueda global y le "contagiaría" los pines/GND del
         // Reto 4 como huecos enchufables. Se acota la búsqueda al padre común (Reto4_TiltGroup para
         // Bareboard, Bareboard-del-Reto2 para el otro) — ahí el Reto 2 nunca encuentra nada.
-        if (_arduino == null)
-            _arduino = GetComponentInChildren<ArduinoCore>(true)
-                    ?? (transform.parent != null ? transform.parent.GetComponentInChildren<ArduinoCore>(true) : null);
+        if (_arduino == null) _arduino = FindArduinoScoped();
 
         if (_arduino != null)
         {
@@ -297,6 +302,22 @@ public class ProtoboardSimulator : MonoBehaviour
         }
         return pts;
     }
+
+    /// <summary>
+    /// Busca el ArduinoCore de ESTA zona sin arriesgar contaminación cruzada entre retos: hay 2
+    /// ProtoboardSimulator en la escena (Reto 2 y Reto 4). Arduino y Bareboard son HERMANOS bajo
+    /// Reto4_TiltGroup (no padre-hijo), así que GetComponentInChildren no basta para Reto 4 — pero
+    /// un FindAnyObjectByType global SÍ es peligroso: el simulador del Reto 2 (que no tiene Arduino
+    /// propio) lo encontraría por búsqueda global y le "contagiaría" los pines/GND del Reto 4 como
+    /// huecos enchufables. Se acota la búsqueda al padre común (Reto4_TiltGroup para Bareboard,
+    /// Bareboard-del-Reto2 para el otro) — ahí el Reto 2 nunca encuentra nada. Antes esta misma
+    /// búsqueda estaba bien acotada aquí, pero DOS otros call-sites (RunSimulation/CASO B y
+    /// ValidateSandboxObjective) seguían usando FindAnyObjectByType sin acotar — mismo riesgo,
+    /// ahora unificado en este único método.
+    /// </summary>
+    ArduinoCore FindArduinoScoped()
+        => GetComponentInChildren<ArduinoCore>(true)
+        ?? (transform.parent != null ? transform.parent.GetComponentInChildren<ArduinoCore>(true) : null);
 
     /// <summary>
     /// Todos los componentes del sandbox: hijos del simulador + cualquiera con
@@ -339,8 +360,7 @@ public class ProtoboardSimulator : MonoBehaviour
         }
 
         // ── CASO B: sandbox Arduino (Reto 4) → MULTI-PIN ─────────────────────────
-        if (_arduino == null) _arduino = GetComponentInChildren<ArduinoCore>(true)
-                                      ?? FindAnyObjectByType<ArduinoCore>();
+        if (_arduino == null) _arduino = FindArduinoScoped();
         if (_arduino == null || _arduino.nodoGND == null || passiveComps.Count == 0)
         {
             ClearTelemetry(openCircuit: true);
@@ -490,7 +510,7 @@ public class ProtoboardSimulator : MonoBehaviour
     /// </summary>
     void ValidateSandboxObjective()
     {
-        if (_arduino == null) _arduino = FindAnyObjectByType<ArduinoCore>();
+        if (_arduino == null) _arduino = FindArduinoScoped();
         if (_arduino == null) return;
 
         var result = EvaluateSandbox(_arduino);

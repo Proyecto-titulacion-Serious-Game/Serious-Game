@@ -252,6 +252,27 @@ public class ExplorerComponentReceiver : MonoBehaviour
 
         GameObject nuevoComponente = Instantiate(prefab, posicionSpawn, slot.rotation);
 
+        // BUG REAL (jugado en VR, Reto 3): la pieza FIJA original del reto (p.ej. Capacitor_Invertido)
+        // nunca se desactiva mientras no está instalada en un slot (ComponentSlot.damagedComponent
+        // vacío en varios retos) — sigue ahí con su propio collider físico no-trigger, casi en el
+        // mismo punto donde el Explorador debe encajar la pieza NUEVA. Al acercarla con la mano
+        // (Rigidbody real, no kinematic) los dos colliders se solapan y la física los separa con un
+        // empujón violento: la pieza nueva "sale volando". Mismo patrón que el empujón del
+        // multímetro contra el jugador — se resuelve igual, ignorando la colisión puntual entre
+        // ambos, no apagando físicas globales.
+        IgnorarColisionConPiezasFijasDelMismoTipo(nuevoComponente, tipo);
+
+        // BUG REAL #2 (jugado en VR): slotResistor/slotLED/slotCapacitor NO están asignados en el
+        // prefab ComponentReceiver (los 3 son {fileID: 0}) → TODAS las piezas de los Retos 1-3 caen
+        // siempre en el mismo 'puntoDeEntrega', desplazadas solo por 'radioDispersion' (±8 cm). Si el
+        // Resistor o el LED entregados antes siguen ahí (el jugador aún no los cargó/instaló) cuando
+        // llega el Capacitor, los ~8 cm de dispersión no alcanzan para evitar que sus colliders
+        // arranquen solapados → el mismo empujón violento que con la pieza fija, pero entre piezas
+        // ENTREGADAS de tipos DISTINTOS — caso que IgnorarColisionConPiezasFijasDelMismoTipo no cubre
+        // (solo ignora contra el ORIGINAL fijo del MISMO tipo). Se ignora contra TODO lo que ya esté
+        // en la bandeja, sin importar tipo.
+        IgnorarColisionConOtrasPiezasEntregadas(nuevoComponente);
+
         // Agregar a nuestra lista de control + registrar como el actual de su tipo.
         _componentesRecibidos.Add(nuevoComponente);
         _ultimoPorTipo[tipo] = nuevoComponente;
@@ -510,6 +531,63 @@ public class ExplorerComponentReceiver : MonoBehaviour
             // Respaldo: no se pudo medir la protoboard real todavía (protoSim sin resolver).
             obj.transform.localScale = Reto4BreadboardMode.ResistorScaleReto4.Value;
             Debug.LogWarning("[Receiver] Resistor Reto4: no until protoSim para medir — usando escala calibrada de respaldo.");
+        }
+    }
+
+    /// <summary>
+    /// Ignora la colisión física entre la pieza recién entregada y cualquier pieza FIJA del mismo
+    /// tipo ya cableada en la escena (nodeA/nodeB asignados) — típicamente la pieza averiada
+    /// original del reto (p.ej. Capacitor_Invertido en el Reto 3), que sigue activa con su propio
+    /// collider no-trigger porque ese slot no tiene 'damagedComponent' asignado para ocultarla.
+    /// Sin esto, acercar la pieza nueva (Rigidbody físico real mientras se sostiene) a la original
+    /// las hace solapar → la física las separa con un empujón violento ("sale volando").
+    /// No afecta la validación/reparación (que sigue mirando nodeA/nodeB y hasFault/polarityInverted
+    /// tal cual) — solo apaga la colisión puntual entre estos 2 objetos concretos.
+    /// </summary>
+    static void IgnorarColisionConPiezasFijasDelMismoTipo(GameObject nuevaPieza, ComponentType tipo)
+    {
+        var nuevosColliders = nuevaPieza.GetComponentsInChildren<Collider>(true);
+        if (nuevosColliders.Length == 0) return;
+
+        void IgnorarContra<T>() where T : ElectricalComponent
+        {
+            foreach (var fija in FindObjectsByType<T>(FindObjectsInactive.Exclude))
+            {
+                if (fija == null || fija.nodeA == null || fija.nodeB == null) continue;
+                if (fija.gameObject == nuevaPieza) continue;
+                foreach (var colFija in fija.GetComponentsInChildren<Collider>(true))
+                    foreach (var colNueva in nuevosColliders)
+                        Physics.IgnoreCollision(colNueva, colFija, true);
+            }
+        }
+
+        switch (tipo)
+        {
+            case ComponentType.Resistor:  IgnorarContra<Resistor>();  break;
+            case ComponentType.LED:       IgnorarContra<LED>();       break;
+            case ComponentType.Capacitor: IgnorarContra<Capacitor>(); break;
+        }
+    }
+
+    /// <summary>
+    /// Ignora la colisión física entre la pieza recién entregada y cualquier pieza YA entregada
+    /// anteriormente que siga viva (<see cref="_componentesRecibidos"/>) — típicamente otras piezas
+    /// del mismo reto (p.ej. Resistor/LED) que el jugador aún no cargó, sentadas en el mismo punto de
+    /// entrega. Necesario porque slotResistor/slotLED/slotCapacitor no están asignados en el prefab
+    /// ComponentReceiver: todas las piezas caen en el mismo 'puntoDeEntrega', a solo ±radioDispersion
+    /// (8 cm) de distancia entre sí — insuficiente para no solapar colliders reales.
+    /// </summary>
+    void IgnorarColisionConOtrasPiezasEntregadas(GameObject nuevaPieza)
+    {
+        var nuevosColliders = nuevaPieza.GetComponentsInChildren<Collider>(true);
+        if (nuevosColliders.Length == 0) return;
+
+        foreach (var otra in _componentesRecibidos)
+        {
+            if (otra == null || otra == nuevaPieza) continue;
+            foreach (var colOtra in otra.GetComponentsInChildren<Collider>(true))
+                foreach (var colNueva in nuevosColliders)
+                    Physics.IgnoreCollision(colNueva, colOtra, true);
         }
     }
 }

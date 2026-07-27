@@ -85,10 +85,15 @@ public class CircuitSimulator : MonoBehaviour
         }
     }
 
-    /// <summary>
+   /// <summary>
     /// Marca el circuito para indicar que requiere un recálculo matemático.
     /// </summary>
-    public void MarkDirty() => _isDirty = true;
+    public void MarkDirty() 
+    {
+        _isDirty = true;
+        // ✅ NUEVO: Mantenemos vivos a los demás sistemas
+        CircuitGraphAnalyzer.OnCircuitChanged?.Invoke();
+    }
 
     /// <summary>
     /// Ejecuta el análisis de parámetros eléctricos basándose en las leyes de la electrónica.

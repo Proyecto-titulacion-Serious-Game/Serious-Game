@@ -25,7 +25,7 @@ using UnityEngine.InputSystem;
 ///
 ///   Reto 1 (Ohm)    → repara el resistor con falla a su correctResistance (850Ω).
 ///   Reto 2 (Paral.) → restaura la rama del LED rota (open / >1000Ω) a 50Ω.
-///   Reto 3 (Mixto)  → repara el resistor (220Ω) + endereza LED y capacitor invertidos.
+///   Reto 3 (Mixto)  → repara el resistor (470Ω) + endereza LED y capacitor invertidos.
 ///   Reto 4 (Arduino)→ es sandbox: lo armas tú (Pin→R≥100Ω→LED→GND + BLINK).
 /// </summary>
 public class SoloTechnicianDebug : MonoBehaviour

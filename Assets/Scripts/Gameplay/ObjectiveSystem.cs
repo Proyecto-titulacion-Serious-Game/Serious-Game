@@ -258,6 +258,20 @@ public class ObjectiveSystem : MonoBehaviour
     /// PARCIAL con los retos completados hasta ahora. Cuenta como partida finalizada.</summary>
     public void FinalizarSesion() => HandleGameCompleted();
 
+    /// <summary>
+    /// Red de seguridad: si el proceso se cierra SIN pasar por "Salir del juego" (Alt+F4, la X de
+    /// la ventana, cerrar la Quest a la fuerza, o simplemente matar el proceso) — el escenario más
+    /// probable en un aula real — la sesión se perdía por completo: OnSessionEnded solo se disparaba
+    /// al completar los 4 retos o al pulsar Salir explícitamente. Ahora, al cerrar, se finaliza
+    /// igual con lo completado hasta ese momento (mismo camino que FinalizarSesion). El respaldo
+    /// local (JSON/CSV) se guarda de forma síncrona; la subida a Sheets es best-effort — Unity da
+    /// unos pocos frames a OnApplicationQuit, no siempre alcanzan para que termine el POST HTTP.
+    /// </summary>
+    void OnApplicationQuit()
+    {
+        if (!_ended) HandleGameCompleted();
+    }
+
     void HandleGameCompleted()
     {
         if (_ended) return;     // no terminar la sesión dos veces (fin normal + salir manual)

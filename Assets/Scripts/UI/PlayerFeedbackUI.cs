@@ -97,7 +97,7 @@ public class PlayerFeedbackUI : MonoBehaviour
     {
         GameManager.OnLevelLoaded               += OnLevelLoaded;
         GameManager.OnLevelCompleted            += OnLevelCompleted;
-        GameManager.OnGameCompleted             += OnGameCompleted;
+        ObjectiveSystem.OnSessionEnded          += OnSessionEnded;
         ComponentDeliverySystem.OnComponentSent += OnComponentSent;
     }
 
@@ -105,7 +105,7 @@ public class PlayerFeedbackUI : MonoBehaviour
     {
         GameManager.OnLevelLoaded               -= OnLevelLoaded;
         GameManager.OnLevelCompleted            -= OnLevelCompleted;
-        GameManager.OnGameCompleted             -= OnGameCompleted;
+        ObjectiveSystem.OnSessionEnded          -= OnSessionEnded;
         ComponentDeliverySystem.OnComponentSent -= OnComponentSent;
     }
 
@@ -506,13 +506,17 @@ public class PlayerFeedbackUI : MonoBehaviour
     }
 
     /// <summary>
-    /// Se completaron los 4 retos (fin de la misión). Felicitación final destacada.
+    /// Fin de la sesión (los 4 retos, o corte por tiempo/salida manual) con el resultado REAL.
+    /// Antes colgaba de GameManager.OnGameCompleted (sin datos) y SIEMPRE felicitaba, incluso
+    /// cuando un reto terminó por timeout — el jugador nunca se enteraba de que en realidad no
+    /// lo había logrado (bug real reportado: Reto 4 "desaparecía" sin un cierre claro).
     /// </summary>
-    void OnGameCompleted()
+    void OnSessionEnded(SessionResult result)
     {
-        MostrarConAutoOcultar("¡MISIÓN CUMPLIDA!",
-                "Completaron los 4 retos en equipo. ¡Excelente trabajo, técnico y explorador!",
-                colorCompletado);
+        bool exito = result.evaluation.StartsWith("[EXCELENTE]") || result.evaluation.StartsWith("[BUENO]");
+        MostrarConAutoOcultar(exito ? "¡MISIÓN CUMPLIDA!" : "SESIÓN TERMINADA",
+                $"{result.evaluation} — {Mathf.RoundToInt(result.scorePercent * 100f)}% del puntaje total.",
+                exito ? colorCompletado : colorAlerta);
     }
 
     // ─────────────────────────────────────────────

@@ -166,7 +166,10 @@ public class InstructionSystem : MonoBehaviour
                     "de forma segura. Elige cualquier pin digital (D2-D13), configura OUTPUT " +
                     "y usa HIGH + delay + LOW + delay en loop().",
                     "Paso 2: Pide al Explorador conectar el LED y una resistencia de 330 Ohm " +
-                    "desde el pin elegido hasta GND en la protoboard. El sistema validara " +
+                    "desde el pin elegido hasta GND en la protoboard. OJO: el riel GND de la " +
+                    "protoboard NO esta pre-cableado al Arduino, solo une sus propios agujeros " +
+                    "entre si — hace falta ADEMAS un cable aparte desde ese riel (o donde termine " +
+                    "el circuito) hasta un pin GND fisico del Arduino. El sistema validara " +
                     "automaticamente cuando el circuito sea correcto."
                 };
                 break;
@@ -304,7 +307,7 @@ public class InstructionSystem : MonoBehaviour
                 break;
             }
 
-            // Paso 3 → Técnico envió 220Ω y Explorador instaló la resistencia
+            // Paso 3 → Técnico envió 470Ω y Explorador instaló la resistencia
             case 3:
             {
                 bool resCorregida = true, any = false;
@@ -312,7 +315,7 @@ public class InstructionSystem : MonoBehaviour
                 {
                     if (r == null || r.nodeA == null || r.nodeB == null) continue;
                     any = true;
-                    if (r.hasFault || !Mathf.Approximately(r.resistance, 220f)) { resCorregida = false; break; }
+                    if (r.hasFault || !Mathf.Approximately(r.resistance, 470f)) { resCorregida = false; break; }
                 }
                 if (resCorregida && any) hasAppliedFix = true;
                 break;

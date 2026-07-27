@@ -240,7 +240,7 @@ public class TechnicianActions : MonoBehaviour
             (reason.Contains("R incorrecta") || reason.Contains("Ohm")) ? "Valor de resistencia" :
             reason.Contains("incorrect")                                ? "Selección incorrecta" :
             "Procedimiento";
-        performance?.AddError(cat);
+        performance?.AddError(cat, reason);
         Debug.Log($"[TechnicianActions] Error [{cat}]: {reason}");
     }
 }

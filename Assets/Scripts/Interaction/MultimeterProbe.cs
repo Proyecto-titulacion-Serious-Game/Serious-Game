@@ -50,6 +50,18 @@ public class MultimeterProbe : MonoBehaviour
     private MaterialPropertyBlock _mpb;
     private static readonly int   _colorID = Shader.PropertyToID("_BaseColor");
 
+    // Nodo asignado por CONTACTO físico (OnTriggerEnter) — se limpia en OnTriggerExit cuando la
+    // punta se aleja del mismo nodo/slot. Antes solo había OnTriggerEnter: una vez tocado un nodo,
+    // la lectura quedaba "pegada" para siempre (nunca volvía a "SIN CONTACTO" al alejar la punta).
+    private ElectricalNode _contactNode;
+
+    // ─── Diagnóstico en vivo (bug reportado: punta roja no asigna nodos) ─────
+    // Mismo patrón que VoiceChatDiagnostics.cs: log throttled, solo cuando cambia el estado
+    // relevante, para que una sesión real (VR/Player.log) deje evidencia dura sin inundar el log.
+    private float  _nextDiagLog;
+    private string _ultimoDiag;
+    private int    _lastHitCount;   // cuántos colliders devolvió el último SphereCastAll de FindNearestAhead()
+
     // ─── Lifecycle ───────────────────────────────────────────
     void Awake()
     {
@@ -95,6 +107,32 @@ public class MultimeterProbe : MonoBehaviour
             Assign(_aimTarget.nodeTarget);
 
         _prevTrigger = triggered;
+
+        DiagnosticarEstado(device, tv, triggered);
+    }
+
+    /// <summary>
+    /// Reporta el estado real de ESTA punta (roja o negra, según <see cref="probeType"/>) cada
+    /// ~1.5 s, solo si cambió — para diferenciar en el log de una sesión real entre: dispositivo
+    /// XR inválido (problema de binding, no de esta punta), trigger que nunca cruza el umbral,
+    /// SphereCastAll sin hits (nada en rango/apuntado mal) o con hits que no son NodeInteractable,
+    /// y nodo apuntado presente pero que nunca dispara Assign().
+    /// </summary>
+    void DiagnosticarEstado(InputDevice device, float triggerValue, bool triggered)
+    {
+        if (Time.unscaledTime < _nextDiagLog) return;
+        _nextDiagLog = Time.unscaledTime + 1.5f;
+
+        string estado = $"[MultimeterProbeDiag][{probeType}] xrNode={_xrNode} deviceValido={device.isValid} " +
+                         $"trigger={triggerValue:F2} (umbral={triggerThreshold:F2}) presionado={triggered} " +
+                         $"hits(SphereCastAll)={_lastHitCount} aimTarget={(_aimTarget != null ? _aimTarget.name : "ninguno")}";
+
+        if (!device.isValid)
+            estado += $"  [!] Dispositivo XR en {_xrNode} NO VÁLIDO — problema de binding/input, no de geometría de esta punta.";
+
+        if (estado == _ultimoDiag) return;
+        _ultimoDiag = estado;
+        Debug.Log(estado);
     }
 
     // ─── Búsqueda ────────────────────────────────────────────
@@ -119,6 +157,7 @@ public class MultimeterProbe : MonoBehaviour
             if (ni == null || ni.nodeTarget == null) continue;
             if (h.distance < bestDist) { bestDist = h.distance; best = ni; }
         }
+        _lastHitCount = hits.Length;   // diagnóstico — no afecta el resultado devuelto
         return best;
     }
 
@@ -126,9 +165,18 @@ public class MultimeterProbe : MonoBehaviour
 
     void Assign(ElectricalNode node)
     {
-        if (multimeter == null) return;
+        if (multimeter == null)
+        {
+            Debug.LogWarning($"[MultimeterProbeDiag][{probeType}] Assign('{node?.name}') llamado pero " +
+                              "multimeter es NULL — no se puede asignar. Revisa la referencia en el Inspector.");
+            return;
+        }
+
         if (probeType == ProbeType.Red) multimeter.SetRedNode(node);
         else                            multimeter.SetBlackNode(node);
+
+        Debug.Log($"[MultimeterProbeDiag][{probeType}] Assign OK → nodo='{node?.name}' " +
+                  $"({(probeType == ProbeType.Red ? "SetRedNode" : "SetBlackNode")} invocado).");
 
         // Vibración breve en el controlador
         var device = InputDevices.GetDeviceAtXRNode(_xrNode);
@@ -139,6 +187,10 @@ public class MultimeterProbe : MonoBehaviour
 
     void OnTriggerEnter(Collider other)
     {
+        // Evento raro (no throttled) — cada contacto físico real queda en el log tal cual pasó.
+        Debug.Log($"[MultimeterProbeDiag][{probeType}] OnTriggerEnter con '{other.name}' " +
+                  $"(layer={LayerMask.LayerToName(other.gameObject.layer)}, multimeter={(multimeter != null ? "OK" : "NULL")}).");
+
         if (multimeter == null) return;
 
         // Protoboard sandbox (Reto 4): medir tocando un slot de la protoboard.
@@ -147,15 +199,45 @@ public class MultimeterProbe : MonoBehaviour
                 ?? other.GetComponentInParent<ProtoboardSlot>();
         if (slot != null && slot.assignedNode != null)
         {
-            Assign(slot.assignedNode);
+            Debug.Log($"[MultimeterProbeDiag][{probeType}] '{other.name}' es ProtoboardSlot con assignedNode → Assign().");
+            _contactNode = slot.assignedNode;
+            Assign(_contactNode);
             return;
         }
 
         // Nodos clásicos (Retos 1-3): discos NodeInteractable.
         var ni = other.GetComponent<NodeInteractable>()
               ?? other.GetComponentInParent<NodeInteractable>();
-        if (ni?.nodeTarget == null) return;
-        Assign(ni.nodeTarget);
+        if (ni?.nodeTarget == null)
+        {
+            Debug.Log($"[MultimeterProbeDiag][{probeType}] '{other.name}' NO es NodeInteractable/ProtoboardSlot con nodo válido — sin asignar.");
+            return;
+        }
+        Debug.Log($"[MultimeterProbeDiag][{probeType}] '{other.name}' es NodeInteractable con nodeTarget → Assign().");
+        _contactNode = ni.nodeTarget;
+        Assign(_contactNode);
+    }
+
+    void OnTriggerExit(Collider other)
+    {
+        if (multimeter == null || _contactNode == null) return;
+
+        // Solo limpiar si lo que se aleja es EL MISMO nodo que asignó el contacto — evita borrar
+        // una asignación válida por el trigger de otro objeto que se superpone en el mismo frame.
+        ElectricalNode exitNode = null;
+
+        var slot = other.GetComponent<ProtoboardSlot>() ?? other.GetComponentInParent<ProtoboardSlot>();
+        if (slot != null) exitNode = slot.assignedNode;
+
+        var ni = other.GetComponent<NodeInteractable>() ?? other.GetComponentInParent<NodeInteractable>();
+        if (ni != null) exitNode = ni.nodeTarget;
+
+        if (exitNode != null && exitNode == _contactNode)
+        {
+            Debug.Log($"[MultimeterProbeDiag][{probeType}] '{other.name}' salió de contacto → limpiar asignación.");
+            _contactNode = null;
+            Assign(null);
+        }
     }
 
     // ─── Feedback visual ─────────────────────────────────────

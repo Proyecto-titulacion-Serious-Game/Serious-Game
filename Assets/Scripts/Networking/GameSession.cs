@@ -194,12 +194,13 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     //  dashboard localhost y la subida a Sheets leen el tracker del HOST (Técnico), que mostraba
     //  "0 errores" aunque el Explorador sí se hubiera equivocado. El cliente los reenvía por aquí.
 
-    /// <summary>Cliente → Host: registra un error en el PerformanceTracker del Host (métricas).</summary>
+    /// <summary>Cliente → Host: registra un error en el PerformanceTracker del Host (métricas),
+    /// con su mensaje descriptivo para la columna "Qué pasó" del dashboard.</summary>
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_RegistrarErrorRemoto(string categoria)
+    public void RPC_RegistrarErrorRemoto(string categoria, string detalle)
     {
         var tracker = FindAnyObjectByType<PerformanceTracker>();
-        if (tracker != null) tracker.AddError(string.IsNullOrEmpty(categoria) ? "General" : categoria);
+        if (tracker != null) tracker.AddError(string.IsNullOrEmpty(categoria) ? "General" : categoria, detalle);
         else Debug.LogWarning("[GameSession] RPC_RegistrarErrorRemoto: no hay PerformanceTracker en el Host.");
     }
 
@@ -246,15 +247,22 @@ public void RPC_EnviarComponente(int tipo, float valor, int variante)
     }
 
     /// <summary>
-    /// Un cliente (p.ej. el Explorador) PIDE al Host completar el reto actual como si se hubiera
-    /// ganado (tecla F4 debug). Host-autoritativo: el Host corre CompleteLevel en su GameManager,
-    /// que registra la métrica y propaga el avance al resto vía AvanzarReto → RPC_CambiarReto.
+    /// Un cliente (p.ej. el Explorador) avisa al Host que el reto actual terminó — con el
+    /// resultado REAL (éxito, o fallo/timeout del temporizador). Host-autoritativo: el Host corre
+    /// CompleteLevel en su GameManager con ESE resultado, registra la métrica y propaga el avance
+    /// al resto vía AvanzarReto → RPC_CambiarReto.
+    ///
+    /// Antes esta RPC no tenía parámetro y SIEMPRE forzaba éxito (vía DebugCompleteCurrentLevel) —
+    /// además CompleteLevel del cliente solo la llamaba "if (success)". Resultado: un timeout en
+    /// el Explorador nunca llegaba al Host, que se quedaba esperando ese reto para siempre
+    /// mientras el Explorador ya había avanzado/terminado solo (bug real reportado: "no apareció
+    /// juego finalizado ni en el técnico ni en el explorador").
     /// </summary>
     [Rpc(RpcSources.All, RpcTargets.StateAuthority)]
-    public void RPC_SolicitarCompletarReto()
+    public void RPC_SolicitarCompletarReto(bool success)
     {
         var gm = FindAnyObjectByType<GameManager>();
-        if (gm != null) gm.DebugCompleteCurrentLevel();
+        if (gm != null) gm.CompleteLevelFromNetwork(success);
         else Debug.LogWarning("[GameSession] RPC_SolicitarCompletarReto: no hay GameManager en el Host.");
     }
 

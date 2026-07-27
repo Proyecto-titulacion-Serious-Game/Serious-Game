@@ -96,7 +96,15 @@ public class TecnicoDiagnosticoUI : MonoBehaviour
         GameManager.OnLevelLoaded                -= OnLevel;
     }
 
-    void OnDiag(int reto, string resumen) => Mostrar(resumen);
+    void OnDiag(int reto, string resumen)
+    {
+        // Solo pintar si el reporte es del reto ACTUAL: en el cambio de reto puede llegar (por
+        // latencia de red) un último resumen rezagado del reto anterior y pisar el clipboard.
+        // No se pierde nada: GameSession cachea por reto y OnLevel repinta el que corresponde.
+        if (_gameManager == null) _gameManager = FindAnyObjectByType<GameManager>();
+        if (_gameManager != null && reto != (int)_gameManager.currentLevel + 1) return;
+        Mostrar(resumen);
+    }
 
     /// <summary>
     /// Al cambiar de reto (incluye F1-F4 debug skip): el clipboard NO debe seguir mostrando el

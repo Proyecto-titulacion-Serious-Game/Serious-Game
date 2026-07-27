@@ -1,9 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// Resistencia con soporte de código de colores (Reto 3).
-/// Permite establecer el valor "correcto" vs el valor "defectuoso" para gamificación.
-/// Incluye feedback visual de sobrecarga y falla visible para el Explorador.
+/// Resistencia con soporte de código de colores (Reto 3) y Estrés Térmico realista.
 /// </summary>
 public class Resistor : ElectricalComponent
 {
@@ -14,26 +12,25 @@ public class Resistor : ElectricalComponent
     public float resistance = 100f;
 
     [Header("Código de colores (educativo)")]
-    [Tooltip("Valor correcto que el Técnico debe calcular e indicar.")]
     public float correctResistance = 100f;
-    [Tooltip("Valor defectuoso que aparece al inicio del reto.")]
     public float faultyResistance  = 10f;
-    [Tooltip("True si la resistencia tiene el valor incorrecto (falla activa).")]
     public bool  hasFault          = false;
 
     [Header("Tolerancia (%)")]
     [Range(1f, 20f)]
     public float tolerancePercent  = 5f;
 
-    [Header("Potencia nominal")]
+    [Header("Potencia nominal y Estrés Térmico")]
     [Tooltip("Potencia máxima que puede disipar sin quemarse. Típico: 0.25 W (1/4 W).")]
     public float powerRatingWatts = 0.25f;
+    [Tooltip("Tiempo en segundos que soporta la sobrecarga antes de quemarse.")]
+    public float timeToBurn = 3.0f;
 
     [Header("Colores educativos")]
-    public Color colorNormal    = new Color(0.76f, 0.60f, 0.42f);  // beige/tan — resistor físico
-    public Color colorFault     = new Color(1.00f, 0.55f, 0.00f);  // naranja — valor incorrecto
-    public Color colorOverload  = new Color(1.00f, 0.10f, 0.05f);  // rojo — sobrecarga
-    public Color colorOpen      = new Color(0.25f, 0.25f, 0.25f);  // gris oscuro — circuito abierto
+    public Color colorNormal    = new Color(0.76f, 0.60f, 0.42f);  
+    public Color colorFault     = new Color(1.00f, 0.55f, 0.00f);  
+    public Color colorOverload  = new Color(1.00f, 0.10f, 0.05f);  
+    public Color colorOpen      = new Color(0.25f, 0.25f, 0.25f);  
 
     [Header("Efectos de sobrecarga")]
     public ParticleSystem smokeEffect;
@@ -44,6 +41,7 @@ public class Resistor : ElectricalComponent
     [Header("Potencia disipada (solo lectura)")]
     [SerializeField] private float _dissipatedPower;
     [SerializeField] private bool  _isOverloaded;
+    private float _overloadTimer = 0f;
 
     public float dissipatedPower => _dissipatedPower;
     public bool  isOverloaded    => _isOverloaded;
@@ -58,9 +56,6 @@ public class Resistor : ElectricalComponent
     private static readonly int _colorID    = Shader.PropertyToID("_BaseColor");
     private static readonly int _emissionID = Shader.PropertyToID("_EmissionColor");
 
-    // ─────────────────────────────────────────────
-    //  Unity Lifecycle
-    // ─────────────────────────────────────────────
     void Awake()
     {
         foreach (var r in GetComponentsInChildren<Renderer>(true))
@@ -68,15 +63,44 @@ public class Resistor : ElectricalComponent
         _mpb = new MaterialPropertyBlock();
     }
 
-    // ─────────────────────────────────────────────
-    //  ElectricalComponent
-    // ─────────────────────────────────────────────
+    void Update()
+    {
+        // ⚡ NUEVO: Lógica de degradación térmica
+        if (_isOverloaded && !isOpenCircuit)
+        {
+            _overloadTimer += Time.deltaTime;
+            
+            if (_overloadTimer >= timeToBurn)
+            {
+                isOpenCircuit = true;     // Se rompió el componente
+                _isOverloaded = false;
+                current = 0f;
+                voltageDrop = 0f;
+                
+                Debug.LogWarning($"[Resistor] ¡Resistencia {name} quemada por exceso de potencia ({_dissipatedPower:F2}W)!");
+                
+                if (smokeEffect != null && !smokeEffect.isPlaying) smokeEffect.Play();
+                UpdateVisual();
+                
+                // Forzar al manager a recalcular porque el circuito se abrió
+                var circuit = GetComponentInParent<CircuitManager>();
+                if (circuit != null) circuit.MarkDirty();
+            }
+        }
+        else if (_overloadTimer > 0f)
+        {
+            // Si la carga vuelve a la normalidad, se "enfría" poco a poco
+            _overloadTimer = Mathf.Max(0f, _overloadTimer - Time.deltaTime);
+        }
+    }
+
     public override float GetResistance() => isOpenCircuit ? 1_000_000f : resistance;
 
     public override void Calculate()
     {
         if (nodeA == null || nodeB == null) return;
-        if (resistance <= 0f)
+        
+        if (resistance <= 0f || isOpenCircuit)
         {
             current          = 0f;
             voltageDrop      = 0f;
@@ -87,60 +111,42 @@ public class Resistor : ElectricalComponent
         }
 
         float voltageDiff = nodeA.voltage - nodeB.voltage;
-        current          = isOpenCircuit ? 0f : voltageDiff / resistance;
+        current          = voltageDiff / resistance;
         voltageDrop      = voltageDiff;
 
-        // P = I² × R  (potencia disipada real)
+        // P = I² × R
         _dissipatedPower = Mathf.Abs(current * current * resistance);
         _isOverloaded    = _dissipatedPower > powerRatingWatts;
 
         UpdateVisual();
     }
 
-    // ─────────────────────────────────────────────
-    //  API de juego
-    // ─────────────────────────────────────────────
-
-    /// <summary>Aplica la falla: pone el valor defectuoso.</summary>
     public void ApplyFault()
     {
         resistance = faultyResistance;
         hasFault   = true;
     }
 
-    /// <summary>Repara la resistencia con el valor correcto.</summary>
     public void Repair()
     {
         resistance = correctResistance;
         hasFault   = false;
+        isOpenCircuit = false;
+        _overloadTimer = 0f;
     }
 
-    /// <summary>
-    /// Verifica si el valor propuesto por el Técnico es correcto (dentro de tolerancia).
-    /// </summary>
     public bool IsValueCorrect(float proposedValue)
     {
-        // Piso de tolerancia: ningún reto exige al estudiante más precisión que esto. Antes el valor
-        // por-instancia (p. ej. 8.5% en Reto 1 → solo 778–922 Ω) rechazaba valores razonables que ya
-        // encendían bien el LED, dejando el reto "visualmente resuelto" pero sin completar.
         const float tolerancePisoPct = 12f;
         float effTol  = Mathf.Max(tolerancePercent, tolerancePisoPct);
         float margin  = correctResistance * (effTol / 100f);
         return Mathf.Abs(proposedValue - correctResistance) <= margin;
     }
 
-    /// <summary>
-    /// Devuelve las bandas de colores como string educativo.
-    /// Ejemplo: "Marrón-Negro-Marrón-Oro" para 100Ω 5%
-    /// </summary>
     public string GetColorBandString()
     {
         return ResistorColorCode.GetBandString((int)correctResistance, tolerancePercent);
     }
-
-    // ─────────────────────────────────────────────
-    //  Feedback visual
-    // ─────────────────────────────────────────────
 
     void UpdateVisual()
     {
@@ -168,7 +174,7 @@ public class Resistor : ElectricalComponent
         {
             if (newState == ResistorVisualState.Overloaded)
             { if (!smokeEffect.isPlaying) smokeEffect.Play(); }
-            else
+            else if (newState != ResistorVisualState.Open)
             { smokeEffect.Stop(); }
         }
     }
@@ -185,9 +191,6 @@ public class Resistor : ElectricalComponent
 
 public enum ResistorVisualState { Normal, Fault, Overloaded, Open }
 
-/// <summary>
-/// Utilidad para calcular el código de colores de una resistencia.
-/// </summary>
 public static class ResistorColorCode
 {
     private static readonly string[] bands =
@@ -197,15 +200,11 @@ public static class ResistorColorCode
     public static string GetBandString(int value, float tolerance)
     {
         if (value <= 0) return "Valor inválido";
-
         int digits    = value;
         int multiplier = 0;
-
         while (digits >= 100) { digits /= 10; multiplier++; }
-
         int band1 = digits / 10;
         int band2 = digits % 10;
-
         string tolBand = tolerance <= 1f  ? "Marrón" :
                          tolerance <= 2f  ? "Rojo"   :
                          tolerance <= 5f  ? "Oro"    :
@@ -213,7 +212,6 @@ public static class ResistorColorCode
 
         if (band1 >= bands.Length || band2 >= bands.Length || multiplier >= bands.Length)
             return "Fuera de rango";
-
         return $"{bands[band1]} – {bands[band2]} – {bands[multiplier]} – {tolBand}";
     }
 }

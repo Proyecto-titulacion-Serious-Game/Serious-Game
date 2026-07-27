@@ -92,6 +92,7 @@ public class ExplorerTaskClipboard : MonoBehaviour
     {
         GameManager.OnLevelLoaded                      += OnLevelLoaded;
         GameManager.OnTimerTick                        += OnTimerTick;
+        GameManager.OnTimerExpired                     += OnTimerExpired;
         GameManager.OnLevelCompleted                   += OnLevelCompleted;
         GameSession.OnValidacionSolicitada             += OnValidacionSolicitada;
         GameSession.OnResultadoValidacion              += OnResultadoValidacion;
@@ -108,6 +109,7 @@ public class ExplorerTaskClipboard : MonoBehaviour
     {
         GameManager.OnLevelLoaded                      -= OnLevelLoaded;
         GameManager.OnTimerTick                        -= OnTimerTick;
+        GameManager.OnTimerExpired                     -= OnTimerExpired;
         GameManager.OnLevelCompleted                   -= OnLevelCompleted;
         GameSession.OnValidacionSolicitada             -= OnValidacionSolicitada;
         GameSession.OnResultadoValidacion              -= OnResultadoValidacion;
@@ -168,6 +170,18 @@ public class ExplorerTaskClipboard : MonoBehaviour
     {
         _remainingTime = remaining;
         RefreshPasoTimer();
+    }
+
+    /// <summary>
+    /// El tiempo del reto es de REFERENCIA: desde 2026-07-26 <c>GameManager</c> ya NO cierra el
+    /// reto como fallo al agotarse (solo baja la nota), así que el clipboard debe decir
+    /// "sigan trabajando" en vez de dejar el reto en silencio con 0:00 en rojo.
+    /// </summary>
+    void OnTimerExpired(LevelType _)
+    {
+        _remainingTime = 0f;
+        RefreshPasoTimer();
+        ShowNetEvento("Tiempo de referencia agotado — sigan, solo baja la nota.", _amber);
     }
 
     void OnLevelCompleted(LevelType level, bool success)

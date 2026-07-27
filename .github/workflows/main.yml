@@ -23,7 +23,7 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Build Unity (Windows)
+      - name: Build Unity (Técnico - Windows)
         run: |
           "$UNITY_EDITOR" \
             -batchmode \
@@ -31,7 +31,20 @@ jobs:
             -silent-crashes \
             -quit \
             -projectPath . \
-            -buildWindows64Player "build/SeriousGame.exe" \
+            -buildTarget Win64 \
+            -executeMethod BuildTecnico.BuildTecnicoBatch \
+            -logFile /dev/stdout
+
+      - name: Build Unity (Explorador - Quest APK)
+        run: |
+          "$UNITY_EDITOR" \
+            -batchmode \
+            -nographics \
+            -silent-crashes \
+            -quit \
+            -projectPath . \
+            -buildTarget Android \
+            -executeMethod BuildQuest.BuildQuestBatch \
             -logFile /dev/stdout
 
       - name: Generar Doxygen
@@ -62,11 +75,17 @@ jobs:
           git push
 
       # --- Pasos de Publicación en Web ---
-      - name: Upload Artifact (Juego)
+      - name: Upload Artifact (Técnico)
         uses: actions/upload-artifact@v4
         with:
-          name: SeriousGame-Build-Windows
-          path: build/
+          name: SeriousGame-Build-Tecnico
+          path: Build-Tecnico/
+
+      - name: Upload Artifact (Explorador APK)
+        uses: actions/upload-artifact@v4
+        with:
+          name: SeriousGame-Build-Explorador
+          path: Explorador/
 
       - name: Configurar Pages
         uses: actions/configure-pages@v4

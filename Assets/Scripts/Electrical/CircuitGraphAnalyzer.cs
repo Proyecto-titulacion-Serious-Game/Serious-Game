@@ -42,6 +42,8 @@ public static class CircuitGraphAnalyzer
     // Tope de iteraciones del punto fijo para los diodos. Circuitos educativos
     // (pocos LEDs) convergen en 2-3; el tope solo evita oscilaciones patológicas.
     private const int    MAX_DIODE_ITERS = 16;
+    
+    public static Action OnCircuitChanged;
 
     /// <summary>
     /// Resuelve los voltajes nodales del circuito por Modified Nodal Analysis.
