@@ -21,31 +21,81 @@
 </head>
 <body class="h-full bg-slate-950 text-slate-100 flex flex-col">
 
-  <!-- PANTALLA DE LOGIN DOCENTE -->
-  <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950">
-    <div class="glass-card max-w-md w-full p-8 rounded-2xl border border-slate-800 space-y-6 shadow-2xl">
-      <div class="text-center space-y-2">
-        <div class="inline-flex p-3 bg-sky-500/10 border border-sky-500/30 rounded-2xl text-sky-400 mb-2">
-          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+  <!-- CONTENEDOR DE AUTENTICACIÓN -->
+  <div id="authContainer" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950">
+    <div class="glass-card max-w-md w-full p-8 rounded-2xl border border-slate-800 shadow-2xl relative">
+      
+      <!-- VISTA: INICIAR SESIÓN -->
+      <div id="viewLogin" class="space-y-6 block">
+        <div class="text-center space-y-2">
+          <div class="inline-flex p-3 bg-sky-500/10 border border-sky-500/30 rounded-2xl text-sky-400 mb-2">
+            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l9-5-9-5-9 5 9 5z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 01-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+          </div>
+          <h1 class="text-2xl font-black text-white">LMS Analytics Docente</h1>
+          <p class="text-xs text-slate-400">Ingresa con tus credenciales para gestionar tus clases</p>
         </div>
-        <h1 class="text-2xl font-black text-white">LMS Analytics Docente</h1>
-        <p class="text-xs text-slate-400">Ingresa con tus credenciales para gestionar tus clases y telemetría de laboratorio</p>
+
+        <form onsubmit="handleLogin(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Correo Institucional</label>
+            <input type="email" id="loginEmail" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="docente@udla.edu.ec">
+          </div>
+          <div>
+            <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Contraseña</label>
+            <input type="password" id="loginPassword" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="••••••••">
+          </div>
+          <div class="flex justify-end">
+            <button type="button" onclick="switchAuthView('Recovery')" class="text-xs text-sky-400 hover:text-sky-300 font-semibold transition-colors">¿Olvidaste tu contraseña?</button>
+          </div>
+          <button type="submit" class="w-full bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Iniciar Sesión</button>
+        </form>
+        <div class="text-center pt-2">
+          <p class="text-xs text-slate-400">¿No tienes cuenta? <button onclick="switchAuthView('Register')" class="text-sky-400 font-bold hover:underline">Regístrate aquí</button></p>
+        </div>
       </div>
 
-      <form onsubmit="handleAuth(event)" class="space-y-4">
-        <div>
-          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Correo Institucional</label>
-          <input type="email" id="authEmail" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="docente@udla.edu.ec">
+      <!-- VISTA: REGISTRO -->
+      <div id="viewRegister" class="space-y-6 hidden">
+        <div class="text-center space-y-2">
+          <h1 class="text-2xl font-black text-white">Registro de Docente</h1>
+          <p class="text-xs text-slate-400">Crea una nueva cuenta en el sistema</p>
         </div>
-        <div>
-          <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Contraseña</label>
-          <input type="password" id="authPassword" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="••••••••">
+
+        <form onsubmit="handleRegister(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Correo Institucional</label>
+            <input type="email" id="regEmail" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="nuevo@udla.edu.ec">
+          </div>
+          <div>
+            <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Contraseña</label>
+            <input type="password" id="regPassword" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="Mínimo 6 caracteres">
+          </div>
+          <button type="submit" class="w-full bg-slate-800 hover:bg-slate-700 border border-slate-600 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">Crear Cuenta</button>
+        </form>
+        <div class="text-center pt-2">
+          <p class="text-xs text-slate-400">¿Ya tienes cuenta? <button onclick="switchAuthView('Login')" class="text-sky-400 font-bold hover:underline">Vuelve al inicio</button></p>
         </div>
-        <div class="flex gap-3 pt-2">
-          <button type="submit" onclick="authMode='login'" class="flex-1 bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Iniciar Sesión</button>
-          <button type="submit" onclick="authMode='register'" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold py-2.5 rounded-xl text-sm transition-colors border border-slate-700">Registrarse</button>
+      </div>
+
+      <!-- VISTA: RECUPERACIÓN DE CONTRASEÑA -->
+      <div id="viewRecovery" class="space-y-6 hidden">
+        <div class="text-center space-y-2">
+          <h1 class="text-2xl font-black text-white">Recuperar Acceso</h1>
+          <p class="text-xs text-slate-400">Ingresa tu correo para recibir un enlace de restablecimiento</p>
         </div>
-      </form>
+
+        <form onsubmit="handleRecovery(event)" class="space-y-4">
+          <div>
+            <label class="block text-xs uppercase font-bold text-slate-400 mb-1">Correo Institucional</label>
+            <input type="email" id="recEmail" required class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-sky-500" placeholder="docente@udla.edu.ec">
+          </div>
+          <button type="submit" class="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-sm transition-colors">Enviar Instrucciones</button>
+        </form>
+        <div class="text-center pt-2">
+          <button onclick="switchAuthView('Login')" class="text-xs text-sky-400 font-bold hover:underline">← Volver al inicio de sesión</button>
+        </div>
+      </div>
+
     </div>
   </div>
 
@@ -292,31 +342,70 @@
 
     const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     let currentUser = null;
-    let authMode = 'login';
     let rawTelemetry = [];
     let groupedData = [];
     let myClassesList = [];
 
-    // AUTENTICACIÓN
-    async function handleAuth(e) {
-      e.preventDefault();
-      const email = document.getElementById("authEmail").value;
-      const password = document.getElementById("authPassword").value;
+    // GESTIÓN DE VISTAS DE AUTENTICACIÓN
+    function switchAuthView(viewName) {
+      document.getElementById('viewLogin').classList.add('hidden');
+      document.getElementById('viewRegister').classList.add('hidden');
+      document.getElementById('viewRecovery').classList.add('hidden');
+      document.getElementById('view' + viewName).classList.remove('hidden');
+    }
 
-      if (authMode === 'login') {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
-        if (error) alert("Error de login: " + error.message);
-        else initDashboard(data.user);
+    // LÓGICA DE LOGIN
+    async function handleLogin(e) {
+      e.preventDefault();
+      const email = document.getElementById("loginEmail").value;
+      const password = document.getElementById("loginPassword").value;
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        alert("Error de autenticación: " + error.message);
       } else {
-        const { data, error } = await supabaseClient.auth.signUp({ email, password });
-        if (error) alert("Error en registro: " + error.message);
-        else { alert("Registro exitoso. Inicia sesión."); }
+        initDashboard(data.user);
+      }
+    }
+
+    // LÓGICA DE REGISTRO
+    async function handleRegister(e) {
+      e.preventDefault();
+      const email = document.getElementById("regEmail").value;
+      const password = document.getElementById("regPassword").value;
+
+      const { data, error } = await supabaseClient.auth.signUp({ email, password });
+      
+      if (error) {
+        alert("Error en el registro: " + error.message);
+      } else if (data.user && data.user.identities && data.user.identities.length === 0) {
+        // Prevención de enumeración: Supabase devuelve un objeto sin identidades si el correo ya existe
+        alert("Error: Este correo electrónico ya se encuentra registrado en el sistema.");
+      } else {
+        alert("Registro completado exitosamente. Por favor, inicie sesión con sus nuevas credenciales.");
+        switchAuthView('Login');
+      }
+    }
+
+    // LÓGICA DE RECUPERACIÓN DE CONTRASEÑA
+    async function handleRecovery(e) {
+      e.preventDefault();
+      const email = document.getElementById("recEmail").value;
+
+      const { error } = await supabaseClient.auth.resetPasswordForEmail(email);
+      
+      if (error) {
+        alert("Error al solicitar recuperación: " + error.message);
+      } else {
+        alert("Se han enviado las instrucciones de recuperación al correo electrónico indicado.");
+        switchAuthView('Login');
       }
     }
 
     async function initDashboard(user) {
       currentUser = user;
-      document.getElementById("loginScreen").classList.add("hidden");
+      document.getElementById("authContainer").classList.add("hidden");
       document.getElementById("mainDashboard").classList.remove("hidden");
       document.getElementById("mainDashboard").classList.add("flex");
       document.getElementById("docenteEmail").textContent = user.email;
@@ -348,7 +437,8 @@
         myClassesList = data;
         data.forEach(c => {
           const opt = document.createElement("option");
-          opt.value = c.nombre_clase;
+          // CORRECCIÓN: Se asigna el ID único de la sesión como valor del filtro, no el nombre
+          opt.value = c.id; 
           opt.textContent = `📚 ${c.nombre_clase} (${c.codigo_sesion})`;
           select.appendChild(opt);
         });
@@ -402,7 +492,7 @@
       alert(`Código ${code} copiado al portapapeles.`);
     }
 
-    // GENERADOR CÓDIGO ÚNICO (Formato: SEC-8F3A)
+    // GENERADOR CÓDIGO ÚNICO
     function generateUniqueCode() {
       const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
       let code = "SEC-";
@@ -459,7 +549,7 @@
     }
 
     async function deleteClass(id, name) {
-      const confirmDelete = confirm(`¿Estás seguro de eliminar la clase "${name}"?\n\nADVERTENCIA: Si existen registros de telemetría de estudiantes asociados a esta clase y la base de datos no tiene configurado el borrado en cascada (CASCADE), esta operación será denegada.`);
+      const confirmDelete = confirm(`¿Estás seguro de eliminar la clase "${name}"?\n\nADVERTENCIA: Si existen registros de telemetría asociados, esta operación fallará a menos que la base de datos tenga configurado CASCADE.`);
       if (!confirmDelete) return;
 
       const { error } = await supabaseClient
@@ -476,15 +566,15 @@
       }
     }
 
-    // CRUD DE GRUPOS (UPDATE & DELETE)
-    async function editGroup(nombreClase, oldGroupName) {
-      const newName = prompt(`Ingresa el nuevo nombre para el grupo (Clase: ${nombreClase}):`, oldGroupName);
+    // CRUD DE GRUPOS (UPDATE & DELETE) - CORREGIDO PARA USAR sesion_id
+    async function editGroup(sesionId, oldGroupName) {
+      const newName = prompt(`Ingresa el nuevo nombre para el grupo:`, oldGroupName);
       if (!newName || newName.trim() === oldGroupName) return;
 
       const { error } = await supabaseClient
         .from('telemetria_estudiantes')
         .update({ grupo_estudiantes: newName.trim() })
-        .eq('nombre_clase', nombreClase)
+        .eq('sesion_id', sesionId)
         .eq('grupo_estudiantes', oldGroupName);
 
       if (error) {
@@ -494,14 +584,14 @@
       }
     }
 
-    async function deleteGroup(nombreClase, groupName) {
-      const confirmDelete = confirm(`¿Estás seguro de eliminar TODOS los registros de telemetría del grupo "${groupName}" en la clase "${nombreClase}"?\n\nEsta acción es irreversible y afectará los promedios estadísticos.`);
+    async function deleteGroup(sesionId, groupName) {
+      const confirmDelete = confirm(`¿Estás seguro de eliminar TODOS los registros de telemetría del grupo "${groupName}"?\n\nEsta acción es irreversible y afectará los promedios estadísticos.`);
       if (!confirmDelete) return;
 
       const { error } = await supabaseClient
         .from('telemetria_estudiantes')
         .delete()
-        .eq('nombre_clase', nombreClase)
+        .eq('sesion_id', sesionId)
         .eq('grupo_estudiantes', groupName);
 
       if (error) {
@@ -534,8 +624,9 @@
     }
 
     function renderDashboard() {
-      const selectedClass = document.getElementById("classFilter").value;
-      const filteredRaw = selectedClass === "ALL" ? rawTelemetry : rawTelemetry.filter(r => r.nombre_clase === selectedClass);
+      const selectedClassId = document.getElementById("classFilter").value;
+      // CORRECCIÓN: Filtrar por sesion_id en lugar de nombre_clase
+      const filteredRaw = selectedClassId === "ALL" ? rawTelemetry : rawTelemetry.filter(r => r.sesion_id === selectedClassId);
 
       groupedData = agruparTelemetriaPorGrupo(filteredRaw);
 
@@ -577,10 +668,10 @@
             <button onclick='openGroupModal(${JSON.stringify(grupo).replace(/'/g, "&apos;")})' class="px-2 py-1.5 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-lg text-xs font-bold transition-colors" title="Ver Desglose">
               🔍
             </button>
-            <button onclick="editGroup('${grupo.nombre_clase}', '${grupo.grupo_estudiantes}')" class="px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold transition-colors" title="Editar Grupo">
+            <button onclick="editGroup('${grupo.sesion_id}', '${grupo.grupo_estudiantes}')" class="px-2 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 rounded-lg text-xs font-bold transition-colors" title="Editar Grupo">
               ✏️
             </button>
-            <button onclick="deleteGroup('${grupo.nombre_clase}', '${grupo.grupo_estudiantes}')" class="px-2 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-bold transition-colors" title="Eliminar Grupo">
+            <button onclick="deleteGroup('${grupo.sesion_id}', '${grupo.grupo_estudiantes}')" class="px-2 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg text-xs font-bold transition-colors" title="Eliminar Grupo">
               🗑️
             </button>
           </td>
@@ -589,12 +680,14 @@
       });
     }
 
+    // CORRECCIÓN: Agrupación dependiente del sesion_id
     function agruparTelemetriaPorGrupo(rawRows) {
       const map = {};
       rawRows.forEach(row => {
-        const key = `${row.nombre_clase}__${row.grupo_estudiantes}`;
+        const key = `${row.sesion_id}__${row.grupo_estudiantes}`;
         if (!map[key]) {
           map[key] = {
+            sesion_id: row.sesion_id,
             nombre_clase: row.nombre_clase,
             grupo_estudiantes: row.grupo_estudiantes,
             retos: {},
