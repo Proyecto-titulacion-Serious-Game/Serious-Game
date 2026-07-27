@@ -1,4 +1,4 @@
-name: Tesis VR CI/CD 
+name: Tesis VR CI/CD
 
 on:
   push:
@@ -15,9 +15,6 @@ jobs:
   build-and-docs:
     runs-on: self-hosted
     env:
-      # Actualizar UNITY_EDITOR al cambiar de versión o runner.
-      # También se puede sobreescribir como variable de repositorio:
-      # Settings → Secrets and variables → Variables → UNITY_EDITOR_PATH
       UNITY_EDITOR: ${{ vars.UNITY_EDITOR_PATH || '/home/mauros/Unity/Hub/Editor/6000.4.5f1/Editor/Unity' }}
     steps:
       - name: Checkout Code
@@ -52,7 +49,6 @@ jobs:
           mkdir -p docs
           doxygen Doxyfile
 
-      # --- PASO CRUCIAL: Convertir HTML a Texto Plano para el script de Python ---
       - name: Extraer Texto de Documentación
         run: |
           find docs/html/ -name "*.html" -exec lynx -dump -nolist {} \; > documentacion_plana_tesis.txt
@@ -63,18 +59,35 @@ jobs:
       - name: Copiar Dashboard Docente
         run: |
           mkdir -p docs/html/dashboard
-          cp Docs/dashboard/index.html docs/html/dashboard/index.html
 
-      - name: Actualizar Repositorio
-        run: |
-          git config --global user.name "Mauro Runner Bot"
-          git config --global user.email "mauro-bot@users.noreply.github.com"
-          # Añadimos progreso.txt por si lo editaste localmente
-          git add README.md progreso.txt
-          git commit -m "docs: auto-update architecture and progress [skip ci]" || echo "No changes"
-          git push
+          # Copia asegurando origen (sea Docs o docs en minúsculas)
+          if [ -d "Docs/dashboard" ]; then
+            cp -r Docs/dashboard/* docs/html/dashboard/
+          elif [ -d "docs/dashboard" ]; then
+            cp -r docs/dashboard/* docs/html/dashboard/
+          fi
 
-      # --- Pasos de Publicación en Web ---
+          # Crea el archivo para que GitHub Pages no use Jekyll
+          touch docs/html/.nojekyll
+
+          # Esto imprimirá en los logs de GitHub la lista de archivos copiados
+          echo "=== ARCHIVOS EN DASHBOARD ==="
+          ls -la docs/html/dashboard/
+
+      # --- Pasos de Publicación en Web (Pages Primero) ---
+      - name: Configurar Pages
+        uses: actions/configure-pages@v4
+
+      - name: Subir a GitHub Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'docs/html/'
+
+      - name: Desplegar Documentación
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      # --- Pasos Secundarios (Artifacts y Git Push al FINAL) ---
       - name: Upload Artifact (Técnico)
         uses: actions/upload-artifact@v4
         with:
@@ -87,14 +100,10 @@ jobs:
           name: SeriousGame-Build-Explorador
           path: Explorador/
 
-      - name: Configurar Pages
-        uses: actions/configure-pages@v4
-
-      - name: Subir a GitHub Pages
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: 'docs/html/'
-
-      - name: Desplegar Documentación
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Actualizar Repositorio
+        run: |
+          git config --global user.name "Mauro Runner Bot"
+          git config --global user.email "mauro-bot@users.noreply.github.com"
+          git add README.md progreso.txt
+          git commit -m "docs: auto-update architecture and progress [skip ci]" || echo "No changes"
+          git push
