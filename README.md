@@ -33,10 +33,11 @@ Simulador asimétrico en Realidad Virtual para la enseñanza de circuitos eléct
 * **`FlexWire`**: Cable flexible editable en Scene View. Genera un tubo Catmull-Rom a...
 
 
-## 🔗 Recursos y Despliegue
-* 🌐 **[Documentación Técnica Online](https://proyecto-titulacion-serious-game.github.io/Serious-Game/)** (Generada por Doxygen)
-* 🎮 **[Descargar Ejecutables](https://github.com/Proyecto-titulacion-Serious-Game/Serious-Game/actions)** (Sección de Artifacts)
-* 📑 **[Jerarquía de Clases](https://proyecto-titulacion-serious-game.github.io/Serious-Game//inherits.html)** (Reporte visual)
+##  Recursos y Despliegue
+*  **[Documentación Técnica Online](https://proyecto-titulacion-serious-game.github.io/Serious-Game/)** 
+*  **[Descargar Ejecutables](https://proyecto-titulacion-serious-game.github.io/Serious-Game/dashboard/cloud.html)**
+*  **[Descargar Ejecutables](https://github.com/Proyecto-titulacion-Serious-Game/Serious-Game/actions)** 
+*  **[Jerarquía de Clases](https://proyecto-titulacion-serious-game.github.io/Serious-Game//inherits.html)** 
 
 ---
 > [!IMPORTANT]
